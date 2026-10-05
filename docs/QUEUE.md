@@ -5017,6 +5017,24 @@ report himself:
   deed_delivery_superseded_at/_to; the panel may still be reading the
   pair that correction clears.
 
+### (db) A go-live verification checklist for HANDOVER-BALAL.md
+
+> Add a "Go-live verification" section to HANDOVER-BALAL.md: a checklist Matt can do himself on live after cutover, with what he should see at each step (Health all green; Stripe live webhook deliveries succeeding; Resend domain verified; emails with no review-copy banner; Rightmove's deal, checking setting and agencies inheriting; one real single referral through a Rightmove agency going straight to payment, paid, signed, deed delivered, then refunded in Stripe and cancelled; sign-in as admin, Rightmove Management and Referrer). Balal ticks each with a screenshot before Matt signs off.
+
+- **"WITH WHAT HE SHOULD SEE AT EACH STEP" IS THE WHOLE VALUE.** A
+  checklist of actions is a list of things to do; a checklist of
+  EXPECTED OBSERVATIONS is a test. Every row needs the screen and the
+  words on it, so a tick means something.
+- IT IS WRITTEN FOR TWO READERS: Balal, who performs it and screenshots
+  each step, and Matt, who signs off from the screenshots. So each row
+  must be checkable from a picture.
+- THE LAST ITEM IS A FULL ROUND TRIP ON LIVE including a REAL refund,
+  which is the only way to prove the cascade and the cancellation on
+  the real Stripe account. It needs saying in the document that this
+  costs a real fee and gets it back.
+- IT IS A DOCUMENT, NOT A BUILD, so it does not belong in the 1-2-3
+  order; it goes with the rest of the not-built list.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
