@@ -4933,6 +4933,59 @@ line is NOT a bug, which is why it is parked rather than guessed at:
   book and opened LATER than a reader who sees less of it, which is
   backwards for any rule based on "earliest expiry I can see".
 
+### (cw) PROVED, 2026-10-05, end to end on dev
+
+A sandbox key was minted for Kestrel (`opnd_test_x9mW1Xo2...`, scopes
+applications:write, applications:read, orgs:read), a single-tenant
+referral was POSTed to the DEPLOYED partner-api on dev, and the key was
+revoked afterwards. No secret key was read at any point: the partner API
+authenticates on the partner's own bearer token and `verify_jwt = false`,
+so nothing else was needed.
+
+**What was created.** `GR-TEST-1`, status `sent`, `livemode = false`,
+Kestrel's partner, agency Test Lettings asdah, frozen on
+`pre_referenced_open`, with a payment URL. Two refusals came first and
+both are worth having: no `Idempotency-Key` header is a 400
+`malformed_request`, and `property.address_line1` instead of
+`address_line_1` is a 422 `validation_failed` naming the field. The API
+refuses rather than guessing.
+
+**Where it appears.**
+
+| surface | what is there |
+| --- | --- |
+| Dev Centre → Logs | all three attempts, 400, 422 and 201, with the key's label, the endpoint, the status and the duration |
+| the stored request body | every tenant field reads `[redacted]`. The org names, the rent and the dates are kept; the person is not |
+| Dev Centre → Sandbox | the application, by `not livemode` |
+| Dev Centre → Webhooks | nothing, because Kestrel has no endpoint registered. Not a sandbox failure: there is nothing to deliver to, and I did not register one, because that would mean POSTing test data to a real URL |
+
+**Invisible everywhere else, and not by the client.** `hydrate.ts` never
+mentions livemode and neither does `applications_select`. The isolation
+is `applications_live_only`: a RESTRICTIVE policy, for ALL commands,
+whose entire qualification is the word `livemode`. Restrictive means it
+ANDs with every other policy, so there is no reader and no verb it does
+not apply to. Measured as Kestrel Management: "NOTHING VISIBLE". An
+opndoor admin sees nothing either, which is the right answer and the one
+most likely to be assumed otherwise.
+
+`a_sandbox_row_is_invisible_to_its_own_customer.test.sql` now pins that,
+including that the policy is restrictive rather than permissive -- a
+permissive one in its place would widen what everybody sees and look
+identical in every screenshot.
+
+**No opndoor email.** `maySendOpndoorEmail(livemode)` is `livemode`, in
+terms: "Sandbox sends none. Not a different from address, not a redirect
+to a review mailbox: none." Every sending path consults it
+(approve-application, stripe-webhook, pandadoc-webhook).
+
+**The Sandbox warning still matches how signing works.** It says PandaDoc
+delivers the signing email in sandbox and opndoor sends none, and that
+live is the other way round -- PandaDoc silent, opndoor sending -- which
+is exactly what `pandadoc.ts` does: `silent: livemode`. Checked line by
+line against the code, not against memory.
+
+#### The original instruction
+
 ### (cw) Prove the sandbox is sealed, end to end
 
 > Using a sandbox key on Kestrel (mint one as the Developer if needed; don't fetch any secret keys), create a single-tenant test referral through the partner API on dev, then show me where it appears: the Dev Centre's Sandbox tab, Logs and Webhooks history. Confirm it's invisible everywhere else in the portal and that Opndoor sends no email. Also check the Dev Centre Sandbox warning still matches how signing emails work now PandaDoc is silent.
