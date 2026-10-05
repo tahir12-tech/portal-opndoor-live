@@ -5589,7 +5589,23 @@ guessed at. Numbered as they came up.
    it is their own colleague, and the admin's own lists are where "who
    sent this" is a real question -- but View as is meant to show what
    the customer sees. **Mask it there too?**
-5. **THE DEMO'S OWN COMMISSION LABEL SAYS "of one month's rent".**
+5. **(cu) I CANNOT FIND THE MECHANISM, AND I HAVE NOT GUESSED AT ONE.**
+   You said sign-in lands on the last page visited in that browser.
+   What I checked on this branch: `/login` sends an already-ready
+   session to `/home` with replace, a completed sign-in navigates to
+   `/home`, and `/home` is the per-actor resolver (opndoor staff get
+   Home, a developer the Dev Centre, everyone else Reporting). Nothing
+   in the client stores or restores a route: no saved pathname, no
+   `state.from`, no `?next=`, nothing read at boot. Sign-out already
+   clears the persisted partner scope, origin scope and recents, which
+   is the same family of leak and was fixed under #100.
+   **The one shape I can construct is not a sign-in**: a deep URL left
+   in the address bar with a session still valid in localStorage, where
+   the app simply stays where the URL says. If that is what you saw,
+   the fix is to send a restored session to /home unless the URL was
+   followed from a link, and "followed from a link" is the part I will
+   not invent a test for. **Can you tell me the steps you took?**
+6. **THE DEMO'S OWN COMMISSION LABEL SAYS "of one month's rent".**
    `analyticsService.ts:563`, on the mock and demo path only. It is
    TRUE of the synthetic figures, which are all priced at a month, so
    it is not a wrong statement about anybody's real deal. But the
