@@ -1403,6 +1403,31 @@ export function AgencyHome() {
     return (
       <>
         {AgreementPanel()}
+        {/* (de) THE TWO CARDS THAT CONTRADICT THE ONE ABOVE THEM.
+
+            Matt: "the new 'Set by Kestrel Lettings… Kestrel Lettings
+            pays this agency' block is right, but the rest still
+            contradicts it: 'Rates set: every branch earns the Opndoor
+            standard', 'What each branch pays out: Opndoor standard
+            10%' ... For supplier-estate agencies: remove 'Rates set'
+            and 'What each branch pays out' (or show Kestrel's deal)."
+
+            BOTH READ THE 'commission' KIND, which is what opndoor pays
+            the ROUTE -- the supplier here, not this agency. So they
+            were not stale, they were answering the same wrong question
+            the Agreement card used to, and fixing one card on a
+            four-card tab left a reader looking at two answers with no
+            way to tell which is current. That is worse than before.
+
+            REMOVED RATHER THAN REWRITTEN, which is Matt's first
+            option. Showing "Kestrel's deal" here would be the
+            Agreement card's sentence a third time: these two exist to
+            show rates set ON THIS ORG and to add up its own payees,
+            and a supplier-estate agency has neither -- its terms are
+            the supplier's and it holds no rate of its own. An empty
+            card headed "Rates set" teaches the reader to ignore it.
+            What they EARNED is a different question and stays. */}
+        {!dealSetBySupplier && (
         <Card>
           <CardHead
             title="Rates set"
@@ -1451,6 +1476,8 @@ export function AgencyHome() {
             )}
           </CardBody>
         </Card>
+        )}
+        {!dealSetBySupplier && (
         <Card>
           <CardHead title="What each branch pays out" sub="Every payee on a referral made here, added up" />
           <CardBody style={{ padding: 0 }}>
@@ -1502,6 +1529,7 @@ export function AgencyHome() {
             )}
           </CardBody>
         </Card>
+        )}
         {/* WHAT THIS AGENCY ACTUALLY EARNED, under the rates above. The rate
             cards say what the deal is; this says what it produced, month by
             month, and it is the identical component the agency's own manager

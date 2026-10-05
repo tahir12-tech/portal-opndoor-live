@@ -99,6 +99,30 @@ describe('the agency page', () => {
   });
 });
 
+describe('(de) the rest of the tab, which used to contradict it', () => {
+  /* Fixing one card on a four-card tab left a reader looking at two
+     answers with no way to tell which is current, which is worse than
+     before. Both of the others read the 'commission' kind -- what
+     opndoor pays the ROUTE, which on this rail is the supplier -- so
+     they were answering the same wrong question the Agreement card
+     used to. */
+  it('drops "Rates set" and "What each branch pays out" for a supplier-estate agency', () => {
+    expect(PAGE).toContain('{!dealSetBySupplier && (\n        <Card>\n          <CardHead\n            title="Rates set"');
+    expect(PAGE).toContain('{!dealSetBySupplier && (\n        <Card>\n          <CardHead title="What each branch pays out"');
+  });
+
+  /* WHAT THEY EARNED STAYS, because it is a different question: the
+     rate cards say what the deal is, this says what it produced, and
+     an agency in a supplier's estate earns real money. It read "No
+     commission accrued" only because agentAmountOf returns zero on a
+     carved referral -- fixed separately, in agentEarnedOf. */
+  it('but keeps "What they earned", which is a question it can answer', () => {
+    const tail = PAGE.slice(PAGE.indexOf('title="What they earned"') - 400);
+    expect(tail).toContain('title="What they earned"');
+    expect(PAGE).not.toContain('{!dealSetBySupplier && (\n        <CommissionStatement');
+  });
+});
+
 describe('the supplier Commission tab', () => {
   /* THE OTHER HALF. supplier_share_deals asks scope_level 'partner' and
      kind 'agent_share' -- every deal this tab can write, and so exactly
