@@ -5076,6 +5076,34 @@ report himself:
   all -- the real error still has to be found, not just hidden.
 - (4) IS (cq), unbuilt, confirmed on a second screen.
 
+### (de) The rest of the supplier-estate agency's Commission tab
+
+> Supplier-estate agency Commission tab (Test Lettings asdah as Kestrel Management): the new "Set by Kestrel Lettings… Kestrel Lettings pays this agency" block is right, but the rest still contradicts it: "Rates set: every branch earns the Opndoor standard", "What each branch pays out: Opndoor standard 10%", "What they earned: No commission accrued in October" (it earned £378.90 on GR-26262/3), and "Opndoor pays this on 15 Nov". For supplier-estate agencies: remove "Rates set" and "What each branch pays out" (or show Kestrel's deal), list the October earnings, and say "Kestrel Lettings pays this agency" or "Opndoor pays this agency directly" per the frozen setting, never "Opndoor pays this" when Kestrel does.
+
+- **I FIXED ONE CARD ON A TAB WITH FOUR**, and the other three now
+  contradict it on the same screen, which is worse than before: a
+  reader is shown two answers and has no way to tell which is current.
+- "What they earned: No commission accrued" IS THE agentAmountOf ZERO
+  found while chasing (dd)(1), and the same fix answers both.
+- NOTE THE FROZEN/CURRENT DIFFERENCE AGAIN: here Matt says "per the
+  frozen setting" because this card is about money already earned in
+  October, where the Agreement card above is about terms now. Both
+  rules are in whoPaysTheAgency.
+
+### (df) Supplier pickers should be type-to-search and live-deal only
+
+> Supplier pickers (New application "Referred by", and anywhere else suppliers are chosen): make them type-to-search, like the agency picker, and list only suppliers that can take referrals (active, with a deal set). Hide paused, onboarding and no-deal suppliers, with a note "Only suppliers with a live deal are shown". Also: "Harbour Lets" appears here as a supplier and on the Agencies list as one of our agencies; check whether that's two records with one name, and label them so they can't be confused.
+
+- **IT FOLLOWS (cn) DIRECTLY**: that made the agency picker name each
+  agency's estate so two of one name cannot be confused; this is the
+  same problem one level up, between a supplier and an agency of ours
+  sharing a name.
+- `suppliers_with_no_commission_deal` ALREADY EXISTS, built for Health,
+  and is exactly the list to exclude -- a supplier with no deal cannot
+  be referred through without pricing the referral at nothing.
+- "CHECK WHETHER THAT'S TWO RECORDS WITH ONE NAME" is a question first,
+  and the answer decides whether this is a labelling fix or a data fix.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
