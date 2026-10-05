@@ -5328,6 +5328,25 @@ At a few hundred none of this bites.
   commission for a Manager" and "no GBP 20 fee for an accepts-as-sent
   agency" are actually settled.
 
+### (dq) Yes to (dn); write the GBP 20 copy; (dj) if there is time
+
+> Yes to (dn): an office whose name was derived from its agency follows a rename; a name a person typed is never changed. Build it with a test.
+>
+> The £20 fee: write the missing copy for "opndoor checks" agencies, their tenant leaflet and the FAQs. Use only the rules already recorded (charged only to tenants who go through eligibility checks). If the queue doesn't say whether the £20 is refundable or when it's charged, don't guess, list those as questions for me. Show me the exact new wording before committing.
+>
+> (dj) API docs per checking setting: build it if there's time before 04:30, otherwise put it in HANDOVER-BALAL.md After launch.
+
+- **"USE ONLY THE RULES ALREADY RECORDED" AND "DON'T GUESS" ARE THE
+  BINDING PART.** Copy about money, handed to a consumer, invented by
+  me, would be the worst thing in this repo. So: search the queue for
+  every recorded fact about the GBP 20, write only what is covered,
+  and list the rest as questions.
+- **"SHOW ME THE EXACT NEW WORDING BEFORE COMMITTING"** -- a hold. The
+  words go in a message first.
+- (dn) IS AUTHORISED with its own boundary: derived follows, typed
+  never changes. `officeNameAddsNothing` already draws that line for
+  display and can draw it for the write.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
