@@ -167,6 +167,8 @@ insert into allowed(name) values
   ('may_act_on_user'),
   ('may_edit_notification_matrix'),
   ('may_see_commission'),
+  ('merge_agencies'),
+  ('merge_branches'),
   ('my_application_delivery'),
   ('my_org_shape'),
   ('my_partner_rates'),

@@ -122,6 +122,21 @@ export async function mergeAgencyInto(keepId: string, mergeId: string): Promise<
   if (error) throw new Error(error.message);
 }
 
+/* AND THE SAME ONE LEVEL DOWN, 2026-10-05. Matt: "Merging two offices:
+   yes, write merge_branches, matching how merge_agencies works, with a
+   test."
+
+   THE OFFICE CASE IS THE HARDER ONE AND THE FUNCTION DOES THE WORK:
+   three of the six foreign keys pointing at a branch CASCADE, so
+   deleting the merged office would silently take its contacts, its
+   nominated deed recipient and every position held at it. See
+   20261009070000. */
+export async function mergeBranchInto(keepId: string, mergeId: string): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const { error } = await sb().rpc('merge_branches', { p_keep: keepId, p_merge: mergeId });
+  if (error) throw new Error(error.message);
+}
+
 /** Confirm a pending entity as a new canonical record (audited). */
 export async function confirmReconEntity(type: 'agency' | 'branch', entityId: string): Promise<void> {
   if (SUPABASE_ENABLED) {

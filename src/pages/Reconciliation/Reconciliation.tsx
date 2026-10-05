@@ -8,7 +8,7 @@
    2-minute cron also runs the sync). Merge is not built yet (disabled).
    ===================================================================== */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { confirmReconEntity, mergeAgencyInto, loadReconciliationQueue, loadAgencyMatchQueue, loadNotInNetworkAgencies, loadRefundQuestions, loadSupplierAgenciesWithoutAnEmail, triggerCrmSync, reconciliationLandingTab, reconciliationTotals, NO_RECONCILIATION_WORK, type ReconRow, type ReconciliationTotals } from '@/data';
+import { confirmReconEntity, mergeAgencyInto, mergeBranchInto, loadReconciliationQueue, loadAgencyMatchQueue, loadNotInNetworkAgencies, loadRefundQuestions, loadSupplierAgenciesWithoutAnEmail, triggerCrmSync, reconciliationLandingTab, reconciliationTotals, NO_RECONCILIATION_WORK, type ReconRow, type ReconciliationTotals } from '@/data';
 import { AgencyMatchQueue } from './AgencyMatchQueue';
 import { NotInNetwork } from './NotInNetwork';
 import { NoAgencyEmail } from './NoAgencyEmail';
@@ -191,7 +191,14 @@ export function Reconciliation() {
     if (busyId || !item.matchId) return;
     askConfirm({
       title: `Merge "${item.name}" into "${item.match}"?`,
-      body: (
+      body: item.type === 'branch' ? (
+        <>
+          Everything on <b>{item.name}</b> moves to <b>{item.match}</b>: its referrals, its
+          contacts, its nominated deed recipient and anyone who sits there.{' '}
+          <b>{item.name}</b> is then removed, and <b>{item.match}</b> is the office that
+          remains. This cannot be undone.
+        </>
+      ) : (
         <>
           Everything on <b>{item.name}</b> moves to <b>{item.match}</b>: its offices, its
           referrals, its contacts and anyone attached to it. <b>{item.name}</b> is then
@@ -202,7 +209,8 @@ export function Reconciliation() {
       run: async () => {
         setBusyId(item.id);
         try {
-          await mergeAgencyInto(item.matchId!, item.entityId);
+          const merge = item.type === 'branch' ? mergeBranchInto : mergeAgencyInto;
+          await merge(item.matchId!, item.entityId);
           void triggerCrmSync().catch(() => {});
           toast(`"${item.name}" is now part of "${item.match}".`);
           await afterAction();
@@ -377,11 +385,10 @@ export function Reconciliation() {
 
               <div className="rqitem__actions">
                 {/* (ck) TWO VERBS WHERE THERE IS A MATCH, and one where
-                    there is not. "Merge into" is offered for an AGENCY
-                    only: merge_agencies exists and merge_branches does
-                    not, and a button that cannot work is the thing the
-                    note below used to describe. */}
-                {item.match && item.matchId && item.type === 'agency' && (
+                    there is not. Offered for an office as well as an
+                    agency since 2026-10-05: Matt answered the question
+                    (ck) left open and merge_branches exists now. */}
+                {item.match && item.matchId && (
                   <Button variant="ghost" size="sm" disabled={busyId === item.id} onClick={() => void mergeInto(item)}>
                     <Icon name="merge" strokeWidth={2.2} /> Merge into {item.match}
                   </Button>

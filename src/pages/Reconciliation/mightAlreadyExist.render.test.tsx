@@ -13,12 +13,14 @@
    two minutes apart could not see each other. This is the other half:
    a warning with no verb leaves the reader exactly where they were.
 
-   "MERGE INTO" IS OFFERED FOR AN AGENCY ONLY. merge_agencies exists on
-   dev and has never had a caller in the client; there is no
-   merge_branches, so two duplicate OFFICES can be told apart and kept
-   but not joined. That gap is a question for Matt in QUEUE.md rather
-   than a button that cannot work -- which is what the code this
-   replaces was removed for being.
+   "MERGE INTO" IS OFFERED FOR BOTH SINCE 2026-10-05. It began as
+   agencies only, because merge_agencies existed and nothing one level
+   down did; Matt answered that question with "yes, write
+   merge_branches", so both are offered now. The same migration also
+   GRANTED merge_agencies to authenticated, which it had never been:
+   the button rendered by this test would have failed at the click
+   with "permission denied for function merge_agencies", and a render
+   test is exactly the thing that cannot see that.
    ===================================================================== */
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, waitFor, within } from '@testing-library/react';
@@ -94,14 +96,16 @@ describe('a new agency that might already exist', () => {
 });
 
 describe('a new office that might already exist', () => {
-  /* THE FLAG IS THE SAME; the verb is not available, because merging two
-     offices is a thing the database cannot do yet. */
-  it('is flagged and can be kept, but not merged', async () => {
+  /* BOTH VERBS NOW. Matt, 2026-10-05, answering the question this test
+     used to record as unanswerable: "Merging two offices: yes, write
+     merge_branches, matching how merge_agencies works, with a test."
+     So the office case is no longer the one that can only be kept. */
+  it('is flagged, and can be merged or kept', async () => {
     page();
     const card = await cardFor('Sth Kensington');
     expect(within(card).getByText('Might already exist')).toBeTruthy();
     expect(within(card).getByRole('button', { name: /Keep both/i })).toBeTruthy();
-    expect(within(card).queryByRole('button', { name: /Merge into/i })).toBeNull();
+    expect(within(card).getByRole('button', { name: /Merge into South Kensington/i })).toBeTruthy();
   });
 });
 
