@@ -4904,6 +4904,30 @@ both estates, the dialog, and FAQ 9 on both rails.
   remembered one read out of storage. The two are easy to conflate in
   one "returnTo" and must not be.
 
+### (cv) QUESTION FIRST: what month does the Expiries dialog default to?
+
+> Expiries dialog: what month does it default to, and why? As Wayne (Regent) it opened on October 2027; as admin it opened on November 2027, though October 2027 has expiries in the whole book (GR-95005, GR-20762). It should default to the earliest month with a guarantee expiring for that reader, and say so ("Opens on the next month with expiries"). Don't change it until you've told me the current rule.
+
+- **"DON'T CHANGE IT UNTIL YOU'VE TOLD ME THE CURRENT RULE"** -- the
+  same shape as (bv). Read the code, say what it does, then stop.
+- THE TWO READERS DISAGREEING IS THE CLUE: an admin sees the whole
+  book and opened LATER than a reader who sees less of it, which is
+  backwards for any rule based on "earliest expiry I can see".
+
+### (cw) Prove the sandbox is sealed, end to end
+
+> Using a sandbox key on Kestrel (mint one as the Developer if needed; don't fetch any secret keys), create a single-tenant test referral through the partner API on dev, then show me where it appears: the Dev Centre's Sandbox tab, Logs and Webhooks history. Confirm it's invisible everywhere else in the portal and that Opndoor sends no email. Also check the Dev Centre Sandbox warning still matches how signing emails work now PandaDoc is silent.
+
+- **"DON'T FETCH ANY SECRET KEYS" IS EXPLICIT** and matches the
+  constraint I am already under. A sandbox key minted through the Dev
+  Centre as the Developer is a different thing from the project's
+  service_role secret, and only the first is in scope.
+- THE DELIVERABLE IS EVIDENCE, not a change: where it appears, and
+  proof of where it does not, including that no email leaves.
+- THE LAST SENTENCE IS A SEPARATE CHECK: (as) asked for the Sandbox
+  warning to be corrected after the PandaDoc change, and this asks
+  whether what it now says is still true.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
