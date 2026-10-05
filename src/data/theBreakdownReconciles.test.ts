@@ -111,6 +111,19 @@ describe('the surfaces read the one rule', () => {
   /* EACH NAMED, because "six surfaces" is Matt's count and a surface
      that quietly stops calling the rule is exactly the regression this
      whole exercise exists to prevent. */
+  /* (dd)(1) THE FOLD IS FED WHAT THE AGENCY EARNED, NOT WHAT OPNDOOR
+     PAYS. payeesFor returns nothing on a carved referral -- correct,
+     because opndoor pays the supplier -- so agentAmountOf is zero
+     there, and feeding that to the split meant the carved bucket
+     could never fill. The line that describes carved referrals could
+     therefore never draw on a carved month, which is exactly what
+     Matt reported on Kestrel's October. */
+  it('is fed the earned amount, so the carved bucket can actually fill', () => {
+    const src = read('src/data/liveAnalytics.ts');
+    expect(src.match(/addAgentSide\(a, app, agentEarnedOf\(app\)\)/g)?.length ?? 0).toBe(2);
+    expect(src).not.toContain('addAgentSide(a, app, agentComm)');
+  });
+
   it('liveAnalytics folds through addAgencyShare, in both places', () => {
     const src = read('src/data/liveAnalytics.ts');
     expect(src).toContain("import { addAgencyShare } from './whoPaysTheAgency'");

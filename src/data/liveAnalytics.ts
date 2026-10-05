@@ -41,7 +41,7 @@ import { showsOffices } from './agencyOffices';
 import { allFull, findRecord, guaranteeExpiry, isHydrated, reachedPayment, type FullApp, guaranteedAnnual } from './applicationsService';
 import { getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
-import { payeesFor, orgAmountOf, agentAmountOf, supplierAmountOf, supplierLineOf, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
+import { payeesFor, orgAmountOf, agentAmountOf, agentEarnedOf, supplierAmountOf, supplierLineOf, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
 import { deliveryStateOf } from './deliveryState';
 // Walk fix 21: one rule for the line under a referrer's name.
 import { whereTheyWork, type WhereReader } from './whereTheyWork';
@@ -336,7 +336,7 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
         a.partnerCommNet += supplierComm;
         if (!isHousePartner(app.partner)) a.supplierCommNet += supplierComm;
         a.agentCommNet += agentComm;
-        addAgentSide(a, app, agentComm);
+        addAgentSide(a, app, agentEarnedOf(app));
       } else {
         a.partnerCommNet += supplierComm;
         // Only a genuine supplier is owed the partner cut; a house route's is
@@ -344,7 +344,15 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
         // uses to keep plumbing partners off it.
         if (!isHousePartner(app.partner)) a.supplierCommNet += supplierComm;
         a.agentCommNet += agentComm;
-        addAgentSide(a, app, agentComm);
+        /* THE EARNED AMOUNT, NOT THE PAYABLE ONE. agentComm is
+           payeesFor's sum, which is zero on a carved referral by
+           design -- opndoor pays the supplier, not the agency. Feeding
+           that to the split meant the carved bucket could never fill,
+           so "Your agencies' share, included above for you to pass on"
+           never drew on exactly the arrangement it describes.
+           agentCommNet keeps the payable sum, which is what every
+           total adds. */
+        addAgentSide(a, app, agentEarnedOf(app));
       }
     }
     /* PER DEED, AND A DEED COVERS A SHARE. This summed the whole tenancy's rent

@@ -141,6 +141,38 @@ export function agentAmountOf(app: FullApp): number {
   return payeesFor(app, feeBaseFor(app)).reduce((s, p) => s + p.amount, 0);
 }
 
+/**
+ * WHAT THE AGENCY EARNED, WHICH IS NOT WHAT OPNDOOR PAYS.
+ *
+ * `agentAmountOf` sums `payeesFor`, and payeesFor deliberately returns
+ * NOTHING on a carved referral: opndoor pays the supplier once and the
+ * supplier passes the agency's share on, so the agency is not a payee of
+ * ours. That is right, and it made every "what did this agency earn"
+ * reader answer zero on exactly the referrals Matt was asking about.
+ *
+ * Matt (dd): "the 'Your agencies' share, included above for you to pass
+ * on GBP 378.90' line is missing for October (GR-26262/3 are frozen
+ * 'supplier pays its own agents')". And (kk): "'What they earned' must
+ * list GR-26262/3 (GBP 378.90 for October), not 'No commission accrued'."
+ *
+ * THE FROZEN AGENCY LINE EXISTS IN BOTH ARRANGEMENTS -- payeesFor's own
+ * comment says so: "the frozen agency line still EXISTS and is still
+ * right ... but it is not a thing Opndoor pays". So the earnings are
+ * there to be read; nothing was asking for them.
+ *
+ * THIS IS THE INPUT TO whoPaysTheAgency, NOT A SECOND ANSWER TO IT. The
+ * split decides where the money is reported; this decides how much there
+ * is. Feeding the fold `agentAmountOf` fed it a zero on every carved
+ * referral, so the carved bucket could never fill and the line could
+ * never draw.
+ */
+export function agentEarnedOf(app: FullApp): number {
+  const base = feeBaseFor(app);
+  return linesFor(app)
+    .filter((l) => l.level !== 'supplier')
+    .reduce((s, l) => s + (l.amount == null ? base * (l.rate || 0) : l.amount), 0);
+}
+
 /** The same question asked of ONE org's lines, for a ranking that
     attributes an application to the agency or office that earned it. */
 export function orgAmountOf(
