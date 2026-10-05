@@ -1766,7 +1766,17 @@ the GBP 20 copy and the refund lines.
 
 **STILL OPEN, and these are the ones to pick up:**
 
-**(ds) The Agent one-pager is done; the Sales guide is not.** Both
+**(ds) The Agent one-pager is done; the Sales guide is not. Page 1 is
+read and the other nine are rendered.** What page 1 shows is that it
+has the SAME two problems the one-pager had, so expect them
+throughout: it states "You earn **10% of that fee** on every referral
+that converts" and "The tenant pays a fee of **one month's rent**".
+Both are per agreement and both must go, exactly as they did from the
+one-pager. Note also that this guide is written for REFERENCING TEAMS
+(suppliers), not for letting agents, so its audience is the supplier
+rail.
+
+The rest of the position: Both
 were to become HTML in the management-guide template so every Help
 item opens the same way. The one-pager is rebuilt
 (`opndoor-for-letting-agents.html`) with its commission content
