@@ -5549,6 +5549,38 @@ At a few hundred none of this bites.
   correction he made on (cz): a wrong sentence on a screen is a
   symptom, and the cause gets measured before anything is written.
 
+### For Matt in the morning (2026-10-05 night run)
+
+Questions and judgement calls found while working, none of them
+guessed at. Numbered as they came up.
+
+1. **ITEM 2 WAS ALREADY BUILT, AND I PUT IT ON THE LIST MYSELF.** The
+   opndoor manager's blank Reporting page was fixed on 2026-09-30 at
+   16:00 in `f2ccdb0`, "five stale allowlists, not one line", with 12
+   tests in `opndoorManagerReadsTheBook.test.ts` that pass on this
+   branch. The handover's section 12 still described it as "found and
+   deliberately not fixed" because that paragraph was written hours
+   BEFORE the fix and never revisited, and last night I moved that
+   stale paragraph into "Still not built" without re-checking it.
+   Nothing to build; the handover is corrected. **No decision needed,
+   it is here because you were told something untrue.**
+2. **FOUR PDFs ARE STILL IN `public/help-docs/` AND NOTHING LINKS TO
+   THEM**: the landlord guide, the letting-agent one-pager, the tenant
+   explainer and the sales guide. Every shelf entry points at HTML.
+   Two of them predate tonight's fee-basis fix and still say the fee
+   is one month's rent, so they are wrong for Regent, but they are
+   reachable only by typing the URL. Your earlier instruction was
+   "delete them once I have reviewed the HTML". **Say the word and
+   they go.**
+3. **THE DEMO'S OWN COMMISSION LABEL SAYS "of one month's rent".**
+   `analyticsService.ts:563`, on the mock and demo path only. It is
+   TRUE of the synthetic figures, which are all priced at a month, so
+   it is not a wrong statement about anybody's real deal. But the
+   file's own comment says "the demo must not teach a different
+   vocabulary", and a demo shown to a Regent-shaped prospect teaches
+   exactly the basis we just removed from the documents. Left alone
+   tonight because item 1 named the help docs. **Change it?**
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04

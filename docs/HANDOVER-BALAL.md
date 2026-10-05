@@ -1825,54 +1825,37 @@ closed.** Matt ruled: keep the collapse, do not print the name twice.
 
 ### Still not built, in the order I would take them
 
-1. **The Help documents tell every agent the fee is one month's
-   rent.** `public/help-docs/*.html` say it; it is true on standard
-   terms and FALSE FOR REGENT, who go live on Wednesday on their own
-   fee. It is first on this list for that reason: it is the only item
-   here that is wrong on the estate opening on day one, and it is
-   wrong in a document an agent hands to a tenant. Was filed under
-   "watch" in section 12, which understated it.
-2. **An `opndoor_manager` sees a blank Reporting page.** Found
-   2026-09-30 and still not fixed: `paymentMetrics.scopeFull` has a
-   positive allowlist naming only `referrer`, `superadmin` and
-   `management`, so that role is handed an empty set and every live
-   figure comes out zero. The role was added later and the list was
-   never widened. NOT A LEAK -- it shows too little, not too much --
-   which is why it sat under "watch"; but a manager reading all
-   zeros is a fault, not a thing that merely looks like one. An
-   opndoor_manager who says "Reporting is empty" is seeing this, not
-   a data problem.
-3. **(cp)** A draft month has no statement reference by design, and
+1. **(cp)** A draft month has no statement reference by design, and
    the Agency schedules panel reports that as "Reference couldn't be
    loaded. Refresh to try again" -- then writes that sentence into
    the EXPORT's filename. Visibly broken, and the real error still
    has to be found rather than hidden.
-4. **(cq)/(cy)** A referral an admin made on a customer's behalf
+2. **(cq)/(cy)** A referral an admin made on a customer's behalf
    still names the admin in referrer lists, charts and exports, and
    historic activity rows still carry staff names. (bm) fixed the
    WRITE; these are the read. Note the difficulty recorded in QUEUE
    (cy): activity_log has no actor_id, so historic rows can only be
    masked by matching the stored name.
-5. **(ci)** The server does not refuse a referencing mode set on a
+3. **(ci)** The server does not refuse a referencing mode set on a
    supplier-estate agency. The screen half is done; this is the
    binding half.
-6. **(bq)(br)(bs)** The export fixes: Refunded status everywhere, the
+4. **(bq)(br)(bs)** The export fixes: Refunded status everywhere, the
    carved share, blank supplier columns on agency rows, voided-deed
    status, "Activity in period", and the Export-all CSV's month,
    tenancy and Agency column.
-7. **(ck)** The duplicate check misses "Test Lettings" against "Test
+5. **(ck)** The duplicate check misses "Test Lettings" against "Test
    Lettings asda" -- shared email, name prefix, containment.
-8. **(cl)** HALF DONE (`3ea02cc`). The commission card is gone for
+6. **(cl)** HALF DONE (`3ea02cc`). The commission card is gone for
    a reader who may not see money, so no manager is told "no
    commission deal set" when the truth is "not allowed to see". The
    STATEMENT ADDRESS section of the same instruction is untouched and
    is still shown to them.
-9. **(cs)** Supplier edits to an agency's name, address and email are
+7. **(cs)** Supplier edits to an agency's name, address and email are
    not in Recent changes.
-10. **(cu)** Sign-in lands on the last page visited.
-11. **(cv)(cw)** The Expiries default month (answer first) and the
+8. **(cu)** Sign-in lands on the last page visited.
+9. **(cv)(cw)** The Expiries default month (answer first) and the
    sandbox proof.
-12. **(cx)(cg)(df)(db)(nn)(oo)(zz)** and the rest.
+10. **(cx)(cg)(df)(db)(nn)(oo)(zz)** and the rest.
 
 **(dr8) The landlord guide's figures are unverified.** It claims 12
 months, a GBP 120,000 cap, GBP 10,000 of legal costs, notify within
