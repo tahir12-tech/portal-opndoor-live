@@ -5284,6 +5284,24 @@ At a few hundred none of this bites.
 - SO THE DELIVERABLE IS: a test for the first, and a plain statement
   plus a proposed label for the second.
 
+### (dn) QUESTION WITH A HOLD: should an auto-named office follow a rename?
+
+> Add to the queue: after renaming the agency Test Lettings asda to Test Lettings asdah (as Kestrel Management), its office is still called "Test Lettings asda". It shows in the Branch column on Kestrel's statement and the agency's own schedule, and in Volume by branch, so the agency sees its old name. Check whether that office was created automatically from the agency's name (for example, when the agency was added during a referral) or named by a person. Tell me which, and what you'd recommend: should an automatically named office follow when the agency is renamed? Don't change anything until I answer.
+
+- **"DON'T CHANGE ANYTHING UNTIL I ANSWER"**, so this is a reading of
+  dev plus a recommendation, nothing else.
+- IT IS NOT (ct). The office's name is genuinely stale DATA, not a
+  stale lookup: the row says "Test Lettings asda" because that is what
+  is stored. Matching by id would not help, and would be the wrong fix.
+- THE QUESTION IS WELL PUT, and the answer turns on provenance:
+  `[Agency], Head office` and an office named exactly after its agency
+  are things the SYSTEM wrote from the agency's name, and a name the
+  system derived should arguably be re-derived. A name a person typed
+  is theirs and must not be rewritten under them.
+  `officeNameAddsNothing` in agencyOffices.ts already draws exactly
+  that distinction for display, which is a good sign the data can
+  support it.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04

@@ -79,14 +79,38 @@ function servableHref(r: HelpResource): string | null {
 // junior to it, and several referrer-level guides describe commission. Rank 0
 // means they see only resources with no minRole at all, which is the honest
 // answer when a model does not fit.
-const ROLE_RANK: Record<Role, number> = { developer: 0, referrer: 1, management: 2, opndoor_manager: 3, superadmin: 3 };
+/* (dh) SUPERADMIN OUTRANKS AN OPNDOOR MANAGER, and until now it did not.
+   Both sat at 3, so `minRole: 'superadmin'` admitted a manager and the
+   guide whose own meta reads "opndoor admin only" was on their shelf:
+   reconciliation, rate management, the bordereau, the CRM sync. Every
+   one of those is a screen (bb) deliberately did NOT give them.
+
+   Found by generating the table Matt asked for rather than describing
+   it: the counts came out identical for the admin and the manager,
+   which is the kind of thing a hand-written table repeats and a
+   computed one exposes. */
+const ROLE_RANK: Record<Role, number> = { developer: 0, referrer: 1, management: 2, opndoor_manager: 3, superadmin: 4 };
+
+/* (cl) AN OPNDOOR MANAGER DOES NOT READ COMMISSION, and `v.admin` said
+   they did. The flag lumps superadmins and opndoor managers together,
+   which is right for the RAIL -- both see agency and supplier material
+   -- and wrong for money: Matt, (cl), "because managers can't read
+   commission". So the commission arm asks its own question and the
+   rail arm keeps using `admin`.
+
+   SUPERADMIN IS ALWAYS TRUE rather than relying on the seesCommission
+   bit, because that bit is the agency rail's Director marker and an
+   opndoor admin has no position to carry it. */
+function readsCommission(v: HelpViewer): boolean {
+  return v.role === 'superadmin' || v.seesCommission;
+}
 
 /** An FAQ answers to the same rail and commission rules as a resource; it has no
     role ladder of its own. */
 export function mayOpenFaq(f: { rail?: 'supplier' | 'agency'; needsCommission?: boolean }, v: HelpViewer): boolean {
   if (f.rail === 'supplier' && v.agency) return false;
   if (f.rail === 'agency' && !v.agency && !v.admin) return false;
-  if (f.needsCommission && !v.admin && !v.seesCommission) return false;
+  if (f.needsCommission && !readsCommission(v)) return false;
   return true;
 }
 
@@ -121,7 +145,7 @@ export function mayOpenResource(r: HelpResource, v: HelpViewer): boolean {
   if (r.minRole && ROLE_RANK[v.role] < ROLE_RANK[r.minRole]) return false;
   if (r.rail === 'supplier' && v.agency) return false;
   if (r.rail === 'agency' && !v.agency && !v.admin) return false;
-  if (r.needsCommission && !v.admin && !v.seesCommission) return false;
+  if (r.needsCommission && !readsCommission(v)) return false;
   return true;
 }
 
