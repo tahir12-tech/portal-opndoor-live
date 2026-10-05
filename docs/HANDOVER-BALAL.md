@@ -1719,14 +1719,16 @@ is not.
 ## 12a. After launch: what is recorded and not built, 2026-10-05
 
 **THE STATE OF THE BRANCH YOU HAVE BEEN HANDED.** Measured on the tip
-commit, not remembered:
+commit of `matt-fixes`, not remembered. The figures in brackets are the
+same gate on `partner-api` at `4a39fe6`, which is where the second night
+run started:
 
 | gate | result |
 | --- | --- |
-| `npm run drift` | clean. Dev matches a clean apply of the files: 403 functions, 115 policies, 51 triggers |
+| `npm run drift` | clean. Dev matches a clean apply of the files |
 | `npm run typecheck` | clean |
-| `npm test` | 333 files, 3,648 tests, 0 failing |
-| `npm run test:db` (pgTAP, against dev) | 135 files, 0 failing assertions, 0 errored files |
+| `npm test` | see the final line of this section |
+| `npm run test:db` (pgTAP, against dev) | see the final line of this section |
 
 Run all four yourself on the clone before you touch production; that is
 what section 1.1b is for. A green suite here is evidence about DEV, and
@@ -1766,6 +1768,23 @@ write, and `saveJSON` swallows a quota failure; at thousands of
 agencies that is a silent failure on every on-the-fly create. The
 on-demand rewrite is where that gets fixed too, because there is then
 no whole array to persist.
+
+**AND THE SAME QUESTION DECIDES A SECOND THING, measured 2026-10-05.**
+The reconciliation duplicate check (ck) compares each pending agency
+against every agency in the same estate: name equality, then
+containment, then a trigram similarity, then a shared contact email.
+Those run per candidate. On dev, with 18 agencies and 6 rows pending,
+`reconciliation_queue()` returns in **28 ms**. At a few hundred
+agencies it stays comfortable. At several thousand it is thousands of
+comparisons per pending row, on a screen an admin opens on purpose
+rather than on sign-in, and the shape to change then is the candidate
+SET -- find the email matches by a join on `agent_contacts` and union
+them with the name matches, instead of testing every candidate.
+
+Not changed now, deliberately, and for the same reason the whole-book
+load was not capped: the number nobody has measured is how many
+agencies Rightmove will have. The fix is clear when it is needed and
+would be guesswork before.
 
 ### Help and the documents
 
@@ -1825,37 +1844,66 @@ closed.** Matt ruled: keep the collapse, do not print the name twice.
 
 ### Still not built, in the order I would take them
 
-1. **(cp)** A draft month has no statement reference by design, and
-   the Agency schedules panel reports that as "Reference couldn't be
-   loaded. Refresh to try again" -- then writes that sentence into
-   the EXPORT's filename. Visibly broken, and the real error still
-   has to be found rather than hidden.
-2. **(cq)/(cy)** A referral an admin made on a customer's behalf
-   still names the admin in referrer lists, charts and exports, and
-   historic activity rows still carry staff names. (bm) fixed the
-   WRITE; these are the read. Note the difficulty recorded in QUEUE
-   (cy): activity_log has no actor_id, so historic rows can only be
-   masked by matching the stored name.
-3. **(ci)** The server does not refuse a referencing mode set on a
-   supplier-estate agency. The screen half is done; this is the
-   binding half.
-4. **(bq)(br)(bs)** The export fixes: Refunded status everywhere, the
-   carved share, blank supplier columns on agency rows, voided-deed
-   status, "Activity in period", and the Export-all CSV's month,
-   tenancy and Agency column.
-5. **(ck)** The duplicate check misses "Test Lettings" against "Test
-   Lettings asda" -- shared email, name prefix, containment.
-6. **(cl)** HALF DONE (`3ea02cc`). The commission card is gone for
-   a reader who may not see money, so no manager is told "no
-   commission deal set" when the truth is "not allowed to see". The
-   STATEMENT ADDRESS section of the same instruction is untouched and
-   is still shown to them.
-7. **(cs)** Supplier edits to an agency's name, address and email are
-   not in Recent changes.
-8. **(cu)** Sign-in lands on the last page visited.
-9. **(cv)(cw)** The Expiries default month (answer first) and the
-   sandbox proof.
-10. **(cx)(cg)(df)(db)(nn)(oo)(zz)** and the rest.
+**Rewritten 2026-10-05 after the second night run.** Nine of the ten
+entries that stood here are done; what follows is what is left, and why.
+
+1. **(dg) The whole-book sign-in load.** The decision is made (option 1,
+   on demand per screen) and the change is NOT built: it moves where
+   every figure on four surfaces comes from and cannot be finished and
+   proven in a night. `docs/MONEY-BEFORE-DG.md` is the before-picture
+   Matt asked for -- every money figure on dev with the query behind it
+   -- so the after is a comparison rather than a judgement. After
+   launch.
+2. **(df) The supplier pickers.** Blocked on one answer, with the
+   measurement in QUEUE.md: "active, with a deal set" has three
+   candidate tests in this schema and they show 1, 3 and 8 of the ten
+   suppliers. Type-to-search and the "Harbour Lets" duplicate label
+   follow once it is settled.
+3. **(cu) Sign-in landing.** Cannot be reproduced from the code: the
+   app already lands on /home, the per-actor resolver, and nothing
+   stores or restores a route. The question back is in QUEUE.md.
+4. **(cv) The Expiries default month.** Matt asked to be told the
+   current rule before anything changes, and that is still owed.
+5. **(cq)/(cy) historic activity actors.** The referrer half is done
+   (see below). The activity half turned out to have no reader at all:
+   nothing in the product displays `activity_log.actor`, so the
+   function written for it was withdrawn rather than shipped unread.
+   If a surface ever shows it, the mask is 20 minutes' work.
+6. **The agent one-pager is three pages.** It is called a one-pager.
+   Fitting it means cutting content, which is Matt's call; the
+   question is in QUEUE.md.
+7. **(nn)(oo) the remainder, and anything else in QUEUE.md not listed
+   here.** (oo) is done for the leaflets and the browser furniture.
+
+### Done in the second night run, 2026-10-05 (branch `matt-fixes`)
+
+Twenty commits on top of `4a39fe6`, which is the tip of the bundle
+Balal already has. Each item was measured on dev before it was changed,
+and each carries its own test.
+
+| # | what | where |
+| --- | --- | --- |
+| 1 | No help document prices the guarantee fee. Measured: Regent is three weeks, every other agency on dev is a month, and the documents told their agents a figure GBP 307.69 too high on GBP 1,000 rent | `b713fa3` |
+| 2 | The opndoor manager's blank Reporting page was ALREADY fixed on 2026-09-30; this handover said otherwise and was wrong | `c5c6fc3` |
+| 3 | (cp) The Health report built to find that error could not report itself: a migration renamed its argument and left one caller behind, so it has matched no function since. It now carries the error code too | `34a4106` |
+| 3b | And a sentence is not a filename: a draft month downloaded as "opndoor-statement-Reference assigned when the statement is posted.xlsx" | `966a0a8` |
+| 4 | (cq) A referral opndoor sent on a customer's behalf says "opndoor (on your behalf)". The client could not work this out: users RLS hides staff rows, so the mask had to come from the database | `2cd7b37` |
+| 5 | (ci) A supplier-estate agency inherits its supplier's checking setting, and the server refuses to let a click override it. Both halves were outstanding, not one | `295324f` |
+| 6 | (bq)(br)(bs) The export fixes: one status rule shared with the screens, the carved share in its own column, blanks instead of structural zeros, the refund in "Activity in period", and the Export-all CSV's month, tenancy and Agency column | `a596809` |
+| 7 | (ck) The duplicate check could not see the other new row: it only ever compared against CONFIRMED records, and two agencies created minutes apart are both pending. Plus the shared-email arm, and "Merge into" wired to a merge that already existed and had no caller | `d79cdb9` |
+| 8 | (cl) The statement addresses go with the commission card | `9462b61` |
+| 9 | (cs) A change says what it changed FROM, and an address change is recorded at all | `c402713` |
+| 11a | (cg) "Fees collected" means one thing. Matt's two figures for Regent were both right: 21,447.75 gross and 15,219.29 net, and the subtraction was written four times, differently | `0027fd2` |
+| 11b | (db) The go-live verification section, section 15 of this document | `79ca2e4` |
+| 11d | (oo) No browser header or footer, and the three tenant leaflets print to one A4 page. Measured by printing them | `9fe451e` |
+| 11e | (zz) The invite already knew the tenant's name and was not saying | `dbfb00f` |
+| 11f | (cw) The sandbox proved sealed end to end, then pinned in pgTAP | `0f4f0ba` |
+| 12 | The partner API on each of the three checking settings: two of the three are refused by design, and the inheritance is proved on all three | `b3e77ea` |
+| 13 | Every money figure on dev, before (dg) | `f28391a` |
+
+**Six questions are waiting for Matt**, all in `docs/QUEUE.md` under
+"For Matt in the morning (2026-10-05 night run)". None of them was
+guessed at.
 
 **(dr8) The landlord guide's figures are unverified.** It claims 12
 months, a GBP 120,000 cap, GBP 10,000 of legal costs, notify within
