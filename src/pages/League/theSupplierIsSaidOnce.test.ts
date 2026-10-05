@@ -61,12 +61,41 @@ describe('the predicate the screen asks', () => {
 });
 
 describe('the screen', () => {
-  it('draws no partner tag on a row that is the partner', () => {
-    expect(LEAGUE).toContain('showPartner && r.partner && !rowIsItsOwnPartner(r)');
+  /* (bz) NARROWED TO THE SUPPLIERS BOARD, which reverses the reasoning
+     above and is worth spelling out.
+
+     The comment at the top of this file says the predicate is "ASKED OF
+     THE ROW, NOT THE VIEW, so the next board with the same shape is
+     covered: an agency that shares its supplier's name prints the same
+     two words too". That generality was the point, and it was wrong --
+     it listed Matt's complaint as a feature.
+
+     Matt, 2026-10-05: 'give the "Kestrel Lettings" agency row its
+     "Kestrel Lettings" badge like the others.' On the SUPPLIERS board
+     a row really is its own partner and the badge is the same words
+     twice. On the AGENCIES board that row is one agency of several in
+     Kestrel's estate, and the badge is the only thing on it saying
+     so -- a badge column with one blank cell reads as "this one has no
+     estate", which is a worse lie than a repeat. The test is which
+     board, not which words.
+
+     THE PREDICATE ITSELF IS UNCHANGED and its unit tests above still
+     hold: it still answers "is this row its own partner" correctly,
+     including through a via-label. What changed is who asks it. */
+  it('draws no partner tag on a supplier row that is the partner', () => {
+    expect(LEAGUE).toContain("showPartner && r.partner && !(view === 'supplier' && rowIsItsOwnPartner(r))");
   });
 
-  it('and no subtitle under it either', () => {
-    expect(LEAGUE).toContain('{!hasSubCol && !rowIsItsOwnPartner(r) && <div className="lt-sub">{r.sub}</div>}');
+  it('and no subtitle under it either, on that board only', () => {
+    expect(LEAGUE).toContain("{!hasSubCol && !(view === 'supplier' && rowIsItsOwnPartner(r)) && <div className=\"lt-sub\">{r.sub}</div>}");
+  });
+
+  /* AND THE AGENCY ROW KEEPS BOTH. The assertion that would have
+     failed before this change, named so the narrowing cannot be
+     quietly widened back. */
+  it('but an agency row that shares its supplier\u2019s name keeps its badge', () => {
+    expect(LEAGUE).not.toContain('showPartner && r.partner && !rowIsItsOwnPartner(r)');
+    expect(LEAGUE).not.toContain('{!hasSubCol && !rowIsItsOwnPartner(r) &&');
   });
 });
 

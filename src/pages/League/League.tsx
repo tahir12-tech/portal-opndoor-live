@@ -60,7 +60,7 @@ const PAGE = 15;
    existing sub-line -- where somebody works, which groupRows already
    fills -- promoted to a column of its own rather than a second
    lookup. */
-type SortKey = keyof Pick<LeagueRow, 'name' | 'sub' | 'refs' | 'fees' | 'paid' | 'deed' | 'sp' | 'conv' | 'partnerComm' | 'agentComm'>;
+type SortKey = keyof Pick<LeagueRow, 'name' | 'sub' | 'refs' | 'fees' | 'paid' | 'deed' | 'sp' | 'conv' | 'partnerComm' | 'agentComm' | 'agentPassedOn'>;
 type Col = [SortKey, string, boolean]; // [key, label, sortable]
 
 /* THE MOVEMENT COLUMN, SAID IN WORDS. Matt, 2026-10-01: 'rename the "7d"
@@ -74,7 +74,7 @@ const MOVEMENT_TITLE = 'Change in rank since the same table seven days ago. '
   + '"-" means its position has not changed.';
 
 const COLS: Record<LeagueView, Col[]> = {
-  agency: [['name', 'Agency', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Agent comm.', true]],
+  agency: [['name', 'Agency', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Agent comm.', true], ['agentPassedOn', 'Incl. in supplier comm.', true]],
   /* A BRANCH generates fees; it only EARNS commission when it holds a rate of its
      own, because under the additive model the agency (or group) is the payee
      otherwise. So the branch board leads on fees generated, and the commission
@@ -86,7 +86,7 @@ const COLS: Record<LeagueView, Col[]> = {
      and supplier boards all call collected, and a reader comparing two
      tabs has to decide whether two names mean two things. They do not:
      all four read `fees`, which is gross fees on paid referrals. */
-  branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Own commission', true]],
+  branch: [['name', 'Branch', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Own commission', true], ['agentPassedOn', 'Incl. in supplier comm.', true]],
   /* "REFERRERS", NOT "NEGOTIATORS". Matt, 2026-10-02: "call it
      'Referrers' on screen and in the export, since it includes Directors
      and supplier staff". Negotiator is one LEVEL on our estate's ladder,
@@ -103,7 +103,7 @@ const COLS: Record<LeagueView, Col[]> = {
   /* THE SAME MEASURES AS THE OTHERS, which is what Matt asked for, and
      the same two commission columns: a supplier IS a payee, so its own
      cut is the figure the board is most often read for. */
-  supplier: [['name', 'Supplier', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Agent comm.', true]],
+  supplier: [['name', 'Supplier', false], ['refs', 'Referrals', true], ['fees', 'Fees collected', true], ['paid', 'Paid', true], ['deed', 'Deeds', true], ['sp', 'Sent to paid', true], ['conv', 'Sent to deed', true], ['partnerComm', 'Supplier comm.', true], ['agentComm', 'Agent comm.', true], ['agentPassedOn', 'Incl. in supplier comm.', true]],
 };
 
 /* THE TWO COLUMNS A MANAGER MAY NOT HAVE, and why only these two.
@@ -202,6 +202,14 @@ function cellFor(col: SortKey, r: LeagueRow) {
     case 'sp': return <ConvChip cv={r.sp} />;
     case 'conv': return <ConvChip cv={r.conv} />;
     case 'partnerComm': return fmtBig(r.partnerComm);
+    /* (bz) THE CARVED SHARE, IN ITS OWN CELL. Matt: "same rule as the
+       Performance export, so a carved-out agency share shows as
+       included in the supplier's commission, never as a second
+       amount." The exports got this; the four boards on screen did
+       not, and a board is worse than a sheet for it -- the columns
+       are sortable, so a reader can rank agencies by a number that
+       double-counts on some rows and not others. */
+    case 'agentPassedOn': return fmtBig(r.agentPassedOn ?? 0);
     case 'agentComm':
       /* (ca) GBP 0, NOT A DASH, and this reverses a distinction that was
          real. Matt: 'show GBP 0, not "-", for no commission.'
@@ -214,7 +222,10 @@ function cellFor(col: SortKey, r: LeagueRow) {
          whether the figure is missing. The branch earned nothing,
          which is a number. Where the rate is inherited rather than
          held, the Commission tab is the place that says so. */
-      return fmtBig(r.agentComm);
+      /* AND "Agent comm." IS NOW WHAT OPNDOOR PAYS DIRECTLY, so this
+         column and the supplier's add up. The rest is in the cell
+         above, named for what it is. */
+      return fmtBig(r.agentPaidDirect ?? r.agentComm);
     default: return r.name;
   }
 }
@@ -551,8 +562,12 @@ function FullLeagueView() {
     const needle = q.trim().toLowerCase();
     const list = needle ? all.filter((r) => `${r.name} ${r.sub}`.toLowerCase().includes(needle)) : all.slice();
     list.sort((a, b) => {
-      const av = a[sort];
-      const bv = b[sort];
+      /* agentPassedOn IS OPTIONAL ON THE ROW -- a row built before the
+         split was carried has neither half -- so a missing value
+         sorts as zero rather than as undefined, which in a numeric
+         comparison would produce NaN and leave the order to chance. */
+      const av = a[sort] ?? 0;
+      const bv = b[sort] ?? 0;
       if (sort === 'name') return dir * (av < bv ? -1 : av > bv ? 1 : 0);
       return dir * ((av as number) - (bv as number));
     });
@@ -786,10 +801,26 @@ function FullLeagueView() {
                                 / Kestrel Lettings". The tag is attribution,
                                 and a row about the supplier has nothing to
                                 attribute. */}
-                            {showPartner && r.partner && !rowIsItsOwnPartner(r)
+                            {/* (bz) THE BADGE IS SUPPRESSED ON THE SUPPLIERS
+                                BOARD ONLY. Matt: 'give the "Kestrel
+                                Lettings" agency row its "Kestrel
+                                Lettings" badge like the others.'
+
+                                rowIsItsOwnPartner compares the row's
+                                name with its partner's, which is what a
+                                SUPPLIER row is -- there the badge really
+                                would be the same words twice. On the
+                                Agencies board it also catches Kestrel's
+                                agency that happens to be called Kestrel
+                                Lettings, and that row is not its own
+                                partner: it is one agency of several in
+                                that estate, and the badge is the only
+                                thing on it saying so. The test is which
+                                BOARD, not which words. */}
+                            {showPartner && r.partner && !(view === 'supplier' && rowIsItsOwnPartner(r))
                               ? <span className="lt-partner">{r.partner}</span> : null}
                           </div>
-                          {!hasSubCol && !rowIsItsOwnPartner(r) && <div className="lt-sub">{r.sub}</div>}
+                          {!hasSubCol && !(view === 'supplier' && rowIsItsOwnPartner(r)) && <div className="lt-sub">{r.sub}</div>}
                         </td>
                       ) : c[0] === 'sub' ? (
                         <td key={c[0]} className="soft">{showPartner ? withoutVia(r.sub) : r.sub}</td>

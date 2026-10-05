@@ -149,6 +149,18 @@ describe('the surfaces read the one rule', () => {
     expect(src).toContain('money(r.partnerComm), money(r.agentPaidDirect ?? r.agentComm), money(r.agentPassedOn ?? 0)');
   });
 
+  /* (bz) THE SCREEN, NOT ONLY THE SHEET. The audit found the exports
+     done and the four on-screen boards untouched, which is the worse
+     half: a board's columns are sortable, so a reader can rank
+     agencies by a number that double-counts on some rows and not on
+     others. */
+  it('the League boards on SCREEN carry the third column too', () => {
+    const src = read('src/pages/League/League.tsx');
+    expect(src.match(/\['agentPassedOn', 'Incl\. in supplier comm\.', true\]/g)?.length ?? 0).toBe(3);
+    expect(src).toContain("case 'agentPassedOn': return fmtBig(r.agentPassedOn ?? 0);");
+    expect(src).toContain('return fmtBig(r.agentPaidDirect ?? r.agentComm);');
+  });
+
   it('the exports split the agent column from the carved one', () => {
     const src = read('src/data/exportsService.ts');
     expect(src).toContain('const direct = e.agentPaidDirect ?? e.agentComm;');

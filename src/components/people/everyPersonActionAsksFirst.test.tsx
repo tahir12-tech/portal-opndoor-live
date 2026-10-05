@@ -90,7 +90,14 @@ describe('a level change', () => {
   it('and all four surfaces ask it from here', () => {
     expect(read('src/components/people/ChangeLevelModal.tsx')).toContain('levelChangeAsk(person.name, person.current, pick)');
     expect(read('src/pages/Team/Team.tsx')).toContain('levelChangeAsk(levelUser.name, levelLabel(levelUser), levelPick)');
-    expect(read('src/pages/PartnerManagement/SupplierRoleDialog.tsx')).toContain("levelChangeAsk(user.name, was?.level ?? user.current, chosen.level, 'role')");
+    /* (cd) THE SUPPLIER DIALOG NOW PASSES 'level'. It said 'role',
+       from decision D11; Matt reversed that on 2026-10-05 -- "Change
+       level, not Change role, matching every other people list" --
+       and the dialog had to follow the row button or the tab
+       contradicted itself one click in. The helper's 'role' arm is
+       still exercised by the Users page below, and by the unit test
+       above, so the capability has not gone untested with it. */
+    expect(read('src/pages/PartnerManagement/SupplierRoleDialog.tsx')).toContain("levelChangeAsk(user.name, was?.level ?? user.current, chosen.level, 'level')");
     expect(read('src/pages/UserManagement/UserManagement.tsx')).toContain("levelChangeAsk(u.name, from, to, 'role')");
   });
 });
