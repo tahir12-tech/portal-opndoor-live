@@ -4928,6 +4928,22 @@ both estates, the dialog, and FAQ 9 on both rails.
   warning to be corrected after the PandaDoc change, and this asks
   whether what it now says is still true.
 
+### (cx) "Deed issued" should be switchable, and the locked address named
+
+> Notifications dialog: the "How these work" box says each person can switch off their copy of the signed deed, but the "Deed issued" line says "The executed deed always reaches the person it is addressed to. That cannot be switched off." Make "Deed issued" switchable like the rest, with the note "The agency's own copy (office or agency email) always goes, whatever is set here." Check that's how sending actually works, including for our own agencies, where the deed currently goes to the referrer (e.g. barb@barb.com): say which address is the one that can never be switched off.
+
+- **THE DIALOG CONTRADICTS ITSELF AND I WROTE BOTH HALVES.** The rules
+  panel (ap item 4) says the signed deed can be switched off; the
+  locked cell says it cannot. `notification_locked` locks deed_issued
+  to 'referrer' on the agency rail, which is the half that has to go.
+- **"CHECK THAT'S HOW SENDING ACTUALLY WORKS" IS THE REAL TASK**, and
+  the example is pointed: on our own estate the deed goes to the
+  REFERRER (barb@barb.com), not to an office mailbox -- so "the
+  agency's own copy always goes" may have nothing to go to. The note
+  must not promise an address that does not exist on that rail.
+- SO THE ANSWER COMES BEFORE THE CHANGE: which address is the one that
+  can never be switched off, per rail, read off deed_delivery_target.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
