@@ -5572,7 +5572,24 @@ guessed at. Numbered as they came up.
    reachable only by typing the URL. Your earlier instruction was
    "delete them once I have reviewed the HTML". **Say the word and
    they go.**
-3. **THE DEMO'S OWN COMMISSION LABEL SAYS "of one month's rent".**
+3. **MERGING TWO OFFICES IS NOT POSSIBLE, and (ck) asks for it.** Your
+   words were "a new agency or office". `merge_agencies` exists on dev
+   and does the whole job (branches, applications, contacts, partner
+   relationships, user attachments, a rename where two offices collide,
+   an audit row), and the Reconciliation page now calls it. There is no
+   `merge_branches`. So a duplicate OFFICE is now flagged, shown side
+   by side and can be kept, but not merged, and I have not put a button
+   there that cannot work. **Shall I write merge_branches?** It is a
+   smaller job than the agency one: applications, contacts, deed
+   recipients and positions.
+4. **UNDER "View as", A CUSTOMER'S REFERRER LIST STILL NAMES THE
+   ADMIN.** (cq) masks the staff name for a customer reading their own
+   book. Under View as the ROLE does not change, only the scope, so an
+   admin simulating Kestrel sees the real name. That is defensible --
+   it is their own colleague, and the admin's own lists are where "who
+   sent this" is a real question -- but View as is meant to show what
+   the customer sees. **Mask it there too?**
+5. **THE DEMO'S OWN COMMISSION LABEL SAYS "of one month's rent".**
    `analyticsService.ts:563`, on the mock and demo path only. It is
    TRUE of the synthetic figures, which are all priced at a month, so
    it is not a wrong statement about anybody's real deal. But the

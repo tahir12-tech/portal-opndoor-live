@@ -8,7 +8,7 @@
    2-minute cron also runs the sync). Merge is not built yet (disabled).
    ===================================================================== */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { confirmReconEntity, loadReconciliationQueue, loadAgencyMatchQueue, loadNotInNetworkAgencies, loadRefundQuestions, loadSupplierAgenciesWithoutAnEmail, triggerCrmSync, reconciliationLandingTab, reconciliationTotals, NO_RECONCILIATION_WORK, type ReconRow, type ReconciliationTotals } from '@/data';
+import { confirmReconEntity, mergeAgencyInto, loadReconciliationQueue, loadAgencyMatchQueue, loadNotInNetworkAgencies, loadRefundQuestions, loadSupplierAgenciesWithoutAnEmail, triggerCrmSync, reconciliationLandingTab, reconciliationTotals, NO_RECONCILIATION_WORK, type ReconRow, type ReconciliationTotals } from '@/data';
 import { AgencyMatchQueue } from './AgencyMatchQueue';
 import { NotInNetwork } from './NotInNetwork';
 import { NoAgencyEmail } from './NoAgencyEmail';
@@ -18,6 +18,7 @@ import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { useConfirm } from '@/components/ui/ConfirmModal';
 import { useToast } from '@/components/ui/Toast';
 import '@/components/ui/opbar.css';
 import './Reconciliation.css';
@@ -47,6 +48,9 @@ export function Reconciliation() {
   });
   const [totals, setTotals] = useState<ReconciliationTotals>(NO_RECONCILIATION_WORK);
   const [busyId, setBusyId] = useState<string | null>(null);
+  /* (ck) MERGING IS NOT REVERSIBLE, so it asks first, like every other
+     action in this product that removes a record. */
+  const { ask: askConfirm, confirmEl } = useConfirm();
   const [syncing, setSyncing] = useState(false);
 
   const reload = useCallback(async () => {
@@ -172,6 +176,45 @@ export function Reconciliation() {
   const passes = (item: ReconRow) => (filter === 'all' ? true : filter === 'dupes' ? !!item.match : item.type === filter);
   const visible = queue.filter(passes);
 
+  /* (ck) MERGE INTO THE ONE THAT ALREADY EXISTS.
+
+     Matt: "Show the possible match side by side, with 'Merge into
+     [existing]' and 'Keep both'." "Keep both" is Confirm as new, which is
+     what the button beside it has always done; this is the other verb,
+     and the thing it calls -- merge_agencies -- has been on dev since the
+     agencies work with nothing in the client calling it.
+
+     IT ASKS FIRST, because it is not reversible: the merged agency's row
+     is deleted once its branches, applications, contacts and attachments
+     have moved. The sentence says what moves and which name survives. */
+  async function mergeInto(item: ReconRow) {
+    if (busyId || !item.matchId) return;
+    askConfirm({
+      title: `Merge "${item.name}" into "${item.match}"?`,
+      body: (
+        <>
+          Everything on <b>{item.name}</b> moves to <b>{item.match}</b>: its offices, its
+          referrals, its contacts and anyone attached to it. <b>{item.name}</b> is then
+          removed, and <b>{item.match}</b> is the record that remains. This cannot be undone.
+        </>
+      ),
+      confirmLabel: 'Merge them',
+      run: async () => {
+        setBusyId(item.id);
+        try {
+          await mergeAgencyInto(item.matchId!, item.entityId);
+          void triggerCrmSync().catch(() => {});
+          toast(`"${item.name}" is now part of "${item.match}".`);
+          await afterAction();
+        } catch (e) {
+          toast(e instanceof Error ? e.message : 'Could not merge them.', 'error');
+        } finally {
+          setBusyId(null);
+        }
+      },
+    });
+  }
+
   async function confirm(item: ReconRow) {
     if (busyId) return;
     setBusyId(item.id);
@@ -207,6 +250,7 @@ export function Reconciliation() {
 
   return (
     <>
+      {confirmEl}
       <div className="page-head">
         <div>
           <div className="rec-eyebrow"><span className="opx">opndoor</span> · internal admin</div>
@@ -300,9 +344,28 @@ export function Reconciliation() {
                 )}
 
                 {item.match ? (
+                  /* (ck) "MIGHT ALREADY EXIST", AND THE TWO SIDE BY SIDE.
+                     Matt's own label. The reason comes from SQL, where the
+                     rule lives, so the screen never has to guess which of
+                     four arms matched -- and "same contact email" is the
+                     one a reader could not have worked out by looking.
+
+                     AND IT SAYS WHEN THE MATCH IS ALSO WAITING. Both of
+                     his Test Lettings agencies are in this queue, which
+                     is precisely why neither could see the other; a
+                     reviewer merging them should know they are looking
+                     at two new records rather than at the book. */
                   <div className="match">
-                    <span className="match__lbl">{item.matchExact ? 'Same name already exists' : 'Might be the same'}</span>
-                    <span className="match__txt">There is already a <b>{item.match}</b>{item.matchExact ? ', spelled exactly the same' : ', spelled similarly'}</span>
+                    <span className="match__lbl">{item.matchExact ? 'Same name already exists' : 'Might already exist'}</span>
+                    <div className="match__pair">
+                      <span className="match__side"><span className="match__side-lbl">New</span> <b>{item.name}</b></span>
+                      <span className="match__vs">vs</span>
+                      <span className="match__side"><span className="match__side-lbl">{item.matchPending ? 'Also waiting' : 'On file'}</span> <b>{item.match}</b></span>
+                    </div>
+                    <span className="match__txt">
+                      Matched on {item.matchReason ?? 'a similar name'}
+                      {item.matchPending ? '. Both are new records waiting for review.' : '.'}
+                    </span>
                   </div>
                 ) : (
                   <div className="match match--none">
@@ -313,15 +376,18 @@ export function Reconciliation() {
               </div>
 
               <div className="rqitem__actions">
-                {/* THE "Merge into..." BUTTON IS GONE. It had been permanently
-                    disabled with "coming in a later release", which is the
-                    same promise Matt quoted from the page text, in another
-                    form. A control that can never be pressed is not a
-                    feature; it is a roadmap item taking up space on a
-                    screen somebody is trying to work. It comes back when
-                    merging does. */}
+                {/* (ck) TWO VERBS WHERE THERE IS A MATCH, and one where
+                    there is not. "Merge into" is offered for an AGENCY
+                    only: merge_agencies exists and merge_branches does
+                    not, and a button that cannot work is the thing the
+                    note below used to describe. */}
+                {item.match && item.matchId && item.type === 'agency' && (
+                  <Button variant="ghost" size="sm" disabled={busyId === item.id} onClick={() => void mergeInto(item)}>
+                    <Icon name="merge" strokeWidth={2.2} /> Merge into {item.match}
+                  </Button>
+                )}
                 <Button variant="primary" size="sm" disabled={busyId === item.id} onClick={() => confirm(item)}>
-                  <Icon name="check" strokeWidth={2.2} /> Confirm as new
+                  <Icon name="check" strokeWidth={2.2} /> {item.match ? 'Keep both' : 'Confirm as new'}
                 </Button>
               </div>
             </div>

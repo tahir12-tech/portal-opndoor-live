@@ -196,6 +196,33 @@
 .match__txt b {
   font-weight: 700;
 }
+/* (ck) THE TWO RECORDS SIDE BY SIDE. Matt: "Show the possible match side
+   by side". The row is already a flex line, so the pair is one item in it
+   and wraps as a unit rather than its two halves separating. */
+.match__pair {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.match__side {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink);
+}
+.match__side-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+.match__vs {
+  font-size: 11px;
+  color: var(--ink-mute);
+}
 .match__pct {
   margin-left: auto;
   font-family: var(--display);
