@@ -4980,6 +4980,30 @@ both estates, the dialog, and FAQ 9 on both rails.
 - THE TEST MATRIX IS SPECIFIED: Negotiator, Manager, Director, supplier
   Referrer and Management, single and joint.
 
+### (da) (cz) CORRECTED BY MATT: the deed does send; the page and the log are wrong
+
+Matt sent the referrer's email as evidence -- "A corrected deed has been
+sent to the tenant to sign", to barb, at 01:17 -- and then corrected the
+report himself:
+
+> After an agency user changes a start date (barb on GR-25832, 01:17), the corrected deed is sent correctly, but the application page then shows "This deed has not been issued yet… opndoor will pick it up" and the log lacks a "Tenancy start amended … by barb barb" line. Make the page show "Corrected deed sent to the tenant to sign" once it has gone, for every level, and log the amendment line.
+
+- **SO (cz) IS NOT A BLOCKER AND THE GUARANTEE IS NOT LOST.** The
+  reissue works for an agency user. What failed is the page's reading
+  of the state and one missing activity row -- which is exactly what
+  made it look like a total failure, and is worth fixing for that
+  reason alone: a screen that reports a completed reissue as "not
+  issued yet, opndoor will pick it up" invites somebody to intervene
+  on a referral that needs nothing.
+- **I SHOULD NOT HAVE WRITTEN THE (cz) DIAGNOSIS DOWN AS FACT.** I
+  recorded "the orchestration runs with the CALLER's client" as the
+  cause before measuring anything. It was a guess dressed as a
+  finding, and it was wrong.
+- THE TWO REAL FAULTS: the deed-state the page reads after an archive
+  and reissue, and the missing "Tenancy start amended ... by X" row.
+  The archive line writes and the amend line does not, so the ordering
+  still points at where to look.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
