@@ -5637,6 +5637,31 @@ At a few hundred none of this bites.
   `--ff-only` is now a plain merge rather than a stop. His copy may
   have his own commits on it.
 
+## THE THREE ANSWERS (instruction, 2026-10-05, verbatim)
+
+> 1. (df): go with B, a negotiated agreement that has not ended. Build the rest of (df) on that.
+> 2. Approved: run the reversal SQL for Southbank Residential on dev. Leave it ungrouped. Anything you test from now on, do it inside a transaction or on records you create for the test.
+> 3. (cv): keep your rule. Open on the earliest month with a guarantee expiring; if there are none, open on next month.
+>
+> Same rules as before: matt-fixes only, dev only, never push, each item complete and tested before committing. Then run the full gate, remake ~/Downloads/matt-fixes.bundle from 4a39fe6 to the new tip (replacing the current one), verify it, confirm no keys, and give me Balal's commands, including the plain git merge fallback if --ff-only refuses.
+
+- **"BUILD THE REST OF (df) ON THAT"** is the whole of (df) and not only
+  the filter: type-to-search like the agency picker, only suppliers
+  that can take referrals, the note "Only suppliers with a live deal
+  are shown", and the Harbour Lets duplicate labelled.
+- **RULE B IS A SERVER QUESTION.** The browser holds partners but not
+  their pricing agreements, so "has a negotiated agreement that has
+  not ended" cannot be answered in the client without shipping the
+  deals to it. One RPC, read-only.
+- **(2) IS AN INSTRUCTION ABOUT HOW I WORK, not only a repair.**
+  "Anything you test from now on, do it inside a transaction or on
+  records you create for the test." That is now a standing rule and it
+  is recorded as one, because the failure it answers came from a habit
+  rather than from a mistake in reasoning.
+- **(3) CHANGES NOTHING AND IS WORTH SAYING ANYWAY:** his sentence is
+  the rule as built and as now pinned, so the work is confirming the
+  words on the screen say it too.
+
 ### (1) THE THREE CANDIDATE TESTS FOR "a deal set", AND WHO EACH SHOWS
 
 > Matt, 2026-10-05: "(df) Don't build yet. Explain the three candidate
