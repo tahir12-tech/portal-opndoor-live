@@ -297,3 +297,66 @@ describe('the sales and conversation guide', () => {
     expect(page).toContain('one-off guarantee fee');
   });
 });
+
+/* =====================================================================
+   (dk) ONE TENANT LEAFLET PER JOURNEY, AND EACH ONE RIGHT ON PAPER.
+
+   A leaflet leaves the building: an agent prints it and hands it to a
+   tenant. It cannot be conditioned at render time, so there is one
+   per journey and each must be true standing alone.
+
+     accepts as sent     the original: pay, and the guarantee issues
+     applies own criteria a decision first, then the fee
+     opndoor checks      GBP 20 per tenant, then the guarantee fee
+
+   THE TWO WAYS A LEAFLET CAN LIE TO A CONSUMER, both of which were
+   live before tonight: tell them about money they will not be asked
+   for, or fail to tell them about money they will. The decision
+   leaflet is the second kind of error in a quieter form -- the plain
+   one told a screened tenant their only remaining step was paying,
+   when opndoor had still to decide.
+   ===================================================================== */
+describe('the three tenant leaflets', () => {
+  const plain = read('public/help-docs/opndoor-for-tenants.html');
+  const decision = read('public/help-docs/opndoor-for-tenants-decision.html');
+  const eligibility = read('public/help-docs/opndoor-for-tenants-eligibility.html');
+
+  it('all exist', () => {
+    for (const [n, f] of [['plain', plain], ['decision', decision], ['eligibility', eligibility]] as const) {
+      expect(f, `the ${n} leaflet is missing`).not.toBe('');
+    }
+  });
+
+  /* THE GBP 20 APPEARS ON EXACTLY ONE OF THEM. On the other two the
+     tenant is never charged it, and naming it would be telling them
+     about money they will not be asked for. */
+  it('and only the eligibility one mentions the GBP 20', () => {
+    expect(eligibility).toContain('&pound;20 per tenant');
+    expect(plain).not.toContain('&pound;20');
+    expect(decision).not.toContain('&pound;20');
+  });
+
+  /* AND ONLY THE DECISION ONE PROMISES A DECISION. The plain leaflet
+     is for a route with none, so saying so there would invent a step. */
+  it('and only the decision one describes a decision before payment', () => {
+    expect(decision).toContain('decides whether it can stand as your guarantor');
+    expect(decision).toContain('Only if you are accepted');
+    expect(plain).not.toContain('decides whether it can stand as your guarantor');
+  });
+
+  /* THE PLAIN LEAFLET'S OWN PROMISE MUST NOT REACH THE OTHER TWO:
+     "there's nothing more to pay after that" is true on one journey
+     and false on the one with a second fee. */
+  it('and the one-fee promise is only on the one-fee leaflet', () => {
+    expect(plain).toContain("there's nothing more to pay after that");
+    expect(eligibility).not.toContain("there's nothing more to pay after that");
+  });
+
+  it('and each is wired to exactly one journey', async () => {
+    const { HELP_SEED } = await import('@/data/mock/help');
+    const leaflets = HELP_SEED.templates.filter((r) => r.title === 'Tenant explainer leaflet');
+    expect(leaflets).toHaveLength(3);
+    const modes = leaflets.flatMap((r) => r.modes ?? []);
+    expect([...modes].sort()).toEqual(['opndoor_referenced', 'pre_referenced_open', 'pre_referenced_screened']);
+  });
+});

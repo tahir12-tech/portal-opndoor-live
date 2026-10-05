@@ -95,7 +95,20 @@ export const HELP_SEED: HelpContent = {
     { id: 'tp2b', icon: 'doc', type: 'Leaflet', modes: ['opndoor_referenced'], title: 'Tenant explainer leaflet',
       desc: 'A one-page explainer to share with tenants whose application opndoor checks: the £20 eligibility check, the guarantee fee, and how it works.',
       meta: 'Page', href: '/help-docs/opndoor-for-tenants-eligibility.html' },
-    { id: 'tp2', icon: 'doc', type: 'Leaflet', modes: ['pre_referenced_open', 'pre_referenced_screened'], title: 'Tenant explainer leaflet', desc: 'A one-page explainer to share with tenants: what the opndoor guarantee service is, the fee, and how it works.', meta: 'Page', href: '/help-docs/opndoor-for-tenants.html' },
+    /* (dk) THE THIRD LEAFLET, for the journey where opndoor applies
+       its own criteria. There is no GBP 20 on this route, so the fee
+       story is the plain one -- but there IS a decision before
+       payment, and the plain leaflet says "You'll get a secure link,
+       and the guarantee can be issued quickly", which tells a tenant
+       their only step is paying. Being asked for money you did not
+       expect is the worst version of that error, and being told you
+       were accepted when you have not been decided on is the second
+       worst. Three leaflets now, one per journey, each right on paper
+       with nothing to toggle. */
+    { id: 'tp2c', icon: 'doc', type: 'Leaflet', modes: ['pre_referenced_screened'], title: 'Tenant explainer leaflet',
+      desc: 'A one-page explainer to share with tenants whose referral opndoor decides on: the decision step, the fee, and how it works.',
+      meta: 'Page', href: '/help-docs/opndoor-for-tenants-decision.html' },
+    { id: 'tp2', icon: 'doc', type: 'Leaflet', modes: ['pre_referenced_open'], title: 'Tenant explainer leaflet', desc: 'A one-page explainer to share with tenants: what the opndoor guarantee service is, the fee, and how it works.', meta: 'Page', href: '/help-docs/opndoor-for-tenants.html' },
     { id: 'tplg', icon: 'doc', type: 'Guide', title: 'Landlord guide', desc: 'A one-page guide to share with landlords: what the Deed of Guarantee means for their property, that it is not insurance, and that either the landlord or the agent can make a claim.', meta: 'Page', href: '/help-docs/opndoor-for-landlords.html' },
     /* (dr5) AN ACTUAL CHECKLIST. Matt: "'Referral information
        checklist' shows the whole Referrer guide. Make it an actual
