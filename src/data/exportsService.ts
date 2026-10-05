@@ -2630,8 +2630,22 @@ export async function buildCommissionStatementDoc(
   const doc: BrandedDoc = { reportName: 'Commission statement', metaLine, blocks };
   /* The reference names the file when there is one. There is none in a demo book
      and none when the RPC could not be reached, and "opndoor-statement--.xlsx" is
-     not a filename, so the month and the payee name it instead. */
-  const stamp = ref === EMPTY ? `${st.monthKey}-${st.payeeName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}` : ref;
+     not a filename, so the month and the payee name it instead.
+
+     IT TESTED FOR THE EMPTY GLYPH AND NOTHING ELSE, which was right when the
+     only two answers were a reference and a dash. There are four answers now,
+     and the two added since are SENTENCES: "Reference assigned when the
+     statement is posted" for a month nothing has been posted for, and
+     "Reference couldn't be loaded. Refresh to try again." for a failed read.
+     Both fell through to `ref` and became the filename, which is Matt's (cp):
+     a draft month downloading as "opndoor-statement-Reference assigned when
+     the statement is posted.xlsx", apostrophe, full stops and all.
+
+     ASKING isPostedReference IS THE WHOLE FIX, because that is the question:
+     a file is named after a reference only where one exists. The other two
+     statement exports already asked it; this one was written earlier and
+     nobody came back to it when the sentences arrived. */
+  const stamp = isPostedReference(ref) ? ref : `${st.monthKey}-${st.payeeName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
   return { sheets: [{ name: 'Statement', doc }], filename: `opndoor-statement-${stamp}.xlsx` };
 }
 
