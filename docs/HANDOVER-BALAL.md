@@ -1824,8 +1824,9 @@ extraction. Render and read:
     osascript -l JavaScript scripts/render-pdf-pages.js \
       public/help-docs/<file>.pdf /tmp/pages tag
 
-The two source PDFs are still in `public/help-docs/` and are no longer
-referenced by the shelf. Delete them once Matt has reviewed the HTML.
+The source PDFs are gone, 2026-10-05, on Matt's word: all four of them,
+1.3 MB, referenced by nothing and two of them still saying the
+guarantee fee is one month's rent.
 
 **(dj) DONE.** Both Dev Centre tabs open with the journey the
 reader's ORGANISATION gets: statuses in order, the webhook events

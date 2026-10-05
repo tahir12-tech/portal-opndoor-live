@@ -122,3 +122,24 @@ describe('the agent guide', () => {
     expect(text('opndoor-for-letting-agents.html')).toContain('<title>opndoor agent guide</title>');
   });
 });
+
+describe('the help-docs folder', () => {
+  /* NO PDFs LEFT. Matt, 2026-10-05: "The four unreferenced PDFs in
+     public/help-docs/: delete them."
+
+     They were the sources the HTML guides were rebuilt from, and two
+     of them still said the guarantee fee is one month's rent -- wrong
+     for Regent, and reachable by anybody who typed the URL even
+     though nothing linked to them. Everything on the shelf is HTML
+     and opens in the modal; a PDF here can only be a leftover. */
+  it('holds no PDFs at all', () => {
+    expect(readdirSync(DOCS).filter((n) => n.toLowerCase().endsWith('.pdf'))).toEqual([]);
+  });
+
+  /* AND NOTHING POINTS AT ONE, which is the half that would make a
+     deletion a broken link rather than a tidy-up. */
+  it('and nothing on the shelf points at one', () => {
+    const shelf = readFileSync(resolve(process.cwd(), 'src/data/mock/help.ts'), 'utf8');
+    expect(shelf).not.toMatch(/help-docs\/[\w.-]+\.pdf/);
+  });
+});
