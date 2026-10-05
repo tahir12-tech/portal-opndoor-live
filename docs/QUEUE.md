@@ -4872,6 +4872,25 @@ both estates, the dialog, and FAQ 9 on both rails.
   (bm): "by Matthew Dwyer" is right because Matthew is Kestrel's, not
   ours.
 
+### (ct) Referrals are matched by agency NAME, so a rename loses them
+
+> After renaming an agency (Test Lettings asda → Test Lettings asdah, as Kestrel Management), its Referrals tab says "No referrals for Test Lettings asda yet" though the header shows 2 referrals; the old name also lingers in the breadcrumb on that tab. Referrals (and anything else) must be found by the agency's/office's id, never by name. Check every screen, statement, export and the commission schedules for name-based matching, fix them, and test a rename end to end.
+
+- **THIS IS VERY LIKELY (cj) AS WELL**, and that is the most useful
+  thing about it. (cj) reports a supplier-estate agency's Reporting tab
+  saying "no referrals from this customer in this period" when it has
+  two. Name matching explains both: a rename breaks it outright, and
+  two agencies sharing a name across estates make it match the wrong
+  one -- which is the same pair (cn) just had to label in the picker.
+- SO THE SWEEP COMES FIRST AND THE TWO FIXES FALL OUT OF IT, rather
+  than fixing the Referrals tab and meeting the Reporting tab again
+  next.
+- `findAgencyByName` ALREADY EXISTS AND ALREADY REFUSES TO GUESS
+  between two estates, which means somebody met this before and fixed
+  one caller. The others are what Matt is asking me to find.
+- "TEST A RENAME END TO END" is the acceptance test, and it is a good
+  one: a rename is the only cheap way to prove an id is being used.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
