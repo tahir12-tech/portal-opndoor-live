@@ -4855,6 +4855,23 @@ both estates, the dialog, and FAQ 9 on both rails.
   an export header is neither a screen nor a comment. The guard should
   grow rather than this being fixed by hand.
 
+### (cs) A supplier's own edits are not in Recent changes
+
+> Agency/office edits by supplier Management aren't recorded in Recent changes (renamed Test Lettings asda → asdah and changed the email; still "2 changes"). Record every name, address and email change with who made it, e.g. "Email changed from test@lettings.com to test2@lettings.com, by Matthew Dwyer".
+
+- **THIS IS THE AUDIT HALF OF THE EDITOR I BUILT** for "supplier
+  Management can edit agency and office name, address and email".
+  `set_agency_details` and `set_branch_details` write the row and
+  write nothing to org_audit, so the capability shipped without its
+  record.
+- MATT'S EXAMPLE GIVES THE SHAPE: old value, new value, and who. The
+  org_audit row already has field/old_value/new_value/actor/actor_id
+  columns for exactly this, and agency_changes already masks the actor
+  for customers -- so the write is the only missing piece.
+- AND THE ACTOR IS A CUSTOMER'S OWN PERSON HERE, so it is named, per
+  (bm): "by Matthew Dwyer" is right because Matthew is Kestrel's, not
+  ours.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
