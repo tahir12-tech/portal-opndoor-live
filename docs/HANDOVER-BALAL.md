@@ -1754,19 +1754,39 @@ agencies that is a silent failure on every on-the-fly create.
 
 ### Help and the documents
 
-**(dr1) The per-route journeys, which is the big one.** Help now varies
-by the organisation's checking setting, and three items are tagged to
-the journey they describe. But Matt is right that hiding is not
-answering: a Referrer at an "opndoor checks" agency needs a guide
-describing THEIR route, not the absence of one. The Referrer guide
-still says "Press Send and the tenant gets a secure link to pay",
-which is wrong for two of the three routes. The content is unwritten.
+Most of Matt's review list is DONE and is listed here only so nobody
+re-does it: (dr1) the Referrer guide now describes all three routes
+and its status table admits Awaiting decision exists; (dr2) who sees
+commission is pinned for all eight readers; (dr3) the carved-share
+lines are explained in the portal's own words; (dr4) only suppliers
+are told they can add an agency while referring; (dr5) the referral
+checklist is a checklist; (dr6) and (dr9) were defects in the
+exporter, not the product; (dr7) one answer per question; (dt)/(du)
+the GBP 20 copy and the refund lines.
 
-**The GBP 20 application fee is in NO Help document.** So an agency
-opndoor checks for is never told about a fee its tenants are charged,
-and the tenant leaflet an agent hands over omits it. Draft copy was
-written and is held pending Matt's answers on two points (see QUEUE
-(dq)); the open questions are listed there.
+**STILL OPEN, and these are the ones to pick up:**
+
+**(ds) The two PDFs cannot be rebuilt from the PDFs.** The Sales and
+conversation guide and the Agent one-pager are to become HTML in the
+management-guide template so every Help item opens the same way.
+FIRST OBSTACLE, measured twice: both use subset fonts, so their text
+is glyph codes needing per-font ToUnicode resolution. A naive
+extraction returns `(a)(a)(a)`; a merged-CMap one recovers most words
+and CORRUPTS DIGITS, rendering the cap as "GBP 12f,fff"; a per-font
+attempt mis-resolved worse. **Do not transcribe figures from an
+extraction. Ask Matt for the source those PDFs were authored from.**
+
+**(dj) The API docs do not vary by checking setting.** A supplier
+Developer gets the same text whichever journey their organisation is
+on. The three exported files are identical by construction and each
+says so at the top. The content and the "If your checking setting
+changes" section are unwritten.
+
+**(dr1) remainder.** The guide and the status FAQs now cover all three
+routes. The TENANT LEAFLET has two versions (straight-to-payment and
+opndoor-checks) and the middle route -- "applies its own criteria" --
+shares the first, which is right about the fee and silent about the
+decision step. Worth a third version or a sentence.
 
 **(ds) The two PDFs.** The Sales and conversation guide and the Agent
 one-pager open in the browser's PDF viewer while every other item
@@ -1776,27 +1796,6 @@ subset fonts, so their text is glyph codes needing per-font ToUnicode
 resolution. A naive extraction returns `(a)(a)(a)`; a merged-CMap one
 recovers most words but CORRUPTS DIGITS -- it renders the cap as
 "GBP 12f,fff". Do not transcribe those figures from an extraction.
-
-**(dr7) Two FAQ sets for an admin.** An opndoor admin sees both the
-supplier-rail and agency-rail FAQs, which answer the same questions
-differently. Matt asked for one answer per question. NOT DONE because
-it is a content decision with two readings: merge the two answers into
-one that covers both rails, or show an admin a single rail's. Both
-change what an admin reads, so it needs his call.
-
-**(dr2) Commission consistency.** The Help gates were corrected on
-2026-10-05 so an opndoor manager no longer reads commission material
-(they shared a rank with superadmin, and `v.admin` lumped them
-together). The wider sweep -- every screen, not just Help -- is not
-done.
-
-**(dr3) The carved-share line** in the supplier Management guide, and
-**(dr5)** the Referral information checklist, which currently opens
-the whole Referrer guide instead of being a checklist. Both unwritten.
-
-**(dj) The API docs do not vary by checking setting.** A supplier
-Developer gets the same text whichever journey their organisation is
-on. The three exported files are identical by construction and say so.
 
 **(dr8) The landlord guide's figures are unverified.** It claims 12
 months, a GBP 120,000 cap, GBP 10,000 of legal costs, notify within
