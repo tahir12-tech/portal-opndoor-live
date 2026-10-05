@@ -1863,11 +1863,11 @@ entries that stood here are done; what follows is what is left, and why.
    Matt asked for -- every money figure on dev with the query behind it
    -- so the after is a comparison rather than a judgement. After
    launch.
-2. **(df) The supplier pickers.** Blocked on one answer, with the
-   measurement in QUEUE.md: "active, with a deal set" has three
-   candidate tests in this schema and they show 1, 3 and 8 of the ten
-   suppliers. Type-to-search and the "Harbour Lets" duplicate label
-   follow once it is settled.
+2. **(df) The supplier pickers.** Blocked on one answer, and the three
+   candidate tests are now written out plainly in QUEUE.md with the
+   suppliers each one shows: "Live from" set (1 of 10), a live
+   negotiated agreement (3), or a rate at all (8). Type-to-search and
+   the "Harbour Lets" duplicate label follow once Matt picks.
 3. **(cq)/(cy) historic activity actors.** The referrer half is done
    (see below). The activity half turned out to have no reader at all:
    nothing in the product displays `activity_log.actor`, so the

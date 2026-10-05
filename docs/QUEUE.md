@@ -5637,6 +5637,44 @@ At a few hundred none of this bites.
   `--ff-only` is now a plain merge rather than a stop. His copy may
   have his own commits on it.
 
+### (1) THE THREE CANDIDATE TESTS FOR "a deal set", AND WHO EACH SHOWS
+
+> Matt, 2026-10-05: "(df) Don't build yet. Explain the three candidate
+> tests for 'a deal set' in one plain-English line each, and list which
+> suppliers each one shows. I'll choose."
+
+Measured on dev, 2026-10-05. All ten suppliers are `active`, so the
+whole of "active, with a deal set" is the deal half.
+
+**A. "Live from" is set.** Somebody has typed the date this supplier
+went live, which is what the Suppliers list means when it prints "Live
+from August 2026" instead of "Not live yet".
+**Shows 1 of 10:** Kestrel Lettings.
+
+**B. They have a negotiated agreement that has not ended.** A pricing
+agreement exists against this supplier with its own rates and bands,
+and nobody has ended it.
+**Shows 3 of 10:** Kestrel Lettings, Letly, Test Supplier.
+
+**C. They have a commission rate at all.** The supplier's own rate
+field is filled in, which happens by default when a supplier is
+created, so it is true of almost everybody.
+**Shows 8 of 10:** ACME TEST, Kestrel Lettings, Letly, New Suplier,
+New Supplier 2, New Supplier 3, No Deal Supplier, Test Supplier.
+
+**Shown by none of the three:** Example propco, ZZZ Proof No Deal.
+
+**What each one costs if it is wrong.** Too narrow and an admin cannot
+refer through a supplier who can take referrals, which blocks real
+business on the day. Too wide and they can pick one with no terms, and
+the referral prices at 0% -- the supplier's own Overview says so in as
+many words, but only after the fact.
+
+**My reading, for what it is worth: B.** A rate with no agreement is
+the standard-terms default rather than a deal anybody agreed, and C
+would show "No Deal Supplier" in a list of suppliers with a deal. But
+it is a commercial judgement and it is yours.
+
 ### I BROKE SOMETHING ON DEV AND IT NEEDS ONE APPROVAL TO PUT BACK
 
 **What happened.** Writing `merge_branches`, I checked whether the
