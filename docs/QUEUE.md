@@ -5475,6 +5475,31 @@ At a few hundred none of this bites.
 - "CONFIRM NO .env OR KEY FILES ARE IN IT" is the part to do by
   LOOKING, not by assuming .gitignore held.
 
+### (dy) After the restart: finish (cl), fix the handover, then the gate and the bundle
+
+> You were cut off by an extension restart. First run git status and date. If the (cl) change is complete and its tests pass, commit it; if not, revert it. Then do my last message: fix the handover (remove the stale (ds) obstacle paragraph, record option 1 for the whole-book load and remove the "needs Matt's answer" lines, move the opndoor manager blank Reporting page and the Regent one-month's-rent docs into Still not built). Then run the full gate, make the bundle and give me Balal's commands, as in my earlier message.
+
+- **(cl) NEEDED NEITHER COMMIT NOR REVERT.** It went in at 04:34 as
+  `3ea02cc`, before the restart, with 160 PartnerManagement tests
+  green; (v) followed at 04:37 as `db7f4f3`. `git status` is clean, so
+  there is no half-finished edit to resolve either way.
+- **OPTION 1 IS NOW A DECISION, NOT A QUESTION.** The whole-book
+  sign-in load gets the on-demand-per-screen fix: the largest of the
+  three and the only one that is correct rather than defensive. It
+  stays AFTER LAUNCH -- his earlier "leave the whole-book sign-in load
+  in After launch" is not withdrawn by this, which settles WHICH fix
+  rather than WHEN. So the handover records the chosen approach and
+  stops asking him the Rightmove head-count question.
+- **THE (ds) OBSTACLE PARAGRAPH IS STALE AND HE IS RIGHT TO CUT IT.**
+  It describes the subset-font problem as an obstacle still in the way
+  of a rebuild that is DONE. The recipe for reading a shipped PDF is
+  worth keeping; the "to be rebuilt" framing around it is not.
+- **BOTH MOVED ITEMS WERE FILED UNDER "WATCH", WHICH UNDERSTATED
+  THEM.** "Watch" is for things that look like a fault and are not. An
+  opndoor manager's Reporting page reading all zeros is a fault, and
+  Help telling a Regent agent the fee is one month's rent is wrong on
+  the only estate going live on Wednesday.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
