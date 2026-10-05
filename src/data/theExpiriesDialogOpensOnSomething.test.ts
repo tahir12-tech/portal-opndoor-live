@@ -66,6 +66,16 @@ describe('the dialog', () => {
     expect(PAGE).toContain('setExpMonth(n.month);');
   });
 
+  /* (cv)'s THIRD PART, 2026-10-05. Matt asked for the default to "say
+     so"; the note told a reader the book was empty and nothing told
+     the reader who DID land somewhere why they had. Shown only where
+     the month came from the book, because on the fallback the note is
+     the explanation and the two sentences would contradict. */
+  it('and says why it opened there when the month came from the book', () => {
+    expect(CODE).toContain('Opens on the earliest month with a guarantee expiring.');
+    expect(CODE).toContain('{expHasAny && (');
+  });
+
   it('and carries the note when there is nothing yet', () => {
     expect(PAGE).toContain('Nothing expiring yet; your earliest is {formatMonth(expEarliest)}.');
     // And a book with no issued deeds at all, where there is no earliest to name.
