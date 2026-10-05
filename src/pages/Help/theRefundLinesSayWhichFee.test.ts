@@ -76,3 +76,54 @@ describe('a refund line on the two-fee journey', () => {
     expect(plain).toContain('full refund of the fee');
   });
 });
+
+/* =====================================================================
+   (dr1) THE REFERRER GUIDE DESCRIBES ALL THREE ROUTES.
+
+   Matt: "don't just hide things. For 'applies its own criteria' and
+   'opndoor checks', the Referrer guide, tenant leaflet and status
+   FAQs must describe that route's actual journey (decision or
+   eligibility step before payment), not drop the material. The
+   current guide tells them 'Press Send and the tenant gets a secure
+   link to pay', which is wrong for those routes."
+
+   ONE GUIDE, THREE ROUTES, rather than three guides. The guide is a
+   static file served to every reader, so it cannot know which setting
+   its reader is on; what it CAN do is stop asserting one route as
+   though it were the only one. A reader on any of the three now finds
+   their own journey named, and the Overview tells them which is
+   theirs.
+
+   THE STATUS TABLE HAD THE SAME HOLE. It listed Sent, Paid, Awaiting
+   signature and Deed issued, and no Awaiting decision -- a status two
+   of the three routes pass through on every referral.
+   ===================================================================== */
+describe('the Referrer guide', () => {
+  const guide = read('public/help-docs/referrer-guide.html');
+
+  it('no longer asserts the straight-to-payment route as the only one', () => {
+    expect(guide).not.toContain('Press <b>Send</b> and the tenant gets a secure link to pay.');
+    expect(guide).toContain('What happens next depends on how tenants are checked');
+  });
+
+  it.each([
+    ['accepts them as sent', 'secure link to pay the guarantee fee straight away'],
+    ['applies its own criteria too', 'Awaiting decision'],
+    ['opndoor checks tenants itself', '&pound;20 per tenant'],
+  ])('names the %s route and what happens on it', (_setting, phrase) => {
+    expect(guide).toContain(phrase);
+  });
+
+  /* THE GBP 20 SAYS THE SAME THREE THINGS HERE AS EVERYWHERE ELSE,
+     because a reader who meets the figure in two documents and two
+     descriptions of it believes neither. */
+  it('and states the three GBP 20 facts in the same words', () => {
+    expect(guide).toContain('&pound;20 per tenant');
+    expect(guide).toContain('does not come off it');
+    expect(guide).toContain('is not refunded in any case');
+  });
+
+  it('and the status table admits Awaiting decision exists', () => {
+    expect(guide).toContain('<b>Awaiting decision</b>');
+  });
+});
