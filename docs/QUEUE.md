@@ -5208,6 +5208,24 @@ report himself:
   commission figures -- and is now crossed with the setting axis,
   which it never contemplated.
 
+### (dl) PUSH AUTHORISED, and the order for the rest of the night
+
+> Push the branch now as a backup (nothing to live). Then carry on, in this order: (dg) server-side search pickers, (ct) match by id not name everywhere, then the Help and API documents per level and checking setting (with the table I asked for), then the rest of the not-built list. On (ca): keep the rule, don't print the name twice. Push again after each block. At 4:30 stop starting new items, run the full gate, update HANDOVER-BALAL.md with anything unfinished under "After launch", and do the final push by 4:50.
+
+- **THE STANDING RULE IS MATT'S AND HE HAS LIFTED IT FOR THIS.**
+  CLAUDE.md says "origin is a third-party live repository. Matt
+  pushes. Claude only commits. Never push." He has now said
+  otherwise, and scoped it himself: the BRANCH, as a backup, nothing
+  to live. So: `partner-api` only, never `main`, never forced, and
+  nothing deploys from a branch push.
+- (ca) IS ANSWERED: keep the collapse. So the Branches board leaves
+  that row as it is, and if the complaint persists it is (ct) -- the
+  stale name after a rename -- which is the next item but one.
+- **THE CLOCK IS PART OF THE INSTRUCTION:** stop starting at 4:30,
+  gate, write up what is unfinished under "After launch" in
+  HANDOVER-BALAL.md, final push by 4:50. The handover entry is a
+  deliverable, not a courtesy -- Balal picks this up.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
