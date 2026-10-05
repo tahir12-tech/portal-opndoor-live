@@ -1708,19 +1708,9 @@ is not.
 
 **Watch:**
 
-- **An `opndoor_manager` sees a blank Reporting page.** Found 2026-09-30 and
-  deliberately not fixed: `paymentMetrics.scopeFull` has a positive allowlist
-  naming only `referrer`, `superadmin` and `management`, so that role is
-  handed an empty set and every live figure comes out zero. The role was
-  added later and the list was never widened. It is not a leak -- it shows
-  too little, not too much -- and it is not in the queue, so it is here
-  rather than fixed. An opndoor_manager who says "Reporting is empty" is
-  seeing this, not a data problem.
 - **`partner_weekly_climbers`** still ranks referrers by summed `monthly_rent`
   and feeds the "Climber of the week" line of the digest. Same defect as the two
   aggregates fixed in bite 4, not fixed.
-- **`public/help-docs/*.html`** still tell agents the guarantee fee is one
-  month's rent. True for standard terms, false for Regent.
 - **The demo agency "Hartwell Estates"** appears in mock data and so in demo-mode
   exports. Cosmetic, but it is a name on a screen.
 
@@ -1733,7 +1723,7 @@ None of it blocks Wednesday; all of it was reported by Matt after the
 go-live branch was cut, and it is here so nothing is carried only in
 somebody's head.
 
-### Scale, and the one question nobody has asked
+### Scale: the sign-in load, and the fix Matt has chosen
 
 **(dg) The sign-in load.** The pickers now search on the server
 (`search_agencies_for_referral`), so the referral form no longer
@@ -1744,13 +1734,24 @@ array also feeds Reporting, the League, the exports and the league
 grouping, so a blanket `.limit()` would not make those slow, it would
 make them WRONG, silently. Wrong money is worse than a slow form.
 
-**THE QUESTION TO ASK BEFORE DOING ANYTHING: how many agencies will
-Rightmove have on day one?** At a few hundred none of this bites. The
-three options are written out in QUEUE.md under (dg).
+**MATT'S DECISION, 2026-10-05: OPTION 1. Load the org tree on demand
+per screen, not at sign-in.** That is the largest of the three options
+in QUEUE.md under (dg) and the only one that is correct rather than
+defensive: the alternatives either keep the global load and guard
+against truncation with a banner, or accept it on a head-count nobody
+has measured. Nothing is to be capped in the meantime -- a `.limit()`
+on that array is the silent-wrong-money failure above, and it is not
+the chosen fix.
+
+**IT STAYS AFTER LAUNCH.** The decision settles WHICH fix, not when:
+it does not ship for Wednesday, and Matt's "leave the whole-book
+sign-in load in After launch" stands.
 
 `orgService.ts` also persists that whole array to localStorage on every
 write, and `saveJSON` swallows a quota failure; at thousands of
-agencies that is a silent failure on every on-the-fly create.
+agencies that is a silent failure on every on-the-fly create. The
+on-demand rewrite is where that gets fixed too, because there is then
+no whole array to persist.
 
 ### Help and the documents
 
@@ -1808,48 +1809,56 @@ if Matt wants it.
 **(ca) the Branches board's missing agency line: answered and
 closed.** Matt ruled: keep the collapse, do not print the name twice.
 
-**The whole-book sign-in load (dg) needs his answer**, which is why
-it stays above: how many agencies will Rightmove have on day one?
-
 ### Still not built, in the order I would take them
 
-1. **(cp)** A draft month has no statement reference by design, and
+1. **The Help documents tell every agent the fee is one month's
+   rent.** `public/help-docs/*.html` say it; it is true on standard
+   terms and FALSE FOR REGENT, who go live on Wednesday on their own
+   fee. It is first on this list for that reason: it is the only item
+   here that is wrong on the estate opening on day one, and it is
+   wrong in a document an agent hands to a tenant. Was filed under
+   "watch" in section 12, which understated it.
+2. **An `opndoor_manager` sees a blank Reporting page.** Found
+   2026-09-30 and still not fixed: `paymentMetrics.scopeFull` has a
+   positive allowlist naming only `referrer`, `superadmin` and
+   `management`, so that role is handed an empty set and every live
+   figure comes out zero. The role was added later and the list was
+   never widened. NOT A LEAK -- it shows too little, not too much --
+   which is why it sat under "watch"; but a manager reading all
+   zeros is a fault, not a thing that merely looks like one. An
+   opndoor_manager who says "Reporting is empty" is seeing this, not
+   a data problem.
+3. **(cp)** A draft month has no statement reference by design, and
    the Agency schedules panel reports that as "Reference couldn't be
    loaded. Refresh to try again" -- then writes that sentence into
    the EXPORT's filename. Visibly broken, and the real error still
    has to be found rather than hidden.
-2. **(cq)/(cy)** A referral an admin made on a customer's behalf
+4. **(cq)/(cy)** A referral an admin made on a customer's behalf
    still names the admin in referrer lists, charts and exports, and
    historic activity rows still carry staff names. (bm) fixed the
    WRITE; these are the read. Note the difficulty recorded in QUEUE
    (cy): activity_log has no actor_id, so historic rows can only be
    masked by matching the stored name.
-3. **(ci)** The server does not refuse a referencing mode set on a
+5. **(ci)** The server does not refuse a referencing mode set on a
    supplier-estate agency. The screen half is done; this is the
    binding half.
-4. **(bq)(br)(bs)** The export fixes: Refunded status everywhere, the
+6. **(bq)(br)(bs)** The export fixes: Refunded status everywhere, the
    carved share, blank supplier columns on agency rows, voided-deed
    status, "Activity in period", and the Export-all CSV's month,
    tenancy and Agency column.
-5. **(ck)** The duplicate check misses "Test Lettings" against "Test
+7. **(ck)** The duplicate check misses "Test Lettings" against "Test
    Lettings asda" -- shared email, name prefix, containment.
-6. **(cl)** An opndoor manager on a supplier page is told "no
-   commission deal set" when the truth is "not allowed to see".
-7. **(cs)** Supplier edits to an agency's name, address and email are
+8. **(cl)** HALF DONE (`3ea02cc`). The commission card is gone for
+   a reader who may not see money, so no manager is told "no
+   commission deal set" when the truth is "not allowed to see". The
+   STATEMENT ADDRESS section of the same instruction is untouched and
+   is still shown to them.
+9. **(cs)** Supplier edits to an agency's name, address and email are
    not in Recent changes.
-8. **(cu)** Sign-in lands on the last page visited.
-9. **(cv)(cw)** The Expiries default month (answer first) and the
+10. **(cu)** Sign-in lands on the last page visited.
+11. **(cv)(cw)** The Expiries default month (answer first) and the
    sandbox proof.
-10. **(cx)(cg)(df)(db)(nn)(oo)(zz)** and the rest.
-
-**(ds) The two PDFs.** The Sales and conversation guide and the Agent
-one-pager open in the browser's PDF viewer while every other item
-opens as HTML in the modal. They are to be rebuilt as HTML in the
-management-guide template. FIRST OBSTACLE, measured: both PDFs use
-subset fonts, so their text is glyph codes needing per-font ToUnicode
-resolution. A naive extraction returns `(a)(a)(a)`; a merged-CMap one
-recovers most words but CORRUPTS DIGITS -- it renders the cap as
-"GBP 12f,fff". Do not transcribe those figures from an extraction.
+12. **(cx)(cg)(df)(db)(nn)(oo)(zz)** and the rest.
 
 **(dr8) The landlord guide's figures are unverified.** It claims 12
 months, a GBP 120,000 cap, GBP 10,000 of legal costs, notify within
