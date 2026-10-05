@@ -333,6 +333,7 @@ insert into allowed(name) values
      names who is being under-billed -- so the function asks is_admin()
      itself and returns nothing to anybody else. 20261007690000, covered
      by a_missing_deal_is_loud.test.sql. */
+  ('suppliers_that_can_take_referrals'),
   ('suppliers_with_no_commission_deal'),
   ('trigger_crm_sync'),
   /* "Turn off all" on one person's notifications dialog (ap item 2). It

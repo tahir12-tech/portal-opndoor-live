@@ -197,6 +197,14 @@ describe('the definer allowlist', () => {
      `set_app_setting_text` is Health's field, `statement_invoice_email`
      is what it reads back, and `statements_can_be_posted` is the
      boolean Home and Health both warn on. 2026-10-01. */
+  /* 154 -> 155, RAISED WITH suppliers_that_can_take_referrals (df).
+     The Referred by picker is drawn for an opndoor_manager, and "has a
+     negotiated agreement that has not ended" is a question about a
+     pricing agreement, which they may not read. So the question is
+     answered here and the answer is a name and an id: no rate, no
+     band, no date. Exercised by name in
+     the_suppliers_that_can_take_a_referral.test.sql, including that a
+     customer asking it is told nothing. 2026-10-05. */
   /* 152 -> 154, RAISED WITH THE TWO MERGES. `merge_branches` is new
      (Matt, 2026-10-05) and `merge_agencies` has existed since the
      agencies work and was never callable by the browser -- which is
@@ -213,7 +221,7 @@ describe('the definer allowlist', () => {
      opndoor. Definer because users RLS hides those rows from the caller,
      which is the whole reason the client cannot answer it. Exercised by
      name in a_customer_is_told_opndoor_sent_it.test.sql. 2026-10-05. */
-  it('is 154 functions wide, and does not widen by accident', () => {
+  it('is 155 functions wide, and does not widen by accident', () => {
     /* 142 -> 144, 2026-10-01: refund_questions_open and
        decide_refund_question, the list and the answer for a refund that
        landed on commission already sent on a statement. Both are staff
@@ -428,6 +436,14 @@ describe('the definer allowlist', () => {
        they may not. They return a name, an address and an office
        count. No money, no people, no deal. They are definers because
        that predicate is, not to widen anything. */
+    /* 170 -> 171, RAISED WITH suppliers_that_can_take_referrals.
+
+       WHY IT IS SAFE: it answers one question about the caller's own
+       estate -- which suppliers may take a referral -- and returns a
+       name and an id. is_opndoor_staff is inside it, so a customer
+       asking gets an empty list rather than a refusal, which is the
+       right shape for a picker. Nothing about a deal leaves the
+       function. */
     /* 168 -> 170, RAISED WITH THE TWO MERGES.
 
        WHY THEY ARE SAFE TO HAND TO EVERY SIGNED-IN USER, which is the
@@ -446,7 +462,7 @@ describe('the definer allowlist', () => {
        whether some other uuid is a person. It is a definer only
        because users RLS hides opndoor staff from a customer, which is
        exactly why the browser could not answer the question itself. */
-    expect(allowlist.length).toBeLessThanOrEqual(170);
+    expect(allowlist.length).toBeLessThanOrEqual(171);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

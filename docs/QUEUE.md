@@ -5662,6 +5662,29 @@ At a few hundred none of this bites.
   the rule as built and as now pinned, so the work is confirming the
   words on the screen say it too.
 
+### (df) BUILT ON RULE B, 2026-10-05, AND WHAT "HARBOUR LETS" TURNED OUT TO BE
+
+**Harbour Lets is two records with one name, and it is not a duplicate.**
+A partner row, `harbour-lets`, whose `partner_kind` is **agency**, and
+an agency row of the same name under it. That is the ordinary shape of
+"an agency with a partner row of its own", which the product uses when
+an agency is its own route; nothing is duplicated and nothing needs
+merging.
+
+**It appeared in the supplier picker because that picker asked the
+wrong question.** `getPartners()` strips the three house routes and
+nothing else, so every agency-kind partner sailed through. Matt found
+the same defect in the OTHER supplier dropdown on 2026-10-04 ("the
+Supplier dropdown includes 'Harbour Lets', which is an agency; list
+suppliers only") and it was fixed there and not here.
+
+**So the label (df) asked for is not needed: it is gone from the
+list.** The Referred by picker is now the server's answer --
+supplier-kind, active, and holding a negotiated agreement that has not
+ended -- and an agency with a partner row cannot be in it by
+construction. Labelling it would have been labelling something that
+should not have been on the screen.
+
 ### (1) THE THREE CANDIDATE TESTS FOR "a deal set", AND WHO EACH SHOWS
 
 > Matt, 2026-10-05: "(df) Don't build yet. Explain the three candidate
