@@ -27,6 +27,8 @@
    would be a fifth place for the same fact to drift.
    ===================================================================== */
 import { useEffect, useMemo, useState } from 'react';
+import { useSession } from '@/session/SessionContext';
+import { maySeeCommission } from '@/data';
 import { getPartnerAudit, type PartnerAuditEntry } from '@/data/partnersService';
 import { getAgencies, getApplications, getSupplierDeal, ALL_PARTNERS, type AgreementView } from '@/data';
 import { agenciesNeedingAnEmail } from '@/data/deedContact';
@@ -51,6 +53,7 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
   onOpenAgencies: () => void;
   dataVersion: number;
 }) {
+  const { role } = useSession();
   /* HOW MANY REFERRALS THIS SUPPLIER HAS TAKEN, read from the hydrated book
      rather than fetched: the Agencies tab beside this reads the same book,
      and two readers would be two answers to "how many". It decides only
@@ -90,8 +93,28 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
      two answers to "how many need one". */
   const needEmail = agenciesNeedingAnEmail(getAgencies(slug));
 
+  /* (cl) A REFUSAL IS NOT AN ABSENCE. Matt: "because managers can't
+     read commission, the Overview wrongly says 'Referrals are coming
+     in with no commission deal set. 5 referrals have been priced at
+     0%' ... For managers, hide the Commission and statement-address
+     sections entirely, never show 'no deal' when the truth is 'not
+     allowed to see'."
+
+     THE WARNING IS CORRECT CODE READING A REFUSED ANSWER. The
+     commission read returns nothing to somebody who may not see it,
+     `hasNoDeal` quite properly says there is no deal, and the card
+     then reports our own permission boundary as the supplier's
+     missing paperwork -- and tells an opndoor manager to go and chase
+     a deal that exists.
+
+     THE WHOLE CARD GOES, not the sentence. A commission card with its
+     warning removed still has a heading promising figures it will not
+     show. */
+  const readsMoney = maySeeCommission(role);
+
   return (
     <div className="ph-grid">
+      {readsMoney && (
       <Card>
         {/* WHO PAYS WHOM. Matt, 2026-10-02: "'What opndoor charges on a
             referral through this supplier' should read 'What opndoor pays
@@ -149,6 +172,7 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
           )}
         </CardBody>
       </Card>
+      )}
 
       <Card>
         {/* `possessive`, not `${name}’s`. Matt, 2026-10-02: "'Kestrel

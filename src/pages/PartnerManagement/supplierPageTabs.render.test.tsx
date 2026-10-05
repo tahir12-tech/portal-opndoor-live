@@ -431,3 +431,43 @@ describe('(cc2) the page is named after the supplier', () => {
     expect(src).not.toContain('REFERENCING_MODES.find((x) => x.id === m)?.label');
   });
 });
+
+/* =====================================================================
+   (cl) A REFUSAL IS NOT AN ABSENCE.
+
+   Matt: "because managers can't read commission, the Overview
+   wrongly says 'Referrals are coming in with no commission deal set.
+   5 referrals have been priced at 0%' ... For managers, hide the
+   Commission and statement-address sections entirely, never show 'no
+   deal' when the truth is 'not allowed to see'."
+
+   THE WARNING WAS CORRECT CODE READING A REFUSED ANSWER. The
+   commission read returns nothing to a reader who may not see it,
+   `hasNoDeal` quite properly concludes there is no deal, and the card
+   reports OUR OWN permission boundary as the supplier's missing
+   paperwork -- then sends an opndoor manager to chase a deal that
+   exists.
+
+   THE WHOLE CARD GOES, not the sentence: a commission card with its
+   warning removed still carries a heading promising figures it will
+   not show. The statement-address half of (cl) is not done and is in
+   the handover.
+   ===================================================================== */
+describe('(cl) the supplier Overview, read by somebody who may not see money', () => {
+  const src = readFileSync(join(process.cwd(), 'src/pages/PartnerManagement/SupplierOverview.tsx'), 'utf8');
+
+  it('asks whether this reader may see commission at all', () => {
+    expect(src).toContain('const readsMoney = maySeeCommission(role);');
+  });
+
+  it('and drops the whole commission card rather than the warning inside it', () => {
+    expect(src).toContain('{readsMoney && (\n      <Card>');
+  });
+
+  /* THE PREDICATE IS THE PRODUCT'S, not a role list written here. It
+     already answers Matt's rule for all eight readers, which
+     whoSeesCommission.test.ts pins. */
+  it('through the shared predicate, not a local role check', () => {
+    expect(src).not.toMatch(/role === 'opndoor_manager'/);
+  });
+});
