@@ -265,8 +265,22 @@ export function AgencyHome() {
 
   const referrals = useMemo(() => {
     if (!org || !partner) return [];
+    /* (ct) BY ID WHERE BOTH SIDES HAVE ONE. Matt: "Referrals (and
+       anything else) must be found by the agency's/office's id, never
+       by name." Both sides are live here, so a rename moved them
+       together and this set was never the break -- it is why the
+       header kept saying 2 while the tab said none. Converted anyway,
+       because "never by name" is the rule and because two agencies of
+       one name in different estates would merge here.
+
+       THE NAME SET STAYS AS THE FALLBACK: mock rows and older
+       fixtures carry no ids, and a filter that required one would
+       empty the demo. Same bargain ApplicationSummary's own comment
+       strikes for branchId and agencyId. */
+    const ids = new Set(agencies.map((a) => a.id).filter(Boolean) as string[]);
     const names = new Set(agencies.map((a) => a.name));
-    return getApplications({ role, scope: partner }).filter((r) => names.has(r.agency));
+    return getApplications({ role, scope: partner })
+      .filter((r) => (r.agencyId && ids.size ? ids.has(r.agencyId) : names.has(r.agency)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org, partner, role, dataVersion, tick]);
 
@@ -1033,9 +1047,19 @@ export function AgencyHome() {
     const rows = peopleRows.filter((r) => (isBranch
       ? (branch?.id ? r.branchId === branch.id : r.branch === focus.name)
       : r.level === 'agency' && (agency.id ? r.agencyId === agency.id : r.agency === agency.name)));
+    /* (ct) THE SAME FILTER AS THE PEOPLE ROWS ABOVE, by id, and for the
+       same reason -- `focus.name` is the name the panel was OPENED
+       with and does not move when the office is renamed. The agency
+       arm survived a rename only because `agency.name` is re-resolved
+       from the live tree; the branch arm did not. Both read the id
+       now, so neither depends on which of the two happened to be
+       refreshed. */
     const refs = isBranch
-      ? referrals.filter((r) => r.branch === focus.name)
-      : referrals.filter((r) => r.agency === agency.name);
+      ? referrals.filter((r) => (branch?.id && r.branchId ? r.branchId === branch.id : r.branch === (branch?.name ?? focus.name)))
+      : referrals.filter((r) => (agency.id && r.agencyId ? r.agencyId === agency.id : r.agency === agency.name));
+    /* AND THE EMPTY STATE NAMES WHAT IT IS CALLED NOW, not what it was
+       called when the panel opened. */
+    const focusName = (isBranch ? branch?.name : agency.name) ?? focus.name;
     const branchReady = isBranch && branch?.id ? readiness?.branches.get(branch.id) : undefined;
     const inviteCtx: InviteContext = isBranch
       ? { level: 'branch', partner, branchId: branch?.id, name: focus.name }
@@ -1126,7 +1150,7 @@ export function AgencyHome() {
 
           <h3 className="ah-nv-h">Referrals</h3>
           {refs.length === 0 ? (
-            <div className="ah-empty">No referrals from {focus.name} yet.</div>
+            <div className="ah-empty">No referrals from {focusName} yet.</div>
           ) : (
             <table className="dt ah-table">
               <thead><tr><th>Tenant</th>{!isBranch && <th>Branch</th>}<th>Stage</th></tr></thead>
@@ -2043,11 +2067,35 @@ export function AgencyHome() {
             )}
           </div>
           {(() => {
+            /* (ct) THE BUG MATT REPORTED, AND IT IS THIS LINE.
+
+               "After renaming an agency (Test Lettings asda -> Test
+               Lettings asdah) its Referrals tab says 'No referrals for
+               Test Lettings asda yet' though the header shows 2
+               referrals; the old name also lingers in the breadcrumb."
+
+               `sel` is seeded once from the org tree and is not
+               re-resolved, so after a rename `sel.name` is the OLD
+               name while every referral row carries the new one. The
+               filter matched nothing and the empty state then printed
+               the stale name back -- which is why the message named an
+               agency that no longer exists.
+
+               THE ID WAS ALREADY IN HAND ON BOTH SIDES: `sel.id` is
+               the agency's own id and `r.agencyId` is on every
+               summary row. And the LABEL is re-resolved too, so the
+               empty state names what the org is called now. */
+            const selName = sel
+              ? (sel.level === 'branch'
+                ? branchesFlat.find((x) => x.branch.id === sel.id)?.branch.name
+                : agencies.find((a) => a.id === sel.id)?.name) ?? sel.name
+              : '';
             const scoped = sel === null ? referrals
-              : sel.level === 'branch' ? referrals.filter((r) => r.branch === sel.name)
-              : referrals.filter((r) => r.agency === sel.name);
+              : sel.level === 'branch'
+                ? referrals.filter((r) => (r.branchId && sel.id ? r.branchId === sel.id : r.branch === selName))
+                : referrals.filter((r) => (r.agencyId && sel.id ? r.agencyId === sel.id : r.agency === selName));
             const rows = scoped.slice(0, 12);
-            if (rows.length === 0) return <div className="ah-empty">No referrals{sel ? ` for ${sel.name}` : ''} yet.</div>;
+            if (rows.length === 0) return <div className="ah-empty">No referrals{sel ? ` for ${selName}` : ''} yet.</div>;
             return (
               <table className="dt ah-table">
                 <thead><tr><th>Tenant</th><th>Branch</th><th>Stage</th></tr></thead>
