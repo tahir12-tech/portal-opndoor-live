@@ -133,8 +133,15 @@ const SOURCE_CAPTION: Record<SplitLine['source'], string> = {
  */
 const payoutSentence = (lines: SplitLine[]): string => {
   if (!lines.length) return 'Pays out nothing.';
-  const parts = lines.map((l) => `${l.orgName} ${pctLabel(l.rate)} (${SOURCE_CAPTION[l.source]})`);
+  const parts = lines.map((l) => `${l.orgName} ${bandSentence(l.bands, pctLabel) ?? pctLabel(l.rate)} (${SOURCE_CAPTION[l.source]})`);
   if (lines.length === 1) return `Pays out: ${parts[0]}`;
+  /* A BANDED LINE HAS NO SINGLE RATE TO ADD UP. (v) was fixed in the payout
+     TABLE and not here, and this line draws the same payees on the branch
+     card: summing l.rate over a banded deal adds the one-tenant rate and
+     prints it as the whole, which is a number nobody is owed. Where any
+     payee is banded the line stops at the parts, for the same reason the
+     total is already dropped for a sole payee. */
+  if (lines.some((l) => bandSentence(l.bands, pctLabel))) return `Pays out: ${parts.join(' + ')}`;
   const total = pctLabel(lines.reduce((s, l) => s + l.rate, 0));
   return `Pays out: ${parts.join(' + ')} = ${total} of the fee`;
 };
