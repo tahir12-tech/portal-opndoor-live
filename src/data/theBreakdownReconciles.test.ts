@@ -130,6 +130,12 @@ describe('the surfaces read the one rule', () => {
      to agentComm is for rows that predate the split being carried;
      asserting the expression keeps the fallback from quietly becoming
      the normal path. */
+  it('the League boards split it the same way', () => {
+    const src = read('src/data/exportsService.ts');
+    expect(src).toContain("moneyCol('Supplier commission'), moneyCol('Agent commission'), moneyCol(INCLUDED_IN_SUPPLIER_COMMISSION)");
+    expect(src).toContain('money(r.partnerComm), money(r.agentPaidDirect ?? r.agentComm), money(r.agentPassedOn ?? 0)');
+  });
+
   it('the exports split the agent column from the carved one', () => {
     const src = read('src/data/exportsService.ts');
     expect(src).toContain('const direct = e.agentPaidDirect ?? e.agentComm;');

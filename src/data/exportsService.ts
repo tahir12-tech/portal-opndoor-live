@@ -1738,11 +1738,18 @@ function leagueColumns(view: LeagueView, agency: boolean, showComm: boolean, for
      and stops at the money the agency earns from it. leagueRows makes the same
      test on the same flag, so a heading here always has a cell under it. */
   if (!showComm) return [first, ...detailCols, ...core];
+  /* (bz) THE SAME THREE COLUMNS AS THE PERFORMANCE BREAKDOWN. Matt:
+     "League (Agencies, Branches, Referrers, Suppliers tabs and
+     exports): same rule as the Performance export, so a carved-out
+     agency share shows as included in the supplier's commission, never
+     as a second amount." A board that adds Supplier and Agent down a
+     column is the same double-count as the breakdown, with a sort on
+     it. */
   const comm: Column[] = agency
     // A branch board row shows the branch's OWN commission, which is nothing
     // where it holds no rate of its own; hence the note on the sheet.
     ? [moneyCol(view === 'branch' ? 'Own commission' : 'Commission')]
-    : [moneyCol('Supplier commission'), moneyCol('Agent commission')];
+    : [moneyCol('Supplier commission'), moneyCol('Agent commission'), moneyCol(INCLUDED_IN_SUPPLIER_COMMISSION)];
   return [first, ...detailCols, ...core, ...comm];
 }
 function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, agency: boolean, showComm: boolean, forCustomer = false): TableRow[] {
@@ -1786,7 +1793,11 @@ function leagueRows(view: LeagueView, rows: LeagueRow[], showPartner: boolean, a
     }
     const base = [name, ...detailCells, r.refs, money(r.fees), r.paid, r.deed, r.sp, r.conv];
     if (!showComm) return base;
-    return agency ? [...base, money(r.agentComm)] : [...base, money(r.partnerComm), money(r.agentComm)];
+    if (agency) return [...base, money(r.agentComm)];
+    // (bz) Agent = what opndoor pays the agency itself, so the two money
+    // columns add up; the carved share is reported beside them, never
+    // inside the addition.
+    return [...base, money(r.partnerComm), money(r.agentPaidDirect ?? r.agentComm), money(r.agentPassedOn ?? 0)];
   });
 }
 
