@@ -19,8 +19,8 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 
 | Reader | accepts as sent | applies its own criteria | opndoor checks |
 | --- | ---: | ---: | ---: |
-| opndoor admin | 10 / 20 | 10 / 19 | 10 / 19 |
-| opndoor manager | 8 / 19 | 8 / 18 | 8 / 18 |
+| opndoor admin | 10 / 16 | 10 / 16 | 10 / 16 |
+| opndoor manager | 8 / 15 | 8 / 15 | 8 / 15 |
 | agency Director | 6 / 8 | 6 / 8 | 6 / 8 |
 | agency Manager | 5 / 8 | 5 / 8 | 5 / 8 |
 | agency Negotiator | 5 / 8 | 5 / 8 | 5 / 8 |
@@ -48,14 +48,10 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 **FAQs**
 
 - What is the Guarantee Referral Portal for?
-- What does opndoor do as guarantor?
-- What do Sent, Paid and Deed Issued mean?
-- How do I refer a tenant?
 - Are the guarantee reference, issue date and expiry entered by hand?
 - Who can use the portal and what can each role see?
 - Can I add an agency or branch that is not listed?
 - How are the guarantee fee and commission calculated?
-- Can a tenancy start date be changed after a referral?
 - How do I find a specific application?
 - What time period does the dashboard cover?
 - I have a question that is not answered here.
@@ -86,13 +82,10 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 **FAQs**
 
 - What is the Guarantee Referral Portal for?
-- What does opndoor do as guarantor?
-- How do I refer a tenant?
 - Are the guarantee reference, issue date and expiry entered by hand?
 - Who can use the portal and what can each role see?
 - Can I add an agency or branch that is not listed?
 - How are the guarantee fee and commission calculated?
-- Can a tenancy start date be changed after a referral?
 - How do I find a specific application?
 - What time period does the dashboard cover?
 - I have a question that is not answered here.
@@ -123,13 +116,10 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 **FAQs**
 
 - What is the Guarantee Referral Portal for?
-- What does opndoor do as guarantor?
-- How do I refer a tenant?
 - Are the guarantee reference, issue date and expiry entered by hand?
 - Who can use the portal and what can each role see?
 - Can I add an agency or branch that is not listed?
 - How are the guarantee fee and commission calculated?
-- Can a tenancy start date be changed after a referral?
 - How do I find a specific application?
 - What time period does the dashboard cover?
 - I have a question that is not answered here.
@@ -161,13 +151,9 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 **FAQs**
 
 - What is the Guarantee Referral Portal for?
-- What does opndoor do as guarantor?
-- What do Sent, Paid and Deed Issued mean?
-- How do I refer a tenant?
 - Are the guarantee reference, issue date and expiry entered by hand?
 - Who can use the portal and what can each role see?
 - Can I add an agency or branch that is not listed?
-- Can a tenancy start date be changed after a referral?
 - How do I find a specific application?
 - What time period does the dashboard cover?
 - I have a question that is not answered here.
@@ -196,12 +182,9 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 **FAQs**
 
 - What is the Guarantee Referral Portal for?
-- What does opndoor do as guarantor?
-- How do I refer a tenant?
 - Are the guarantee reference, issue date and expiry entered by hand?
 - Who can use the portal and what can each role see?
 - Can I add an agency or branch that is not listed?
-- Can a tenancy start date be changed after a referral?
 - How do I find a specific application?
 - What time period does the dashboard cover?
 - I have a question that is not answered here.
@@ -230,12 +213,9 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 **FAQs**
 
 - What is the Guarantee Referral Portal for?
-- What does opndoor do as guarantor?
-- How do I refer a tenant?
 - Are the guarantee reference, issue date and expiry entered by hand?
 - Who can use the portal and what can each role see?
 - Can I add an agency or branch that is not listed?
-- Can a tenancy start date be changed after a referral?
 - How do I find a specific application?
 - What time period does the dashboard cover?
 - I have a question that is not answered here.

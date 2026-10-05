@@ -42,7 +42,7 @@ import { describe, expect, it } from 'vitest';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { HELP_SEED } from '@/data/mock/help';
-import { mayOpenResource, mayOpenFaq, type HelpViewer } from './Help';
+import { mayOpenResource, mayOpenFaq, oneAnswerPerQuestion, type HelpViewer } from './Help';
 import type { ReferencingMode } from '@/data';
 
 /* (do) THE THIRD AXIS. Matt: "I asked for it to vary by checking
@@ -80,7 +80,7 @@ const allResources = (): { section: string; r: Res }[] => [
 
 const seenBy = (v: HelpViewer) => ({
   resources: allResources().filter(({ r }) => mayOpenResource(r, v)),
-  faqs: (HELP_SEED.faqs ?? []).filter((f) => mayOpenFaq(f, v)),
+  faqs: oneAnswerPerQuestion((HELP_SEED.faqs ?? []).filter((f) => mayOpenFaq(f, v)), v),
 });
 const seenIn = (v: HelpViewer, mode: ReferencingMode) => seenBy({ ...v, mode });
 
@@ -141,6 +141,30 @@ describe('the Help matrix', () => {
     expect(allResources().length).toBeGreaterThan(5);
     for (const { label, v } of READERS) {
       expect(seenBy(v).resources.length, `${label} sees no resources at all`).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('(dr7) one answer per question', () => {
+  /* ONLY OPNDOOR'S STAFF SEE BOTH RAILS, so only they could meet a
+     duplicate -- and they did: the agency and supplier sets answer
+     the same four questions differently. */
+  it.each(READERS.map((r) => [r.label, r.v] as const))(
+    '%s never meets the same question twice', (label, v) => {
+      const qs = seenBy(v).faqs.map((f) => f.q.trim().toLowerCase());
+      const dupes = qs.filter((q, i) => qs.indexOf(q) !== i);
+      expect(dupes, `${label} sees these twice`).toEqual([]);
+    });
+
+  /* AND NOTHING SUPPLIER-ONLY IS LOST WITH THEM. The dedupe drops a
+     second answer, never the only answer: commission, the API and
+     co-branding have no agency twin and must survive. */
+  it('and an admin keeps every supplier-only answer', () => {
+    const admin = READERS[0].v;
+    const supplier = READERS.find((r) => r.label === 'supplier Management')!.v;
+    const adminQs = new Set(seenBy(admin).faqs.map((f) => f.q.trim().toLowerCase()));
+    for (const f of seenBy(supplier).faqs) {
+      expect(adminQs, `an admin lost "${f.q}"`).toContain(f.q.trim().toLowerCase());
     }
   });
 });

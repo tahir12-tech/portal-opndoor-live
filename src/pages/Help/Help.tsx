@@ -135,6 +135,59 @@ export function mayOpenFaq(f: { rail?: 'supplier' | 'agency'; needsCommission?: 
   return true;
 }
 
+/* (dr7) ONE ANSWER PER QUESTION, for the one reader who sees both
+   rails.
+
+   Matt: "Admin sees two sets of FAQs with the same questions answered
+   differently. One answer per question."
+
+   ONLY OPNDOOR'S OWN STAFF ARE AFFECTED. An agency reader sees the
+   agency set and a supplier reader the supplier set; neither ever
+   meets a duplicate. An admin sees BOTH, and the overlapping
+   questions -- what the portal is for, what opndoor does as
+   guarantor, what Sent, Paid and Deed Issued mean, how to refer --
+   have one answer on each rail, written at different times and
+   differing in detail. Two answers to one question is worse than
+   either being wrong, because the reader cannot tell which is
+   current.
+
+   WHERE BOTH EXIST, THE AGENCY ANSWER WINS. The agency set was
+   written later and deliberately, for (bg), and every supplier-only
+   question -- commission, the API, co-branding -- has no agency twin
+   and is untouched. So nothing is lost from the supplier side except
+   a second answer to a question already answered.
+
+   IF MATT WANTS THE OTHER WAY ROUND it is the comparison in `keep`
+   below and nothing else.
+
+   THE QUESTION IS THE KEY, normalised for case and spacing. Matching
+   on id would not find the duplicates, which is the whole problem:
+   af1 and f1 are the same question with different ids. */
+export function oneAnswerPerQuestion<T extends { q: string; rail?: 'supplier' | 'agency' }>(
+  faqs: T[], v: HelpViewer,
+): T[] {
+  /* IT RUNS FOR EVERYBODY, not only the both-rails reader it was
+     written for, and the matrix found out why. Before the
+     organisation's checking setting resolves, `appliesToMode` shows
+     everything rather than emptying the shelf -- which means an
+     agency reader could meet BOTH "what does the tenant pay"
+     answers for the frame or two before the partner loads. Rare,
+     transient, and exactly the duplicate this is here to prevent.
+
+     FOR A READER WITH A RESOLVED SETTING IT IS A NO-OP, because the
+     mode gate has already left one of each pair. */
+  const key = (q: string) => q.trim().toLowerCase().replace(/\s+/g, ' ');
+  const byQ = new Map<string, T>();
+  for (const f of faqs) {
+    const k = key(f.q);
+    const seen = byQ.get(k);
+    const keep = !seen || (f.rail === 'agency' && seen.rail !== 'agency');
+    if (keep) byQ.set(k, f);
+  }
+  // Original order, so the shelf does not reshuffle.
+  return faqs.filter((f) => byQ.get(key(f.q)) === f);
+}
+
 /** Who is reading, in the three dimensions this page gates on. */
 export interface HelpViewer {
   role: Role;
@@ -480,8 +533,9 @@ export function Help() {
   /* THE SAME THREE-DIMENSION RULE AS THE SHELF. An FAQ that states the
      commission is not safe merely because the guide describing it is gated:
      f8 named 25% and 10% in a list every Manager and Negotiator could read. */
-  const faqs = data.faqs
-    .filter((f) => mayOpenFaq(f, helpViewer))
+  // (dr7) The dedupe runs on the GATED set and before the search, so a
+  // reader searching never turns up the twin the shelf just dropped.
+  const faqs = oneAnswerPerQuestion(data.faqs.filter((f) => mayOpenFaq(f, helpViewer)), helpViewer)
     .filter(matchFaq);
   const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 

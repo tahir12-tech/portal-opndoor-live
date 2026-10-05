@@ -177,7 +177,18 @@ function render(reader, mode) {
       L.push(resourceWords(r), '');
     }
   }
-  const faqs = (HELP.faqs || []).filter((f) => mayOpenFaq(f, reader, mode.id));
+  /* (dr7) ONE ANSWER PER QUESTION, as the page now applies it: an
+     admin sees both rails, and the overlapping questions had an
+     answer on each. The agency answer wins where both exist; every
+     supplier-only answer survives. */
+  const gated = (HELP.faqs || []).filter((f) => mayOpenFaq(f, reader, mode.id));
+  const seenQ = new Map();
+  for (const f of gated) {
+    const k = f.q.trim().toLowerCase().replace(/\s+/g, ' ');
+    const prev = seenQ.get(k);
+    if (!prev || (f.rail === 'agency' && prev.rail !== 'agency')) seenQ.set(k, f);
+  }
+  const faqs = gated.filter((f) => seenQ.get(f.q.trim().toLowerCase().replace(/\s+/g, ' ')) === f);
   L.push('## Frequently asked questions', '');
   if (!faqs.length) L.push('_No answers for this reader._', '');
   for (const f of faqs) {
