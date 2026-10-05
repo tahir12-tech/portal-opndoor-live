@@ -5004,6 +5004,19 @@ report himself:
   The archive line writes and the amend line does not, so the ordering
   still points at where to look.
 
+**And a third, from Matt a minute later:**
+
+> Also: after the corrected deed was delivered to barb at 01:20, GR-25832's Delivery panel still said "Not sent yet… has not been delivered yet". It must update once delivered.
+
+- WHICH MAKES THREE READINGS OF ONE EVENT ALL STALE: the deed state,
+  the activity log and the delivery panel. That is a stronger clue
+  than any of them alone -- they do not share a code path, they share
+  a ROW, so the likeliest cause is the reissue writing columns the
+  three readers do not look at, or looking at columns it no longer
+  writes. 20261007640000 moved delivery into
+  deed_delivery_superseded_at/_to; the panel may still be reading the
+  pair that correction clears.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
