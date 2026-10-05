@@ -80,7 +80,7 @@ const allResources = (): { section: string; r: Res }[] => [
 
 const seenBy = (v: HelpViewer) => ({
   resources: allResources().filter(({ r }) => mayOpenResource(r, v)),
-  faqs: oneAnswerPerQuestion((HELP_SEED.faqs ?? []).filter((f) => mayOpenFaq(f, v)), v),
+  faqs: oneAnswerPerQuestion((HELP_SEED.faqs ?? []).filter((f) => mayOpenFaq(f, v))),
 });
 const seenIn = (v: HelpViewer, mode: ReferencingMode) => seenBy({ ...v, mode });
 

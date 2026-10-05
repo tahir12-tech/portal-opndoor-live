@@ -164,7 +164,7 @@ export function mayOpenFaq(f: { rail?: 'supplier' | 'agency'; needsCommission?: 
    on id would not find the duplicates, which is the whole problem:
    af1 and f1 are the same question with different ids. */
 export function oneAnswerPerQuestion<T extends { q: string; rail?: 'supplier' | 'agency' }>(
-  faqs: T[], v: HelpViewer,
+  faqs: T[],
 ): T[] {
   /* IT RUNS FOR EVERYBODY, not only the both-rails reader it was
      written for, and the matrix found out why. Before the
@@ -535,7 +535,7 @@ export function Help() {
      f8 named 25% and 10% in a list every Manager and Negotiator could read. */
   // (dr7) The dedupe runs on the GATED set and before the search, so a
   // reader searching never turns up the twin the shelf just dropped.
-  const faqs = oneAnswerPerQuestion(data.faqs.filter((f) => mayOpenFaq(f, helpViewer)), helpViewer)
+  const faqs = oneAnswerPerQuestion(data.faqs.filter((f) => mayOpenFaq(f, helpViewer)))
     .filter(matchFaq);
   const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
