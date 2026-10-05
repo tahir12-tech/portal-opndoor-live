@@ -4796,6 +4796,19 @@ both estates, the dialog, and FAQ 9 on both rails.
   fix. `findAgencyByName` already refuses to guess between two estates;
   the picker still offers them as two identical rows.
 
+### (co) THE WORKING ORDER, 2026-10-05
+
+> Agreed. Order: 1) (cn)/(bb) the manager gets the full admin form with "Referred by", and every agency picker labels its supplier; 2) one shared rule for "supplier passes it on vs Opndoor pays the agency directly", used by all six surfaces (statement "Payable to you", "Owed to you" headline, breakdowns, League, exports, supplier-agency Commission and Reporting tabs); 3) (kk) the supplier-agency Commission tab showing the supplier's deal and earnings; 4) the rest of the not-built list. Work straight through, commit as you go, and report when 1 to 3 are done so I can re-test.
+
+- **(2) IS NAMED AS ONE SHARED RULE AND SIX READERS**, which settles the
+  design question rather than leaving it to me: not six folds that
+  agree today, one function the six call.
+- THE SIX ARE LISTED, so the work is checkable: statement "Payable to
+  you", the "Owed to you" headline, the breakdowns, League, exports,
+  and the supplier-agency Commission and Reporting tabs.
+- "REPORT WHEN 1 TO 3 ARE DONE SO I CAN RE-TEST" is a reporting
+  instruction: report after 3, not after the whole list.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
