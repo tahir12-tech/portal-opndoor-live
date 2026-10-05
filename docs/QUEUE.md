@@ -5141,6 +5141,32 @@ report himself:
   "Add a new agency" still at the bottom from (vv). Recents per PERSON
   is the only part with no existing store behind it.
 
+### (dh) A per-level table of what each reader sees on Help
+
+> When the Help documents are done: give me a table of which guides, leaflets and FAQs each level sees on the Help page (admin, opndoor manager, agency Director, Manager, Negotiator, supplier Management, Referrer, Developer), and confirm for each that nothing shows rates, commission or anything that level shouldn't see, all of it follows the refund rule, joint-tenancy wording and "in favour of the property", and there are no em dashes. Then I'll spot-check each level.
+
+- **DEFERRED BY ITS OWN FIRST WORDS: "when the Help documents are
+  done".** (pp) is not built, so this cannot be answered yet and must
+  not be answered from the current content as though it were.
+- EIGHT LEVELS NAMED, so the table has eight rows and a reader missing
+  from it is a finding in itself.
+- THE FOUR CHECKS ARE CONTENT RULES, three of which are already repo
+  guards in some form (no em dashes, the refund rule, joint wording).
+  "in favour of the property" is the one with no guard behind it.
+
+### (di) Who sees the Dev Centre docs, and are they right for them
+
+> Also the API documentation and Getting started in the Dev Centre: tell me who can see them (supplier Developer, Management, Opndoor admins?) and check they're right for each. For a supplier they must describe only what that supplier can do: their own agencies and offices, creating an agency with org.create_if_missing, single tenant only (joint tenancies not yet via the API), sandbox vs live keys, webhooks, and how their tenants are handled per their checking setting. No commission or rates, nothing about other suppliers or Opndoor's internal routes, no "partner" wording, no em dashes, and every example request matches what the API actually accepts today (test them in sandbox).
+
+- **"EVERY EXAMPLE REQUEST MATCHES WHAT THE API ACTUALLY ACCEPTS TODAY
+  (test them in sandbox)" IS THE HARD PART**, and it is the one that
+  cannot be done by reading: the examples have to be sent. It pairs
+  with (cw), which already asks for a sandbox referral end to end.
+- "SINGLE TENANT ONLY (joint tenancies not yet via the API)" is a
+  limitation that must be STATED in the docs, not merely true.
+- "NO 'partner' WORDING" is (n) and (cr) again, in a third surface the
+  sweep guard does not read.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
