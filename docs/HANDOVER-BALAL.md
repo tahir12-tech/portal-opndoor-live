@@ -1725,19 +1725,26 @@ run started:
 
 | gate | result on `matt-fixes` | on `4a39fe6` |
 | --- | --- | --- |
-| `npm run drift` | clean. 487 migrations; dev matches a clean apply | clean |
+| `npm run drift` | clean. 488 migrations; dev matches a clean apply | clean |
 | `npm run typecheck` | clean | clean |
 | `npm run build` | clean | not run |
-| `npm test` | **348 files, 3,810 tests, 0 failing** | 333 files, 3,648 tests |
-| `npm run test:db` (pgTAP, against dev, two batches) | **143 files, 0 failing assertions, 0 errored** | 135 files, 0 failing |
+| `npm test` | **348 files, 3,814 tests, 0 failing** | 333 files, 3,648 tests |
+| `npm run test:db` (pgTAP, against dev, two batches) | **144 files, 0 failing assertions, 0 errored** | 135 files, 0 failing |
 
-**What moved in the suite, rather than the total.** Across both runs on
-this branch: 15 new vitest files and 8 new pgTAP files; 24 new cases
-inside five existing vitest files; nothing removed; three existing
-cases renamed, all three because Matt changed the rule they pinned (two
-in `theGuidesSayItPlainly`, one in `noRatesInTheGuides`, where "usually
-one month's rent" stopped being the answer). Seven new migrations, none
-of them a correction to an earlier one.
+**What moved in the suite, rather than the total.** Across all three
+runs on this branch: 15 new vitest files and 9 new pgTAP files; 28 new
+cases inside seven existing vitest files; nothing removed; three
+existing cases renamed, all three because Matt changed the rule they
+pinned (two in `theGuidesSayItPlainly`, one in `noRatesInTheGuides`,
+where "usually one month's rent" stopped being the answer). Eight new
+migrations, none of them a correction to an earlier one.
+
+**And two assertions that had been passing on nothing**, both found by
+probing rather than by failing: "re-choosing the same supplier clears
+nothing" compared '' to '' because `sel(v, 'Agency')` finds no
+`<select>` since the agency picker became a type-ahead, and the
+Expiries rule itself was never tested because every run is in mock
+mode, where the helper returns its fallback before reading a book.
 
 Run all four yourself on the clone before you touch production; that is
 what section 1.1b is for. A green suite here is evidence about DEV, and
