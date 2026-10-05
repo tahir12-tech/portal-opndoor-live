@@ -215,7 +215,15 @@ describe('Reporting, read by a Manager', () => {
        affected by the period)' so it isn't read as this period's
        figure." What this test is about -- that a Manager keeps the
        figure -- is unchanged. */
-    expect(fees!.textContent).toMatch(/Guaranteed rent in force \(whole book, not affected by the period\)/);
+    /* (dm) EXTENDED, NOT REPLACED. Matt's 2026-10-02 wording quoted
+       above is still every word of this label; (dm) added what the
+       figure IS -- twelve months per live guarantee, not the months
+       remaining -- because the old label answered which deeds and
+       left how much of each to be guessed. Both halves asserted, so
+       neither can be dropped as the other is edited. */
+    expect(fees!.textContent).toMatch(/Guaranteed rent in force/);
+    expect(fees!.textContent).toMatch(/12 months per live guarantee/);
+    expect(fees!.textContent).toMatch(/\(whole book, not affected by the period\)/);
     expect(view.container.querySelector('.funnel')).not.toBeNull();
     expect(view.container.querySelectorAll('.chartrow .card').length).toBeGreaterThan(0);
     expect(text(view)).toMatch(/Operational health/);

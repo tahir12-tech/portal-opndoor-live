@@ -891,9 +891,23 @@ export function Dashboard() {
                   live book. Sitting under Net fees, which IS the
                   period's, it read as a second period figure.
 
-                  HIS WORDS, NOT A PARAPHRASE OF THEM. */}
+                  HIS WORDS, NOT A PARAPHRASE OF THEM.
+
+                  AND SINCE (dm), WHAT THE FIGURE IS AS WELL AS WHICH
+                  DEEDS. Matt: "say whether the figure is the full 12
+                  months' guaranteed rent or what remains, and label it
+                  accordingly." It is the full twelve months per live
+                  guarantee -- `guaranteedInForce` adds `covered * 12`
+                  for each, so one eleven months through its year counts
+                  the same as one signed yesterday. That is the exposure
+                  WRITTEN, which is the underwriter's question and not
+                  what "in force" sounds like on its own, so the label
+                  now says which. The old wording answered which deeds
+                  and left how much of each to be guessed, and a reader
+                  guessing "what is left" was reading it as smaller than
+                  it is. */}
               <div className="hero-kpi__sub" style={{ marginTop: 14 }}>
-                <span className="lbl">Guaranteed rent in force (whole book, not affected by the period)</span>
+                <span className="lbl">Guaranteed rent in force &middot; 12 months per live guarantee (whole book, not affected by the period)</span>
                 <span className="val">{d.guaranteed}</span>
               </div>
               {/* AND HOW MUCH OF IT HAS NOT STARTED. The figure read GBP 0
