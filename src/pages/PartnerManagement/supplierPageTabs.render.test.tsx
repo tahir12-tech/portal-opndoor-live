@@ -495,3 +495,47 @@ describe('(cl) the supplier Overview, read by somebody who may not see money', (
     expect(src.match(/const readsMoney = /g)?.length ?? 0).toBe(1);
   });
 });
+
+/* =====================================================================
+   (cl) DRAWN, NOT READ OUT OF THE FILE.
+
+   The assertions above read SupplierOverview.tsx. That is how (cd)
+   passed while the dialog still said "Change role", so here is the same
+   rule as a reader meets it: an opndoor manager opens Kestrel's page
+   and finds neither the commission card nor the statement addresses,
+   and an admin opens the same page and finds both.
+
+   THE MANAGER IS THE CASE MATT REPORTED and the admin is the control.
+   Without the admin, hiding the cards from everybody would pass.
+   ===================================================================== */
+describe('(cl) the supplier Overview, as each reader meets it', () => {
+  async function overviewAs(role: string) {
+    localStorage.setItem('grp_role', role);
+    const view = await open();
+    return (view.container.textContent ?? '');
+  }
+
+  it('an opndoor manager is told neither thing they may not see', async () => {
+    const t = await overviewAs('opndoor_manager');
+    /* THE PAGE RENDERED, asserted first. Three negatives in a row pass
+       perfectly on a blank screen, which is the shape of test this
+       whole exercise keeps finding. */
+    expect(t).toContain('Recent changes');
+    expect(t).not.toContain('Referrals are coming in with no commission deal set');
+    expect(t).not.toContain('Who gets the statements');
+  });
+
+  /* THE WHOLE CARD, not the warning inside it: a commission heading
+     over figures it will not show is the same sentence in a quieter
+     voice. */
+  it('and not the heading that promises them either', async () => {
+    const t = await overviewAs('opndoor_manager');
+    expect(t).not.toMatch(/What opndoor pays this supplier on a referral/);
+  });
+
+  it('while an admin opening the same page gets both', async () => {
+    const t = await overviewAs('superadmin');
+    expect(t).toMatch(/What opndoor pays this supplier on a referral/);
+    expect(t).toContain('Who gets the statements');
+  });
+});
