@@ -103,11 +103,14 @@ describe('the referrer guide says what the portal does today', () => {
     expect(t).not.toMatch(/commission/i);
   });
 
-  /* THE FEE IS NOT ALWAYS ONE MONTH. Regent is three weeks for a single
-     tenant and five split between joint ones, so a flat claim is wrong for
-     every agency that negotiated. */
-  it('says the fee is agreed with the agency and usually one month', () => {
-    expect(t).toMatch(/the guarantee fee agreed with your agency, usually one month's rent/);
+  /* THE FEE IS NOT ALWAYS ONE MONTH, and after 2026-10-05 the guide does
+     not guess at it either: Regent is three weeks for a single tenant and
+     five split between joint ones. A referrer has the real figure on the
+     referral form, previewed from the server, so the guide sends them
+     there rather than naming a basis it cannot know. */
+  it('says the fee is agreed with the agency, and where to read the amount', () => {
+    expect(t).toMatch(/the guarantee fee agreed with your agency\. The exact amount is shown on the referral before you send it\./);
+    expect(t).not.toMatch(/usually one month/);
   });
 
   /* WHERE THE OFFICES COME FROM, which is the half the old guide got
@@ -208,14 +211,17 @@ describe('the tenant leaflet', () => {
     expect(t).toContain('Save as PDF');
   });
 
-  /* THE FEE WAS STATED FLATLY AS ONE MONTH. Matt: 'fee as "a one-off fee,
-     usually one month's rent (split between you if you're renting jointly)",
-     not always one month'. The joint half matters as much as the "usually":
-     a tenant renting with two others pays a third. */
-  it('says usually one month, and splits it on a joint tenancy', () => {
-    expect(t).toContain("A one-off fee, usually one month's rent");
+  /* THE FEE WAS STATED FLATLY AS ONE MONTH, then hedged to "usually", and
+     a hedge is still a price to a tenant holding a printed leaflet who
+     cannot look up which agreement their agent is on. It now names who
+     will tell them and when. The joint half survives unchanged, because it
+     is true of every agreement: a tenant renting with two others pays a
+     third. */
+  it('does not price the fee, says who will, and splits it on a joint tenancy', () => {
+    expect(t).toContain("A one-off fee, set by your agent's agreement");
+    expect(t).toMatch(/shown on your payment link before you pay anything/);
     expect(t).toMatch(/Split between you if you're renting jointly/);
-    expect(t).not.toMatch(/A one-off fee of one month's rent/);
+    expect(t).not.toMatch(/usually one month's rent/);
   });
 
   it('calls it the guarantee fee, not the guarantor fee', () => {
