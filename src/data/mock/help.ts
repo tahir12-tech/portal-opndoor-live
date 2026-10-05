@@ -25,7 +25,18 @@ export const HELP_SEED: HelpContent = {
     { id: 'gs0', icon: 'doc', type: 'Guide', title: 'Referrer guide', desc: 'How to sign in, send a referral, track your applications, and read your League ranking. For everyone who refers. If you work at a supplier, it also covers adding an agency or office while you refer.', meta: 'For all roles', href: '/help-docs/referrer-guide.html' },
     { id: 'gsmg', icon: 'users', type: 'Guide', title: 'Management guide', desc: 'Estate analytics, the fee and commission, settlements, exports, managing agencies, branches and users, the full League, and the Referrer & Period filters.', meta: 'Management & opndoor admin', href: '/help-docs/management-guide.html', minRole: 'management', needsCommission: true },
     { id: 'gsag', icon: 'users', type: 'Guide', title: 'opndoor admin guide', desc: 'Reconciliation, partners and rate management (the rate-snapshot law), the premium bordereau, Health, the opndoor team, and the CRM sync.', meta: 'opndoor admin only', href: '/help-docs/opndoor-admin-guide.html', minRole: 'superadmin' },
-    { id: 'gs0b', icon: 'doc', type: 'Guide', title: 'Sales and conversation guide', desc: 'How to talk to the agent and the tenant, who qualifies, how claims work, and where the line is between a guarantor service and insurance.', meta: 'PDF · all roles', href: '/help-docs/opndoor-sales-and-conversation-guide.pdf', rail: 'supplier' },
+    /* (ds) REBUILT AS HTML, read from the ten rendered pages. Every
+       figure cross-checked against the render and the landlord guide:
+       12 months, GBP 120,000, GBP 10,000, notify within 2 weeks of the
+       second month of arrears, payments one month after eviction
+       proceedings start. All agree.
+
+       COMMISSION RATE AND FEE BASIS BOTH GONE, per (dr2): the original
+       said "10%" in four places and "a fee of one month's rent"
+       throughout, and both are per agreement. The scripts keep the
+       commission as a FACT ("there's commission in it for you") and
+       lose the number. */
+    { id: 'gs0b', icon: 'doc', type: 'Guide', title: 'Sales and conversation guide', desc: 'How to talk to the agent and the tenant, who qualifies, how claims work, and where the line is between a guarantor service and insurance.', meta: 'Page · all roles', href: '/help-docs/opndoor-sales-and-conversation-guide.html', rail: 'supplier' },
     { id: 'gs1', icon: 'video', type: 'Video', title: 'Welcome to the portal', desc: 'A short tour of the dashboard, applications and how a referral moves from Sent to Deed Issued.', meta: '' },
   ],
   templates: [

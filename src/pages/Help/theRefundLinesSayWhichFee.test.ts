@@ -234,3 +234,66 @@ describe('the agent one-pager', () => {
     expect(page.toLowerCase()).not.toContain("one month's rent");
   });
 });
+
+/* =====================================================================
+   (ds) THE SALES AND CONVERSATION GUIDE IS AN HTML GUIDE TOO.
+
+   Ten pages, read from the renders rather than extracted, every
+   figure cross-checked against both the rendered page and the
+   landlord guide. With that, every item in Help opens the same way:
+   an HTML page in the modal with Save as PDF, and no PDF viewer.
+   ===================================================================== */
+describe('the sales and conversation guide', () => {
+  const page = read('public/help-docs/opndoor-sales-and-conversation-guide.html');
+  const body = () => page.slice(page.indexOf('<body')).replace(/<style[\s\S]*?<\/style>/gi, '');
+
+  it('is an HTML guide in the management template', () => {
+    expect(page, 'the HTML sales guide is missing').not.toBe('');
+    expect(page).toContain('class="printbtn" onclick="window.print()"');
+  });
+
+  /* ALL NINE NUMBERED SECTIONS, so a short transcription cannot pass
+     as a complete one. This is the assertion that would have caught
+     me stopping at page 5. */
+  it.each([
+    ['1. What you are offering'], ['2. The two conversations'], ['3. Talking to the agent'],
+    ['4. Talking to the tenant'], ['5. Who qualifies'], ['6. How a claim works'],
+    ['7. Joint tenancies and sharers'], ['8. Refunds, renewal and compliance'],
+    ['9. Quick reference card'],
+  ])('carries section %s', (heading) => {
+    expect(page).toContain(heading);
+  });
+
+  /* EVERY FIGURE, AGAINST THE LANDLORD GUIDE AS WELL AS THE RENDER. */
+  it.each([['12 months'], ['&pound;120,000'], ['&pound;10,000']])(
+    'states %s, agreeing with the landlord guide', (figure) => {
+      expect(page).toContain(figure);
+      const landlord = read('public/help-docs/opndoor-for-landlords.html');
+      expect(landlord).toContain(figure.replace('&pound;', ''));
+    });
+
+  it('and the claims deadlines exactly as the landlord guide has them', () => {
+    expect(page).toContain('2 weeks of the second month of arrears');
+    expect(page).toContain('one month after eviction proceedings');
+  });
+
+  /* THE UNDERWRITING THRESHOLDS, which are the operational heart of
+     it and the part a careless transcription would round off. */
+  it.each([['2 CCJs'], ['&pound;2,000'], ['&pound;10,000 per month'], ['1.5x'], ["Six months' rent"]])(
+    'keeps the underwriting threshold %s', (t) => { expect(page).toContain(t); });
+
+  /* (dr2) NO RATE, anywhere in the body. The original said 10% in
+     four places. The commission stays as a fact because it is one;
+     only the number goes, because it is per agreement. */
+  it('states no commission rate, while still saying commission exists', () => {
+    expect(body()).not.toMatch(/\d+\s?%/);
+    expect(page).toContain('commission in it for you');
+  });
+
+  /* AND NO FIXED FEE BASIS. The original said "a fee of one month's
+     rent" throughout, including inside the quoted call scripts. */
+  it('and no fixed fee basis, including in the scripts', () => {
+    expect(page.toLowerCase()).not.toContain("one month's rent");
+    expect(page).toContain('one-off guarantee fee');
+  });
+});
