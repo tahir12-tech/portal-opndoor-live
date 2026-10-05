@@ -258,6 +258,14 @@ export function PartnerManagement() {
           <div className="rec-eyebrow"><span className="opx">opndoor</span> · internal admin</div>
           <h1 className="page-head__title" style={{ marginTop: 10 }}>Suppliers</h1>
           <p className="page-head__sub">Every supplier on the portal. A supplier sits at the top of the hierarchy, with its own users, agencies, branches and applications beneath it. Click a supplier to open its page, where its people, settings, commission and integration are.</p>
+          {/* (cb) WHO MAY CHANGE IT, not only who may see it. Matt:
+              "Visible to opndoor staff only. Managers can view but not
+              change anything."
+
+              THE NOTE (bb) EARNED. Opndoor managers gained read-only
+              Suppliers, and a read-only reader with nothing saying so
+              hunts for the button they are never going to find. */}
+          <p className="page-head__sub">Visible to opndoor staff only. Managers can view but not change anything.</p>
         </div>
         <div className="page-head__actions">
           <Button variant="primary" size="sm" onClick={openAdd}><Icon name="plus" /> Add supplier</Button>
@@ -333,7 +341,12 @@ export function PartnerManagement() {
                               falls back to the columns only where nothing else is
                               in force. */}
                           <div className="pco__since">
-                            Live from {formatMonth(p.since) || '-'} ·{' '}
+                            {/* (cb) "NOT LIVE YET", NOT "Live from -".
+                                A template with a hole in it reads as a
+                                missing value; this is a supplier that has
+                                not started, which is a different sentence
+                                and the one a reader can act on. */}
+                            {formatMonth(p.since) ? `Live from ${formatMonth(p.since)}` : 'Not live yet'} ·{' '}
                             {supplierDealLine({
                               commission: deals[p.id]?.commission ?? null,
                               agentShare: deals[p.id]?.agentShare ?? null,
