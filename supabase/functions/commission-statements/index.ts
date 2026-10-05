@@ -38,6 +38,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { bytesToBase64, sendMessage } from "../_shared/mailer.ts";
 import {
   supplierPayableOf, directToAgentNotes, DRAFT_NO_INVOICE, DRAFT_REFERENCE,
+  carvedToAgents, paidDirectToAgents,
+  PASSED_ON_BY_SUPPLIER, PAID_DIRECT_BY_OPNDOOR, PAYABLE_TO_YOU,
 } from "../_shared/supplierPayable.ts";
 import { renderTablePdf, type PdfColumn } from "../_shared/pdf.ts";
 import type { Block, Message } from "../_shared/emailLayout.ts";
@@ -841,7 +843,9 @@ export function supplierStatementPdf(
      supplier's to bill and putting it in the instruction is that money paid
      twice. */
   const payable = supplierPayableOf(lines) - deductedTotal(deductions);
-  const direct = directToAgentNotes(lines);
+  const direct = paidDirectToAgents(lines);
+  const carved = carvedToAgents(lines);
+  const directNotes = directToAgentNotes(lines);
   /* POSTED OR NOT, read off the reference itself rather than passed in: the
      run substitutes REF_ON_SEND until a statement is actually posted, so the
      reference IS the answer and a second parameter could disagree with it. */
@@ -870,21 +874,37 @@ export function supplierStatementPdf(
          point of the document and a reader should not have to add a
          column up to find what they owe their own agents. */
       [grossLabel(deductions), gbp(total)],
-      ["Of which agents' share", gbp(agents)],
+      /* (cf) THE AGENTS' LINE IS WORDED BY WHO PAYS IT, and a month can
+         hold both arrangements, so both lines can appear. "Of which
+         agents' share" was true of either and told the reader nothing
+         about whether the money was theirs to pass on. */
+      ...(carved > 0 ? [[PASSED_ON_BY_SUPPLIER, gbp(carved)] as [string, string]] : []),
+      ...(direct > 0 ? [[PAID_DIRECT_BY_OPNDOOR, gbp(direct)] as [string, string]] : []),
       ["Your share", gbp(total - agents)],
       ...deductionMeta(total, deductions),
-      /* THE FIGURE THEY INVOICE, STATED IN THE HEADER rather than left to
-         be worked out of the three above it. Only where it differs from
-         the total: on a wholly carved statement the two are the same
-         number and printing it twice invites the reader to look for a
-         difference. */
-      ...(Math.abs(payable - net) > 0.005 ? [["Payable to you", gbp(payable)] as [string, string]] : []),
+      /* (cf) ALWAYS, NOT ONLY WHERE IT DIFFERS FROM THE TOTAL.
+
+         Matt: "where the supplier pays its own agencies, add 'Payable
+         to you GBP 947.25' (as September's statement has) ... The
+         invoice instruction, once posted, must say the payable figure
+         (GBP 947.25), never 'Your share'."
+
+         THE OLD CONDITION HID IT IN EXACTLY THE CASE THAT NEEDS IT. On
+         a wholly carved statement payable, net and total are the same
+         number, so `payable - net` is zero and the line was dropped --
+         leaving "Your share GBP 568.35" as the last figure before the
+         footer, which is the supplier's residual AFTER passing the
+         agencies' share on and is not what they invoice. The line was
+         suppressed for being redundant with the total and was in fact
+         the only thing distinguishing it from the wrong number above
+         it. */
+      [PAYABLE_TO_YOU, gbp(payable)] as [string, string],
     ],
     columns,
     rows,
     total: { label: deductions.length ? "Total payable" : "Total", value: gbp(net) },
     footer: [
-      ...direct,
+      ...directNotes,
       posted ? paymentTermsLine(gbp(payable), reference, invoiceEmail) : DRAFT_NO_INVOICE,
     ].join(" "),
   });
@@ -903,6 +923,8 @@ export function supplierStatementCsv(
      is worse than either being wrong on its own. */
   const payable = supplierPayableOf(lines) - deductedTotal(deductions);
   const direct = directToAgentNotes(lines);
+  const carvedAmt = carvedToAgents(lines);
+  const directAmt = paidDirectToAgents(lines);
   const posted = reference !== REF_ON_SEND;
   const refCell = posted ? reference : DRAFT_REFERENCE;
   /* THE SAME COLUMNS THE PDF DROPPED. Asked of the same rendered rows,
@@ -917,13 +939,19 @@ export function supplierStatementCsv(
     ["Basis", "Commission on fees paid in the month, refunds excluded"],
     ["Applications", lines.length],
     [grossLabel(deductions), gbp(total)],
-    ["Of which agents' share", gbp(agents)],
+    /* (cf) THE SAME TWO LINES AS THE PDF, worded by who pays, and the
+       payable always stated. "Check the CSV, the zip of agency
+       schedules and the screen agree" was Matt's instruction about this
+       pair on 2026-10-03, and it holds for the wording as much as for
+       the arithmetic. */
+    ...(carvedAmt > 0 ? [[PASSED_ON_BY_SUPPLIER, gbp(carvedAmt)]] : []),
+    ...(directAmt > 0 ? [[PAID_DIRECT_BY_OPNDOOR, gbp(directAmt)]] : []),
     ["Your share", gbp(total - agents)],
     ...(deductions.length
       ? [["Less refunds already statemented", "-" + gbp(deductedTotal(deductions))],
          ["Total payable", gbp(net)]]
       : []),
-    ...(Math.abs(payable - net) > 0.005 ? [["Payable to you", gbp(payable)]] : []),
+    [PAYABLE_TO_YOU, gbp(payable)],
     ...direct.map((d) => [d]),
     [posted ? paymentTermsLine(gbp(payable), reference, invoiceEmail) : DRAFT_NO_INVOICE],
     [],

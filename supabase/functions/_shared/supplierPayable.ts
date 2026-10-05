@@ -88,6 +88,27 @@ export function directToAgentNotes(lines: readonly PayableLine[]): string[] {
     .map(([agency, amount]) => `Agency commission of ${gbpAmount(amount)} paid by opndoor directly to ${agency}.`);
 }
 
+/** What the supplier is paid and passes on itself: the carved half, and
+    the mirror of paidDirectToAgents. Matt (cf): the statement must word
+    this one "included above for you to pass on", because it is inside
+    the figure above it rather than beside it. */
+export function carvedToAgents(lines: readonly PayableLine[]): number {
+  return lines.reduce((sum, l) => sum + (l.settles_own ? num(l.agent_amount) : 0), 0);
+}
+
+/* THE TWO SENTENCES, AND THEIR TWIN IN src/data/whoPaysTheAgency.ts.
+ *
+ * Matt asked for "one shared rule ... used by all six surfaces", and
+ * five of the six are in src/. This one is Deno and cannot import from
+ * there, so the words are repeated here ON PURPOSE and the repetition
+ * is guarded: theStatementSaysWhatTheTileSays.test.ts fails if the two
+ * files ever word it differently. A twin with a test is honest; a twin
+ * without one is two products.
+ */
+export const PASSED_ON_BY_SUPPLIER = "Your agencies\u2019 share, included above for you to pass on";
+export const PAID_DIRECT_BY_OPNDOOR = "Paid by opndoor directly to your agencies";
+export const PAYABLE_TO_YOU = "Payable to you";
+
 /** The line a draft carries where a posted statement carries the invoice
     instruction. Matt: "For a draft, leave out the invoice instruction
     entirely ('Don't invoice yet: this statement hasn't been posted')." */
