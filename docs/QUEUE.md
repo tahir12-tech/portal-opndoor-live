@@ -4891,6 +4891,19 @@ both estates, the dialog, and FAQ 9 on both rails.
 - "TEST A RENAME END TO END" is the acceptance test, and it is a good
   one: a rename is the only cheap way to prove an id is being used.
 
+### (cu) Sign-in lands on the last page visited, which may be somebody else's
+
+> After sign-in, always land on the user's home page (Home for Opndoor staff, Reporting for agency and supplier users), not the last page visited in that browser, which may belong to someone else's session. Only return to a specific page if the user followed a link to it (e.g. from an email).
+
+- **"WHICH MAY BELONG TO SOMEONE ELSE'S SESSION" IS THE REASON AND IT
+  IS A SECURITY ONE**, not a convenience one: a remembered route is a
+  leak of where the previous user was, on a shared machine, before
+  the new user has done anything.
+- THE EXCEPTION IS PRECISE: a page the user ASKED for by following a
+  link, which is a redirect carried through sign-in, not a
+  remembered one read out of storage. The two are easy to conflate in
+  one "returnTo" and must not be.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
