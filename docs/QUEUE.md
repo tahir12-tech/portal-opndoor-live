@@ -5104,6 +5104,24 @@ report himself:
 - "CHECK WHETHER THAT'S TWO RECORDS WITH ONE NAME" is a question first,
   and the answer decides whether this is a labelling fix or a data fix.
 
+### (dg) The pickers must scale to Rightmove
+
+> Agency and office pickers: with a large supplier (Rightmove could have thousands of agencies), don't list everything on click. Show "Start typing an agency name" with the 10 most recently used agencies for that person, then search as they type (name, office or postcode), returning the best 20 matches with "Keep typing to narrow it down" if there are more. Keep "Add a new agency" at the bottom. Same for offices when an agency has many. Make sure search is done on the server, not by loading every agency into the page.
+
+- **THIS IS A GO-LIVE ITEM, NOT A POLISH ONE.** Rightmove is the
+  partner Wednesday is for, and `searchAgencies` filters an array the
+  page already holds -- which means the page holds every agency. At a
+  few hundred that is invisible; at thousands it is the referral form
+  failing to open.
+- **"ON THE SERVER, NOT BY LOADING EVERY AGENCY INTO THE PAGE" IS THE
+  BINDING HALF**, and it is the part a UI-only fix would skip while
+  looking finished: showing 20 results of a list you already
+  downloaded solves nothing.
+- THE SHAPE IS FULLY SPECIFIED -- the empty-state prompt, 10 recents,
+  search on name/office/postcode, best 20, the "keep typing" note, and
+  "Add a new agency" still at the bottom from (vv). Recents per PERSON
+  is the only part with no existing store behind it.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
