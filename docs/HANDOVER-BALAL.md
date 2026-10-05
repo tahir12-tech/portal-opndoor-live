@@ -1766,43 +1766,24 @@ the GBP 20 copy and the refund lines.
 
 **STILL OPEN, and these are the ones to pick up:**
 
-**(ds) The Agent one-pager is done; the Sales guide is not. Page 1 is
-read and the other nine are rendered.** What page 1 shows is that it
-has the SAME two problems the one-pager had, so expect them
-throughout: it states "You earn **10% of that fee** on every referral
-that converts" and "The tenant pays a fee of **one month's rent**".
-Both are per agreement and both must go, exactly as they did from the
-one-pager. Note also that this guide is written for REFERENCING TEAMS
-(suppliers), not for letting agents, so its audience is the supplier
-rail.
+**(ds) DONE.** Both the Agent one-pager and the Sales and
+conversation guide are now HTML in the management-guide template, so
+every item in Help opens the same way and nothing drops into the
+browser's PDF viewer. Both were read from RENDERED PAGES, not
+extracted text, and every figure was cross-checked against the render
+and against the landlord guide.
 
-The rest of the position: Both
-were to become HTML in the management-guide template so every Help
-item opens the same way. The one-pager is rebuilt
-(`opndoor-for-letting-agents.html`) with its commission content
-removed. The Sales and conversation guide is TEN PAGES and is
-rendered but not transcribed.
-
-**HOW TO DO IT, because the obvious way does not work.** Both PDFs
-use subset fonts, so their text is glyph codes: a naive extraction
-returns `(a)(a)(a)`, and a merged-CMap one recovers most words while
-CORRUPTING DIGITS -- it renders the GBP 120,000 cap as "GBP 12f,fff".
-**Never transcribe a figure from an extraction.** Render the pages
-instead and read them:
+**If you ever need to read a shipped PDF, do it the same way.** Both
+used subset fonts, so extraction returns `(a)(a)(a)` or, worse,
+most of the words with the DIGITS CORRUPTED -- it rendered the
+GBP 120,000 cap as "GBP 12f,fff". Never transcribe a figure from an
+extraction. Render and read:
 
     osascript -l JavaScript scripts/render-pdf-pages.js \
-      public/help-docs/opndoor-sales-and-conversation-guide.pdf /tmp/pages sales
+      public/help-docs/<file>.pdf /tmp/pages tag
 
-That writes `/tmp/pages/sales-p1.png` upward. Cross-check every figure
-against the landlord guide, which carries the term, the cap and the
-legal costs, before writing it down. The one-pager was done exactly
-this way and all three agreed.
-
-Two things to apply while transcribing: **remove the commission**
-(the one-pager led on a 10% rate, which is per agreement and wrong
-for somebody), and **remove any fee basis** ("one month's rent" is
-per agreement too). The guides' own guards enforce both, so a slip
-fails the suite rather than shipping.
+The two source PDFs are still in `public/help-docs/` and are no longer
+referenced by the shelf. Delete them once Matt has reviewed the HTML.
 
 **(dj) The API docs do not vary by checking setting.** A supplier
 Developer gets the same text whichever journey their organisation is
