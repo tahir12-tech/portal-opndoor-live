@@ -2221,3 +2221,91 @@ already redacted by `_shared/redact.ts` before it is logged).
 For any of them, `select jsonb_pretty(public.cron_health())` and the output of
 the section 6a reconciliation are worth sending unprompted. Between them they
 answer "is it deployed, is it gated, and did it run" without another round trip.
+
+---
+
+## 15. Go-live verification: Matt's own pass, after the cutover
+
+> **(db)** Matt, 2026-10-04: "Add a 'Go-live verification' section to
+> HANDOVER-BALAL.md: a checklist Matt can do himself on live after cutover,
+> with what he should see at each step (Health all green; Stripe live webhook
+> deliveries succeeding; Resend domain verified; emails with no review-copy
+> banner; Rightmove's deal, checking setting and agencies inheriting; one real
+> single referral through a Rightmove agency going straight to payment, paid,
+> signed, deed delivered, then refunded in Stripe and cancelled; sign-in as
+> admin, Rightmove Management and Referrer). Balal ticks each with a screenshot
+> before Matt signs off."
+
+**THIS IS NOT SECTION 14.** That one is Balal's, run immediately after the
+cutover, and it ends with him handing back. This is Matt's, run after that, and
+it is the sign-off. Every row says what he should SEE, because a checklist whose
+rows are "check X works" is a list of opinions.
+
+**Balal: tick each row with a screenshot before you hand it over.** A tick with
+no screenshot is the thing this section exists to stop.
+
+### 15.1 The machinery is running
+
+| # | Do this | What you should see | If not |
+|---|---|---|---|
+| 1 | Health, as opndoor admin | Every cron row green, each with a `last_ok` inside its own window. `portal_errors` 0 in the last 24 hours | A red row names its own function. Section 14.4 reads the logs |
+| 2 | Health → the statement line | "Statements can be posted" true, and the invoice email set to the real address | `set_app_setting_text` on the Health field, section 14.4a |
+| 3 | Stripe dashboard → Developers → Webhooks → the LIVE endpoint | Recent deliveries all 200, none pending, none failed. At least one `checkout.session.completed` | A 4xx means the endpoint is pointed at the wrong project; a 5xx is ours and the log line is in `stripe-webhook` |
+| 4 | Stripe dashboard, top left | It says **Live mode**, not Test. The key the portal uses is `sk_live_` | `livemodeCredentials.ts` refuses a mismatch at the boundary, so a wrong key fails loudly rather than quietly |
+| 5 | Resend dashboard → Domains | `opndoor.co` **verified**, and the DKIM and SPF rows green | An unverified domain still sends, into spam. This is the row most likely to be amber on day one |
+| 6 | Dev Centre, as admin | **No sandbox banner.** The banner means the portal believes it is on test credentials | Section 14.4a |
+
+### 15.2 The emails are the real ones
+
+| # | Do this | What you should see | If not |
+|---|---|---|---|
+| 7 | Send yourself one of each: the fee-paid email, the signed-deed email | **No review-copy banner.** No "this is a copy for review" strip at the top, and the From address is the real one, not `onboarding@resend.dev` | The banner is driven by the review-inbox setting. It must be off on live, and it is the single most visible sign of a half-cut-over environment |
+| 8 | Read the deed email as a tenant would | The guarantee reference, the property, and one link that opens the deed. No internal reference, no partner slug | |
+| 9 | Check who the signed deed went TO | The agency's office email, or the agency email where the office has none. **Never** a referrer's personal address unless that is the nominated recipient | `org_deed_readiness` names the recipient per office. A missing one is why a deed sits undelivered |
+
+### 15.3 Rightmove is set up as agreed
+
+| # | Do this | What you should see | If not |
+|---|---|---|---|
+| 10 | Suppliers → Rightmove → Commission | Their deal, with the agreed rate and basis, and **"Live from"** a real date rather than "Not live yet" | No deal means every referral prices at 0%: the Overview says so in as many words |
+| 11 | Suppliers → Rightmove → Settings | The checking setting, in the plain wording: "They check tenants, and opndoor accepts them as sent" for straight-to-payment | |
+| 12 | Suppliers → Rightmove → Agencies → open one | **No "How are ...'s tenants checked?" choice.** It reads "Checked as Rightmove sets it: ..." with a link to Rightmove's settings | That is the inheritance (ci). The server refuses a mode set on a supplier-estate agency, so a stray value cannot be there |
+| 13 | The same agency's Commission tab | "On Rightmove's agency deal: ..." and who pays it, never "Opndoor standard" | |
+| 14 | Count their agencies | The number you expect. **Ask what it is before go-live**: see (dg) in section 12a. At a few hundred nothing bites; at thousands the sign-in load is the first thing to feel it | |
+
+### 15.4 One real referral, all the way, and then back out
+
+Use a **single tenant**, a real card, and a property you do not mind seeing in
+the book. Through a **Rightmove agency**, so the rail under test is the one
+Wednesday is for.
+
+| # | Do this | What you should see | If not |
+|---|---|---|---|
+| 15 | Refer, as a Rightmove Referrer | The fee previewed on the form before you send it, from Rightmove's own deal | A fee that looks like one month's rent on a weeks-based deal means the agreement is not resolving |
+| 16 | The tenant's email | A payment link, and **no eligibility step**: straight to payment is the setting | A decision step means the checking setting is not what 15.3 said |
+| 17 | Pay it | The application moves to **Paid** within seconds, and the deed is created | Stripe's delivery list (row 3) is where this is answered |
+| 18 | Sign as the tenant | **Deed Issued**, the reference assigned, the expiry a year out | |
+| 19 | The agency's inbox | The signed deed, to the address row 9 named | |
+| 20 | Applications, admin | One row, status **Deed Issued**, the agency and office right, the referrer named | |
+| 21 | Reporting, admin, this month | Fees collected includes this fee, net of refunds, and commission at Rightmove's rate | "Fees collected" is net everywhere since (cg) |
+| 22 | **Refund it in Stripe**, in full | Within a minute: status **Refunded**, the guarantee cancelled, "Cancelled: fee refunded" on the deed, and the fee out of Reporting again | If the status stays Paid, the refund webhook did not arrive: Stripe's delivery list, `charge.refunded` |
+| 23 | The bordereau for this month | The row gone, or not there at all. A cancelled guarantee is not on risk | |
+
+### 15.5 The three sign-ins
+
+| # | Do this | What you should see | If not |
+|---|---|---|---|
+| 24 | Sign in as **opndoor admin** | Home, queues first. Reconciliation, Finance, the bordereau and Health all reachable | |
+| 25 | Sign in as **Rightmove Management** | Reporting, with their own figures and "Owed to you" as the headline. Their agencies, their people. **No** Reconciliation, **no** other supplier, **no** opndoor team | |
+| 26 | Sign in as **Rightmove Referrer** | Their own referrals only. **No commission anywhere**, no League money, no statements | A commission figure here is the one failure on this page worth stopping for |
+| 27 | On each, open Help | Guides for that level, and the fee described without a figure: "the fee agreed with your agency" | Since (1) tonight, no document states a basis. A document saying "one month's rent" is a stale deploy |
+
+### 15.6 Sign-off
+
+Matt signs off when every row above has a tick and a screenshot, and when
+**rows 22 and 26 in particular** have been seen with his own eyes: one is the
+money going back out cleanly, the other is a customer not seeing somebody
+else's.
+
+Anything that fails goes to us with the evidence section 14.5 asks for, not as
+a description.
