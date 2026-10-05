@@ -29,7 +29,22 @@ export const HELP_SEED: HelpContent = {
     { id: 'gs1', icon: 'video', type: 'Video', title: 'Welcome to the portal', desc: 'A short tour of the dashboard, applications and how a referral moves from Sent to Deed Issued.', meta: '' },
   ],
   templates: [
-    { id: 'tp0', icon: 'doc', type: 'Flyer', title: 'Agent one-pager (opndoor for letting agents)', desc: 'A branded one-page flyer to share with letting agents: turn failed references into completed lets, with the benefits and how it works.', meta: 'PDF', href: '/help-docs/opndoor-for-letting-agents.pdf', rail: 'supplier' },
+    /* (ds) REBUILT AS HTML so it opens in the modal with Save as PDF,
+       like every other item, instead of in the browser's PDF viewer.
+
+       READ FROM RENDERED PAGES, NOT FROM EXTRACTED TEXT. Three
+       extraction attempts corrupted the digits -- the cap came out as
+       "GBP 12f,fff" -- because the PDF uses subset fonts. Rendering
+       each page to an image and reading it sidesteps the encoding
+       entirely, and every figure was then cross-checked against the
+       landlord guide: 12 months, GBP 120,000, GBP 10,000 all match.
+
+       THE COMMISSION IS GONE, per (dr2). The original led on "10%
+       commission to your agency", carried a 10% stat tile and said
+       "your agency earns 10% of that tenant fee" in the plain-English
+       box. A rate that is per agreement, stated as a fixed number, in
+       a flyer handed to an agency that may be on a different one. */
+    { id: 'tp0', icon: 'doc', type: 'Flyer', title: 'Agent one-pager (opndoor for letting agents)', desc: 'A branded one-page flyer to share with letting agents: turn failed references into completed lets, with the benefits and how it works.', meta: 'Page', href: '/help-docs/opndoor-for-letting-agents.html', rail: 'supplier' },
     /* =====================================================================
        THE LEAFLETS OPEN AS PAGES NOW, NOT IN A PDF VIEWER.
 

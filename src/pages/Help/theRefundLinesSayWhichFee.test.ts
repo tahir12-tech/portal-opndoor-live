@@ -172,3 +172,65 @@ describe('the Management guide on the carved share', () => {
     expect(guide).toContain('fixed on each referral');
   });
 });
+
+/* =====================================================================
+   (ds) THE AGENT ONE-PAGER IS AN HTML GUIDE NOW.
+
+   Matt: "The Sales and conversation guide and the Agent one-pager
+   open as PDFs in the browser's PDF viewer, while every other guide
+   opens as an HTML page in the modal with the Save as PDF button.
+   Rebuild both as HTML guides in the same template as the Management
+   guide ... keeping their content, with the commission fix from my
+   last message applied."
+
+   READ FROM RENDERED PAGES, NOT EXTRACTED TEXT. Three extraction
+   attempts corrupted the digits -- the cap came out "GBP 12f,fff" --
+   because the PDF uses subset fonts whose text is glyph codes.
+   Rendering each page to an image and reading it sidesteps the
+   encoding, which is what Matt proposed and what worked.
+
+   EVERY FIGURE CROSS-CHECKED against the rendered page AND the
+   landlord guide, which is the safeguard that makes a visual read
+   safe: 12 months, GBP 120,000, GBP 10,000 all agree.
+   ===================================================================== */
+describe('the agent one-pager', () => {
+  const page = read('public/help-docs/opndoor-for-letting-agents.html');
+
+  it('is an HTML guide in the management template', () => {
+    expect(page, 'the HTML one-pager is missing').not.toBe('');
+    expect(page).toContain('class="printbtn" onclick="window.print()"');
+    expect(page).toContain('lockup__mark');
+  });
+
+  /* THE FIGURES, each one read off the render and each one matching
+     the landlord guide. If either source changes, this fails. */
+  it.each([['12 months'], ['&pound;120,000'], ['&pound;10,000 of legal costs']])(
+    'carries %s, as the rendered page and the landlord guide both say', (figure) => {
+      expect(page).toContain(figure);
+      const landlord = read('public/help-docs/opndoor-for-landlords.html');
+      const bare = figure.replace('&pound;', '').replace(' of legal costs', '');
+      expect(landlord, `the landlord guide does not agree about ${figure}`).toContain(bare);
+    });
+
+  /* (dr2) THE COMMISSION IS GONE. The original led on "10% commission
+     to your agency", carried a 10% stat tile and repeated it in the
+     plain-English box: a rate that is per agreement, stated as a
+     fixed number, in a flyer handed to an agency that may be on a
+     different one. */
+  it('states no commission rate', () => {
+    /* THE BODY, NOT THE FILE. The template's stylesheet is inherited
+       from the Management guide and is full of 50% and 100% widths;
+       scanning the whole file reports CSS as copy. The rule is about
+       what a reader sees. */
+    const body = page.slice(page.indexOf('<body')).replace(/<style[\s\S]*?<\/style>/gi, '');
+    expect(body).not.toMatch(/\d+\s?%/);
+    expect(body.toLowerCase()).not.toContain('commission to your agency');
+  });
+
+  /* AND NOT A FEE BASIS EITHER, for the same reason the FAQs may not
+     name one: it is per agreement. The original said "the fee of one
+     month's rent". */
+  it('and no fee basis, because that is per agreement too', () => {
+    expect(page.toLowerCase()).not.toContain("one month's rent");
+  });
+});
