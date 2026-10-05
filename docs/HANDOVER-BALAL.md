@@ -1726,6 +1726,112 @@ is not.
 
 ---
 
+## 12a. After launch: what is recorded and not built, 2026-10-05
+
+Everything below is in `docs/QUEUE.md` verbatim under the letter given.
+None of it blocks Wednesday; all of it was reported by Matt after the
+go-live branch was cut, and it is here so nothing is carried only in
+somebody's head.
+
+### Scale, and the one question nobody has asked
+
+**(dg) The sign-in load.** The pickers now search on the server
+(`search_agencies_for_referral`), so the referral form no longer
+depends on the whole book. But `src/lib/hydrate.ts:171` and `:175`
+still select EVERY agency and EVERY branch the caller's RLS allows,
+with no limit, at sign-in. It has NOT been capped, deliberately: that
+array also feeds Reporting, the League, the exports and the league
+grouping, so a blanket `.limit()` would not make those slow, it would
+make them WRONG, silently. Wrong money is worse than a slow form.
+
+**THE QUESTION TO ASK BEFORE DOING ANYTHING: how many agencies will
+Rightmove have on day one?** At a few hundred none of this bites. The
+three options are written out in QUEUE.md under (dg).
+
+`orgService.ts` also persists that whole array to localStorage on every
+write, and `saveJSON` swallows a quota failure; at thousands of
+agencies that is a silent failure on every on-the-fly create.
+
+### Help and the documents
+
+**(dr1) The per-route journeys, which is the big one.** Help now varies
+by the organisation's checking setting, and three items are tagged to
+the journey they describe. But Matt is right that hiding is not
+answering: a Referrer at an "opndoor checks" agency needs a guide
+describing THEIR route, not the absence of one. The Referrer guide
+still says "Press Send and the tenant gets a secure link to pay",
+which is wrong for two of the three routes. The content is unwritten.
+
+**The GBP 20 application fee is in NO Help document.** So an agency
+opndoor checks for is never told about a fee its tenants are charged,
+and the tenant leaflet an agent hands over omits it. Draft copy was
+written and is held pending Matt's answers on two points (see QUEUE
+(dq)); the open questions are listed there.
+
+**(ds) The two PDFs.** The Sales and conversation guide and the Agent
+one-pager open in the browser's PDF viewer while every other item
+opens as HTML in the modal. They are to be rebuilt as HTML in the
+management-guide template. FIRST OBSTACLE, measured: both PDFs use
+subset fonts, so their text is glyph codes needing per-font ToUnicode
+resolution. A naive extraction returns `(a)(a)(a)`; a merged-CMap one
+recovers most words but CORRUPTS DIGITS -- it renders the cap as
+"GBP 12f,fff". Do not transcribe those figures from an extraction.
+
+**(dr7) Two FAQ sets for an admin.** An opndoor admin sees both the
+supplier-rail and agency-rail FAQs, which answer the same questions
+differently. Matt asked for one answer per question. NOT DONE because
+it is a content decision with two readings: merge the two answers into
+one that covers both rails, or show an admin a single rail's. Both
+change what an admin reads, so it needs his call.
+
+**(dr2) Commission consistency.** The Help gates were corrected on
+2026-10-05 so an opndoor manager no longer reads commission material
+(they shared a rank with superadmin, and `v.admin` lumped them
+together). The wider sweep -- every screen, not just Help -- is not
+done.
+
+**(dr3) The carved-share line** in the supplier Management guide, and
+**(dr5)** the Referral information checklist, which currently opens
+the whole Referrer guide instead of being a checklist. Both unwritten.
+
+**(dj) The API docs do not vary by checking setting.** A supplier
+Developer gets the same text whichever journey their organisation is
+on. The three exported files are identical by construction and say so.
+
+**(dr8) The landlord guide's figures are unverified.** It claims 12
+months, a GBP 120,000 cap, GBP 10,000 of legal costs, notify within
+two weeks of the second month of arrears, and payments beginning one
+month after eviction proceedings start. **The deed's own text is not in
+this repo** -- it is a PandaDoc template reached by
+`PANDADOC_TEMPLATE_ID` -- so none of it could be checked against the
+instrument. The claims ARE internally consistent: the same figures
+appear in the landlord guide and the agent one-pager and nowhere else.
+Somebody with the template must check all five.
+
+### Smaller, all recorded with evidence in QUEUE.md
+
+- **(ca)** The Branches board's missing agency line. Matt has ruled:
+  keep the collapse, do not print the name twice. Closed.
+- **(cj)/(kk)** part 3, **(cq)/(cy)** the referrer byline and historic
+  activity actors, **(cp)** the draft-month reference error,
+  **(ck)** the duplicate check, **(ci)** server-side refusal of a
+  referencing mode on a supplier-estate agency, **(cl)** the opndoor
+  manager on a supplier page, **(cm)** the back link, **(cs)** the
+  audit of supplier edits, **(cu)** sign-in landing, **(cv)** the
+  Expiries default month, **(cw)** the sandbox proof, **(cx)** the
+  switchable deed notification, **(db)** the go-live checklist,
+  **(df)** supplier pickers, **(bq)(br)(bs)** the export fixes,
+  **(bx)** GR-26263's stale signed deed, **(by)** the refunded page,
+  **(cg)** "Fees collected", **(nn)(oo)(pp)(zz)**.
+
+### One thing that is NOT in the queue and should be watched
+
+`orgLines` in `src/data/commissionSplit.ts` falls back to matching a
+payee by NAME where a frozen commission line has no `org_id`. Every
+line on dev today carries one, so it fires on nothing -- but if any
+ever lands without an id, a renamed agency silently reports GBP 0
+commission. Measured 2026-10-05: 27 lines, 0 without an id.
+
 ## 13. If something goes wrong
 
 1. **Do not restore production to fix a cosmetic fault.** The cost is every row
