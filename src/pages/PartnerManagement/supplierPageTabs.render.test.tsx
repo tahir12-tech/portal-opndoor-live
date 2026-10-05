@@ -470,4 +470,28 @@ describe('(cl) the supplier Overview, read by somebody who may not see money', (
   it('through the shared predicate, not a local role check', () => {
     expect(src).not.toMatch(/role === 'opndoor_manager'/);
   });
+
+  /* THE SECOND HALF OF THE SAME SENTENCE, 2026-10-05. Matt: "hide the
+     Commission and statement-address sections entirely". The statements
+     card was still drawn, headed "Where Kestrel Lettings' monthly
+     commission statement is sent" over a list that is always empty for
+     this reader -- which tells a manager that nobody gets it.
+
+     THE SERVER WAS ALREADY RIGHT, and that is what made it a drawing
+     bug rather than a leak: partner_statement_recipient_list returns
+     nothing without is_admin, and both write RPCs refuse with "Only
+     Opndoor adds a named address to a supplier's statement." So the
+     emptiness on the screen was a refusal being rendered as an answer,
+     which is the whole of (cl). */
+  it('and drops the statement addresses with it', () => {
+    expect(src).toContain('{readsMoney && (\n      <Card>\n        {/* `possessive`');
+  });
+
+  /* ONE QUESTION, ASKED ONCE. Two gates keyed on two different
+     expressions is how one of them comes to say something the other
+     does not. */
+  it('both cards asking the one question', () => {
+    expect(src.match(/\{readsMoney && \(/g)?.length ?? 0).toBe(2);
+    expect(src.match(/const readsMoney = /g)?.length ?? 0).toBe(1);
+  });
 });

@@ -174,6 +174,20 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
       </Card>
       )}
 
+      {/* (cl) AND THE STATEMENT ADDRESSES GO WITH IT. Matt: "For
+          managers, hide the Commission and statement-address sections
+          entirely." The second half, for the same reason as the first: a
+          heading reading "Where Kestrel Lettings' monthly commission
+          statement is sent" over a list that will always be empty tells a
+          manager that nobody gets it.
+
+          THE SERVER WAS ALREADY RIGHT, which is why this is a screen fix
+          and nothing else: partner_statement_recipient_list returns
+          nothing without is_admin, and the add and remove RPCs each
+          refuse with "Only Opndoor adds a named address...". So the
+          emptiness was a refusal being drawn as an answer -- the same
+          sentence as the commission card above. */}
+      {readsMoney && (
       <Card>
         {/* `possessive`, not `${name}’s`. Matt, 2026-10-02: "'Kestrel
             Lettings's' should be 'Kestrel Lettings''. Use the shared
@@ -187,6 +201,7 @@ export function SupplierOverview({ slug, partnerDbId, name, standardTotal, stand
           <StatementRecipients partnerKey={partnerDbId ?? slug} supplierName={name} />
         </CardBody>
       </Card>
+      )}
 
       {/* THIRD, AND ONLY WHEN THERE IS ONE. A warning card that is
           usually absent would make the page jump if it led; a warning
