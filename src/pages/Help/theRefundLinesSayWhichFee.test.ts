@@ -127,3 +127,48 @@ describe('the Referrer guide', () => {
     expect(guide).toContain('<b>Awaiting decision</b>');
   });
 });
+
+/* =====================================================================
+   (dr3) THE CARVED-SHARE LINE, EXPLAINED IN THE PORTAL'S OWN WORDS.
+
+   Matt: "Supplier Management guide: explain the 'Your agencies'
+   share, included above for you to pass on' line on their screen and
+   statement, in the same words the portal uses."
+
+   "IN THE SAME WORDS" IS THE WHOLE INSTRUCTION, and it is why this
+   test reads the constants rather than the sentences. A guide that
+   paraphrased the label would send a supplier looking for a line
+   that does not exist under that name. The four phrases are
+   whoPaysTheAgency's exported constants -- the same strings the tile
+   and the statement render -- so if anybody rewords the product, this
+   fails until the guide is reworded with it.
+   ===================================================================== */
+describe('the Management guide on the carved share', () => {
+  const guide = read('public/help-docs/management-guide.html');
+
+  it.each([
+    ['OWED_TO_YOU'],
+    ['PASSED_ON_BY_SUPPLIER'],
+    ['PAID_DIRECT_BY_OPNDOOR'],
+    ['TOTAL_ON_YOUR_REFERRALS'],
+    ['PAYABLE_TO_YOU'],
+  ])('quotes the portal’s own %s label', async (name) => {
+    const mod = await import('@/data/whoPaysTheAgency');
+    const phrase = (mod as unknown as Record<string, string>)[name];
+    expect(phrase, `${name} is not exported`).toBeTruthy();
+    // The guide is HTML, so the curly apostrophe is an entity there.
+    const asHtml = phrase.replace(/’/g, '&rsquo;');
+    expect(guide.includes(phrase) || guide.includes(asHtml), `${name}: "${phrase}"`).toBe(true);
+  });
+
+  /* THE ARITHMETIC, WHICH IS THE POINT OF THE SECTION. A supplier who
+     adds the two figures invoices us twice for the same money. */
+  it('and says plainly that the carved share is already inside the figure above it', () => {
+    expect(guide).toContain('already inside');
+    expect(guide).toContain('counts the same money twice');
+  });
+
+  it('and that a month can show both, because it is frozen per referral', () => {
+    expect(guide).toContain('fixed on each referral');
+  });
+});
