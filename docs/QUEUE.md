@@ -5417,6 +5417,20 @@ At a few hundred none of this bites.
   goes: explaining who does NOT pay to an audience who all do is
   noise, and the gate already does that work.
 
+### (du) The refund lines must say WHICH fee
+
+> Confirmed, the £20 copy stands as committed. One fix: on the "opndoor checks" tenant leaflet, change "Full refund if it falls through" so it says it's a full refund of the guarantee fee, not the £20. Check every tenant-facing refund line on that journey says the same. Then carry on with the rest of the help review list and the Sales guide and Agent one-pager rebuilds.
+
+- **THE COPY WAS TRUE AND IS NOW AMBIGUOUS**, which is the hazard of
+  adding a second fee to a journey: every sentence that said "the
+  fee" meant one thing on Monday and means two on Tuesday. The £20 is
+  never refunded and the guarantee fee is refunded in full if the
+  tenancy falls through, so a line saying "a full refund of the fee"
+  now promises a consumer money they will not get.
+- **"CHECK EVERY TENANT-FACING REFUND LINE ON THAT JOURNEY" IS THE
+  REAL WORK**, not the one leaflet: the payment page, the refund
+  emails and the apply screens all talk about refunds.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
