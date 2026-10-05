@@ -57,6 +57,27 @@ footnote.
 | Regent's Lettings | opndoor-agents | 15,219.29 | 3,548.66 |
 | Northgate Lettings | opndoor-agents | 12,100.00 | 0.00 |
 | Southbank Residential | opndoor-agents | 4,200.00 | 0.00 |
+
+> **THESE TWO ROWS NO LONGER MATCH DEV, AND IT IS MY DOING.** At 11:16
+> on 2026-10-05, checking whether the browser could call
+> `merge_agencies` at all, I ran it against two real dev agencies
+> instead of inside a transaction that rolls back. Southbank
+> Residential was merged into Northgate Lettings: its office
+> (Southbank Quay) and its three applications (GR-95015, GR-95016,
+> GR-95017) moved, and its agency row was deleted. Dev now reads
+> **Northgate 16,300.00 and no Southbank row**; 12,100.00 + 4,200.00
+> is that 16,300.00, so no money was lost or invented, it is filed
+> under one agency instead of two.
+>
+> **Nothing else moved**: Southbank's only contact sits on its BRANCH
+> and was never touched, and neither row had partner relationships or
+> user attachments. The reversal is written out in QUEUE.md under "For
+> Matt in the morning" and needs one approval to run, because writing
+> to dev's org tables is not something I may do unattended.
+>
+> **The totals in section 1 are unaffected**: a merge moves rows
+> between agencies and changes no fee, so the whole-book figures still
+> stand. Only this table's split between those two names has changed.
 | Test Lettings asdah | kestrel-lettings | 3,789.01 | 378.90 |
 | Frost Partnership | kestrel-lettings | 2,400.00 | 0.00 |
 | Frost Partnership | opndoor-agents | 2,400.00 | 0.00 |

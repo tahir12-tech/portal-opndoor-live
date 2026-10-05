@@ -5637,6 +5637,70 @@ At a few hundred none of this bites.
   `--ff-only` is now a plain merge rather than a stop. His copy may
   have his own commits on it.
 
+### I BROKE SOMETHING ON DEV AND IT NEEDS ONE APPROVAL TO PUT BACK
+
+**What happened.** Writing `merge_branches`, I checked whether the
+browser could call `merge_agencies` at all -- the question that turned
+out to matter, because it could not. I ran the check against two real
+dev agencies instead of inside a transaction that rolls back, and it
+worked: **Southbank Residential was merged into Northgate Lettings** at
+11:16 on 2026-10-05.
+
+**What moved**, all of it:
+
+| | |
+| --- | --- |
+| the office `Southbank Quay` | now under Northgate |
+| 3 applications, GR-95015, GR-95016, GR-95017 | `agency_id` now Northgate |
+| the agency row `Southbank Residential` | deleted |
+| contacts | none moved. Southbank's one contact is on the BRANCH and never left it |
+| partner relationships, user attachments | neither row had any |
+
+**No money was lost or invented.** Northgate was 12,100.00 net and
+Southbank 4,200.00; Northgate now reads 16,300.00, which is the sum. It
+is filed under one name instead of two. `docs/MONEY-BEFORE-DG.md` says
+so where it lists both.
+
+**The reversal, which I may not run unattended.** Writing to dev's org
+tables was refused, correctly -- it is the kind of thing that should be
+somebody's decision rather than a step in my own clean-up. One
+approval, or run it yourself:
+
+```sql
+-- 1. the agency row. A NEW id: the old one survives in nothing --
+--    no pricing agreement, no match, no audit row -- so nothing
+--    references it. Rates NULL, which its own applications prove:
+--    they froze 0.25/0.10, the partner's standard, not Northgate's
+--    0.30/0.12 override.
+insert into public.agencies (name, partner_id, review_state, livemode, is_placeholder, referencing_mode)
+values ('Southbank Residential', 'ae0007c5-1974-4f3f-ba48-b3cf58846583'::uuid,
+        'confirmed', true, false, 'opndoor_referenced');
+
+-- 2. its office back
+update public.branches
+   set agency_id = (select id from public.agencies where name = 'Southbank Residential')
+ where id = '600b67a6-3564-49cf-89ce-70d8afbd84c9';
+
+-- 3. and its three applications
+update public.applications
+   set agency_id = (select id from public.agencies where name = 'Southbank Residential')
+ where branch_id = '600b67a6-3564-49cf-89ce-70d8afbd84c9';
+```
+
+**ONE THING I CANNOT PUT BACK FROM THE RECORD: its group.** Dev has one
+group, Meridian Property Group, which now holds Northgate alone. Whether
+Southbank was in it is recorded nowhere that survived the merge, so the
+SQL above leaves it ungrouped rather than inventing the membership. If it
+was in that group, it is one click on the Agencies screen.
+
+**What I have changed so it cannot happen again.** Nothing in the repo:
+this was not a code fault, it was me running a write against dev to
+answer a question a transaction would have answered. Every check of that
+shape from here is a `begin ... rollback`, which is what the pgTAP suite
+does and what I should have done. The `merge_agencies` grant that the
+check was about IS a real fault and is fixed in the same migration as
+`merge_branches`.
+
 ### For Matt in the morning (2026-10-05 night run)
 
 Questions and judgement calls found while working, none of them
