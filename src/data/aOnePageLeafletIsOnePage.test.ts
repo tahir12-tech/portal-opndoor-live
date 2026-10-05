@@ -40,11 +40,12 @@
    the print dialog can still turn them back on, which is theirs to do
    and not something CSS can or should override.
 
-   WHAT IS NOT DONE: the agent one-pager still prints to three pages. It
-   is called a one-pager and, since it was rebuilt from the PDF last
-   night, it is not one. Fitting it would mean cutting Matt's content
-   rather than tightening the type, so it is a question for him and not
-   a change made quietly.
+   AND THE ONE THAT IS THREE PAGES IS CALLED A GUIDE NOW. Matt,
+   2026-10-05: "don't cut content. Rename it 'Agent guide' everywhere
+   it's listed." So `opndoor-for-letting-agents.html` is not in the
+   one-page list below and is not meant to be: three A4 pages is what
+   a guide is. Its shelf entry, its type chip and its own <title> all
+   say guide.
    ===================================================================== */
 import { describe, expect, it } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -101,5 +102,23 @@ describe('a one-page leaflet', () => {
      read, often on a screen, and four pages of guide is not a defect. */
   it.each(HTML.filter((n) => !LEAFLETS.includes(n)))('%s is left at its own size', (name) => {
     expect(text(name)).not.toContain('body{font-size:8.6pt');
+  });
+});
+
+describe('the agent guide', () => {
+  /* RENAMED RATHER THAN CUT. Matt, 2026-10-05. The file name stays:
+     renaming a published path breaks a link somebody may hold. */
+  it('is listed as a guide, not as a one-pager', () => {
+    const shelf = readFileSync(resolve(process.cwd(), 'src/data/mock/help.ts'), 'utf8');
+    expect(shelf).toContain("type: 'Guide', title: 'Agent guide'");
+    expect(shelf).not.toContain('Agent one-pager');
+    expect(shelf).not.toMatch(/one-page flyer/);
+  });
+
+  /* AND ITS OWN TITLE IS ITS OWN. It carried "opndoor management
+     guide" from the template it was built from last night, so the
+     browser tab and any saved PDF were named after another document. */
+  it('and names itself in the browser tab', () => {
+    expect(text('opndoor-for-letting-agents.html')).toContain('<title>opndoor agent guide</title>');
   });
 });
