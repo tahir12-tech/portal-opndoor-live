@@ -218,9 +218,57 @@ const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing
  * `paid_at is null` by constraint -- so this is a rule about what the
  * sentence means rather than a case anybody meets.
  */
-export function applicationStatusLabel(r: { status: Status; refunded?: boolean }): string {
+/* AND THE DEED STATE IS PART OF THE SAME ONE ANSWER, 2026-10-05 (bq).
+ *
+ * Matt: "1) every fully refunded application's Status is 'Refunded'
+ * (GR-23854 says 'Paid', GR-23853 'Deed cancelled') ... 4) an application
+ * whose deed was voided for a correction and awaits re-signing shows
+ * 'Awaiting signature', not 'Paid' (GR-26262). Same rules in every export
+ * and on screen."
+ *
+ * THE TWO EXAMPLES FAIL DIFFERENTLY, which is the diagnosis. On dev:
+ *
+ *   GR-23854  status paid  payment refunded  deed voided          -> said "Paid"
+ *   GR-23853  status deed  payment refunded  deed cancelled       -> said "Deed cancelled"
+ *   GR-26262  status paid  payment paid      deed awaiting_tenant -> said "Paid"
+ *
+ * The first ignored the refund, the second let the deed state beat it, and
+ * the third ignored the deed state. One ordered rule beats all three, and
+ * it lives here because "the same rules in every export and on screen"
+ * means one function, not three agreeing copies.
+ *
+ * THE REFUND STILL WINS OVER THE DEED, because it is the last thing that
+ * happened and it is what a reader needs to know: a cancelled deed on a
+ * refunded application is how the refund was carried out.
+ *
+ * AWAITING SIGNATURE IS NOT ONLY THE RE-ISSUE CASE. Matt's example is a
+ * deed voided for a correction and reissued, and the state he wants named
+ * is simply "the deed is out and unsigned". A first issue sitting
+ * unsigned is the same fact and reads the same way; the row cannot tell
+ * them apart and does not need to.
+ */
+export function applicationStatusLabel(
+  r: { status: Status; refunded?: boolean; deedState?: string | null; awaitingSignature?: boolean },
+): string {
   if (r.refunded && r.status !== 'withdrawn' && r.status !== 'expired') return 'Refunded';
+  if (r.deedState === 'cancelled') return 'Deed cancelled';
+  /* THE TWO SHAPES OF THE SAME FACT. A list row carries
+     `awaitingSignature`, a full application carries `deedState`, and the
+     database spells that 'awaiting_tenant' while tenancyGroups maps it to
+     'awaiting' for the member views. Taking all three here is what lets
+     one function answer for the lists, the detail page and the exports --
+     which is what "the same rules in every export and on screen" asks
+     for. */
+  if (isAwaitingSignature(r)) return 'Awaiting signature';
   return STATUS_LABEL[r.status];
+}
+
+/** Is the deed out and unsigned, whichever shape the row is in? */
+export function isAwaitingSignature(
+  r: { deedState?: string | null; awaitingSignature?: boolean },
+): boolean {
+  return r.awaitingSignature === true
+    || r.deedState === 'awaiting_tenant' || r.deedState === 'awaiting';
 }
 
 /* AND THE SAME ANSWER FOR THE LISTS THAT USE CSS CLASSES RATHER THAN PILLS.
@@ -245,9 +293,15 @@ export function applicationStageClass(r: { status: Status; refunded?: boolean })
 
 /** The pill's colour for that one status. Muted: a refund is an ending, and
  *  must not wear the green of an issued deed. */
-export function applicationStatusTone(r: { status: Status; refunded?: boolean }): 'muted' | 'warn' | 'danger' | Status {
+export function applicationStatusTone(
+  r: { status: Status; refunded?: boolean; deedState?: string | null; awaitingSignature?: boolean },
+): 'muted' | 'warn' | 'danger' | Status {
   if (r.refunded && r.status !== 'withdrawn' && r.status !== 'expired') return 'muted';
   if (r.status === 'withdrawn' || r.status === 'expired' || r.status === 'draft') return 'muted';
+  /* THE SAME AMBER THE "Awaiting signature" CHIP ALREADY USES, so the row
+     and the filter above it agree. A label that changed without its colour
+     would read as a Paid row with somebody else's words in it. */
+  if (r.deedState !== 'cancelled' && isAwaitingSignature(r)) return 'warn';
   if (r.status === 'referencing') return 'warn';
   if (r.status === 'declined') return 'danger';
   return r.status;

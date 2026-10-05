@@ -15,7 +15,7 @@
    export format is identical regardless of source.
    ===================================================================== */
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
-import { INCLUDED_IN_SUPPLIER_COMMISSION } from './whoPaysTheAgency';
+import { agencyPayer, INCLUDED_IN_SUPPLIER_COMMISSION } from './whoPaysTheAgency';
 import { ALL_PARTNERS, isOpndoorStaff, maySeeCommission, readsTheWholeBook } from './types';
 import {
   ANNUAL, APP_BRANCHES, APP_RENTS, APP_REFERRERS, AVG_RENT,
@@ -27,7 +27,7 @@ import { viewerShape } from './viewerShape';
 // The statement column rule, shared with the screen and (as a copied block) with
 // the PDF and the CSV the cron emails. See statementColumns.ts.
 import { dimensionCollapsed, statementShape, type StatementDimension } from './statementColumns';
-import { guaranteeExpiry, allFull, findRecord, type FullApp, guaranteedAnnual } from './applicationsService';
+import { applicationStatusLabel, guaranteeExpiry, allFull, findRecord, type FullApp, guaranteedAnnual } from './applicationsService';
 // Walk fixes 8 and 16 share one rule for what is under guarantee, and when.
 import { inForceDuring } from './inForce';
 import { getLeague } from './leagueService';
@@ -38,7 +38,7 @@ import { liveAvailable, liveAggregate, liveVolume, liveMonths, getCommissionSett
 // heavy xlsx library is not pulled into the main bundle. It is dynamically
 // imported in exportBranded, on demand, when an export is actually run.
 import type { BrandedDoc, ColType, Column, KeyValue, TableRow } from './xlsxTemplate';
-import { feeBaseFor, totalRate, agentAmountOf, supplierAmountOf, feeBasisCell, linesFor, agentRailApp } from './commissionSplit';
+import { feeBaseFor, totalRate, agentAmountOf, agentEarnedOf, supplierAmountOf, feeBasisCell, linesFor, agentRailApp } from './commissionSplit';
 import { orgCell } from './agencyOffices';
 import { viaSupplier, withoutVia, withQualifier } from './viaSupplier';
 import { formatDate, gbpPence } from '@/lib/format';
@@ -1226,7 +1226,10 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
   // activity bases reconcile with the performance export (whose Sent excludes
   // withdrawn) and a withdrawn row is never rendered as "Awaiting payment".
   const apps = scopeFull(allFull(), role, scopeFor(role)).filter((a) => !a.withdrawn && !a.expired && basisInPeriod(a, basis, start, end));
-  const STATUS: Record<FullApp['status'], string> = { draft: 'In progress', referencing: 'Awaiting decision', declined: 'Declined', sent: 'Sent', paid: 'Paid', deed: 'Deed Issued', withdrawn: 'Withdrawn', expired: 'Expired' };
+  /* THE FIFTH COPY OF THE STATUS MAP LIVED HERE and is gone: (bd) found
+     four and this one was inside the export builder, which is why the
+     export could disagree with every screen. applicationStatusLabel is
+     the answer now. */
   // Who is reading. On an agency's copy the Partner column and the Partner
   // commission column do not exist: the first names house plumbing on every row,
   // the second is a structural zero on every row (see agentRailApp).
@@ -1362,6 +1365,19 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
       ...(agency ? [] : [{ header: 'Supplier commission rate', type: 'pct' } as Column]),
       moneyCol(agency ? 'Commission' : 'Agent commission'),
       { header: agency ? 'Commission rate' : 'Agent commission rate', type: 'pct' } as Column,
+      /* (bq)(2) THE CARVED SHARE IS REPORTED, NEVER ADDED. Matt: "where the
+         supplier passes on the agencies' share, show the agency's share as
+         'Included in supplier commission' consistently with the Performance
+         export fix." That fix is a third column beside the two amounts, and
+         this is the same column on this file: the agency's share is inside
+         the supplier's figure, so a reader summing the two must not be given
+         it twice.
+
+         OPNDOOR'S COPY ONLY, like the two supplier columns beside it. The
+         distinction is about which of our two payees we pay; a customer's
+         copy has one commission column, and what they earned is the same
+         figure either way. */
+      ...(agency ? [] : [moneyCol(INCLUDED_IN_SUPPLIER_COMMISSION)]),
     ] : []),
     ...(manyPayees ? [{ header: 'Commission payees', type: 'text' } as Column] : []),
     { header: 'Tenancy start date', type: 'text' },
@@ -1398,6 +1414,22 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     if (inRange(a.sentAt, start, end)) ev.push('Sent');
     if (inRange(a.paidAt, start, end)) ev.push('Paid');
     if (inRange(a.deedAt, start, end)) ev.push('Deed Issued');
+    /* (br) AND THE REFUND, WHICH IS THE MOST CONSEQUENTIAL THING THAT CAN
+       HAPPEN IN A PERIOD. Matt: "Application export 'Activity in period'
+       column: include 'Refunded' (and 'Deed cancelled' where it applies)
+       when that happened in the period."
+
+       BOTH, NOT ONE OR THE OTHER. A refund that cancelled the guarantee
+       did two things to the row and the column lists what happened, so it
+       lists both. "Deed cancelled" is dated by the refund because that is
+       what cancelled it: the deed carries no cancellation timestamp of its
+       own, and dating it from deedAt would put it in the month the deed
+       was ISSUED. A cancellation with no refund in the window is therefore
+       not claimed to have happened in the window. */
+    if (inRange(a.refundedAt, start, end)) {
+      ev.push('Refunded');
+      if (a.deedState === 'cancelled') ev.push('Deed cancelled');
+    }
     /* AN UNFINISHED APPLICATION IS NOT AWAITING PAYMENT. Matt,
        2026-10-02: "Unfinished applications: leave 'Guarantor fee
        charged' blank and Payment state 'Not yet at payment' until the
@@ -1438,6 +1470,19 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
        and GR-20846 have to sum to the tenancy's £576.92, which two
        independently-rounded halves never will. */
     const agentComm = earned ? agentAmountOf(a) : 0;
+    /* WHICH ARRANGEMENT THIS ROW WAS FROZEN ON, and whether there is a
+       supplier to have an arrangement WITH. agencyPayer reads null as "the
+       supplier passes it on", which is right for a supplier referral and
+       meaningless on the agency rail, where the flag is null because there
+       is no supplier at all. Asking it unguarded would have blanked the
+       commission on every one of our own agencies' rows. */
+    const onAgencyRail = agentRailApp(a);
+    const carvedHere = !onAgencyRail && agencyPayer(a.opndoorPaysAgentsAtFreeze) === 'supplier' && !agency;
+    /* AND THE CARVED CELL IS FED THE EARNED AMOUNT. payeesFor returns
+       nothing on a carved referral -- correctly, because opndoor pays the
+       supplier -- so agentAmountOf is zero there. (dd)(1) was the same
+       mistake in the Reporting fold: the carved bucket could never fill. */
+    const agentEarned = earned ? agentEarnedOf(a) : 0;
     const payees = linesFor(a).map((l) => `${l.orgName} ${Math.round(l.rate * 10000) / 100}%`).join(' + ');
     const exp = expiryOf(a);
     const row: TableRow = [
@@ -1478,7 +1523,17 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
          self-contradicting rather than merely wrong: a reader could take
          either half as the live fact. */
       a.referrer,
-      a.deedState === 'cancelled' ? 'Deed cancelled' : STATUS[a.status],
+      /* (bq)(1)(4) ONE RULE, SHARED WITH THE SCREENS. This composed its
+         own answer and got two of Matt's three examples wrong: GR-23854
+         (refunded, deed voided) read "Paid" because the refund was never
+         consulted, and GR-23853 (refunded, deed cancelled) read "Deed
+         cancelled" because the deed state beat the refund. GR-26262, a
+         deed voided for a correction and reissued, read "Paid" while it
+         sat unsigned. applicationStatusLabel answers all three in one
+         order, and it is the function the Applications list and the
+         application page already use: "same rules in every export and on
+         screen" means one function, not three agreeing copies. */
+      applicationStatusLabel(a),
       payState,
       a.sentAt ? dmy(a.sentAt) : '', a.paidAt ? dmy(a.paidAt) : '', a.deedAt ? dmy(a.deedAt) : '',
       a.refundedAt ? dmy(a.refundedAt) : '', a.refundedAmount != null ? moneyText(a.refundedAmount) : '',
@@ -1513,10 +1568,25 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
       unfinished ? '' : money(feeBaseFor(a)),
       unfinished ? '' : feeBasisCell(a),
       unfinished ? '' : money(a.tenancyId ? (tenancyFee.get(a.tenancyId) ?? feeBaseFor(a)) : feeBaseFor(a)),
-      ...(agency || !showComm ? [] : [money(partnerComm)]),
+      /* (bq)(3) A BLANK IS NOT A ZERO. Matt: "agency-route rows leave the
+         supplier commission and rate blank, not '£0.00 / 0%'." On the
+         agency rail there IS no supplier, so a figure of nothing states a
+         fact about a party that does not exist, and a reader can sum a
+         column of zeros. The template prints '' in a money or percentage
+         column as a genuinely empty cell (see isBlank in xlsxTemplate). */
+      ...(agency || !showComm ? [] : [onAgencyRail ? '' : money(partnerComm)]),
       ...(showComm ? [
-        ...(agency ? [] : [agentRailApp(a) ? 0 : a.partnerRate]),
-        money(agentComm), totalRate(a),
+        ...(agency ? [] : [onAgencyRail ? '' : a.partnerRate]),
+        /* (bq)(2) AND THE AGENT COLUMN HOLDS WHAT OPNDOOR PAYS THE AGENCY.
+           Where the supplier passes the share on, the money is inside the
+           supplier's figure in the column to the left, so it goes in the
+           carved column instead of being stated twice. agencyPayer is the
+           one shared rule, frozen per referral, and it is asked only where
+           there is a supplier at all: on the agency rail the flag is null,
+           which that rule reads as "the supplier passes it on", and there
+           is no supplier to pass anything. */
+        carvedHere ? '' : money(agentComm), totalRate(a),
+        ...(agency ? [] : [carvedHere ? money(agentEarned) : '']),
       ] : []),
       ...(manyPayees ? [payees] : []),
       // WAS `a.expiry`, which is right by accident and wrong by intent: it is
@@ -2459,6 +2529,24 @@ const SOURCE_WORD: Record<string, string> = {
  * Gated exactly as the per-payee builder is, and by the same function: this is
  * the same money, and a second rule here is a second place for it to be wrong.
  */
+/* (bs)(1) A MONTH EXCEL WILL NOT REFORMAT.
+
+   Matt: "month as 'October 2026' (not 'Oct-26', which Excel produces from
+   a date; write it as text)."
+
+   HIS DIAGNOSIS IS THE FIX. The cell is not wrong in the file: "October
+   2026" is already what is written, and Excel parses it as 1 October 2026
+   on open and renders it in its own date format. Nothing about the format
+   string can prevent that; the value has to be one Excel will not take for
+   a date, and `="October 2026"` is the idiom every spreadsheet reads as a
+   string literal.
+
+   ONLY WHERE A VALUE WOULD OTHERWISE BE EATEN. Dates in a date column are
+   meant to be dates, so this is not applied to them. */
+function excelText(v: string): string {
+  return `="${v.replace(/"/g, '""')}"`;
+}
+
 export function buildAllStatementsCsv(
   role: Role, scope: PartnerScope, monthKey: string,
 ): { csv: string; filename: string } | null {
@@ -2489,18 +2577,26 @@ export function buildAllStatementsCsv(
      `String(l.rate)` was emitting 0.25, so the file Matt opened really did
      read "2400" and "0.25" against columns headed Fee and Rate. */
   const rows: CsvRow[] = [[
-    'Payee', 'Month', 'Reference', 'Tenant', 'Branch', 'Tenancy',
+    /* (bs)(3) THE AGENCY AS WELL AS THE OFFICE. Matt: "add an Agency
+       column so supplier rows show the agency (Test Lettings asda) as
+       well as the office." An addition, not a replacement: on a
+       supplier's statement "Frost Mayfair" alone does not say whose
+       office it is, and dev holds two offices of that name. */
+    'Payee', 'Month', 'Reference', 'Tenant', 'Agency', 'Branch', 'Tenancy',
     'Share', 'Paid', 'Fee charged', 'Rate', 'Commission',
   ]];
   for (const st of statements) {
     for (const l of st.lines) {
       rows.push([
         st.payeeName,
-        st.monthLabel,
+        excelText(st.monthLabel),
         l.ref,
         l.tenant,
+        l.agency || EMPTY,
         l.branch || EMPTY,
-        // Already "Single" or "Joint (2)": see CommissionStatement.
+        /* "Single" or "Joint (2)", on BOTH sides now. The supplier lines
+           said "Joint" with no count, and said it for a tenancy of one:
+           see tenancyPlace in liveAnalytics. */
         l.tenancyPlace || 'Single',
         l.sharePercent == null ? '100%' : `${l.sharePercent}%`,
         dmy(l.paidAt),

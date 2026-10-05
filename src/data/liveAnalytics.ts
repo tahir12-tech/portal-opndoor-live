@@ -1422,6 +1422,10 @@ export interface StatementLine {
    *  needs to know whether the fee is a whole let or a share of a joint
    *  one. Never empty now, so the drop-empty column rule keeps it. */
   tenancyPlace: string;
+  /** The agency the referral belongs to. (bs): "add an Agency column so
+      supplier rows show the agency (Test Lettings asda) as well as the
+      office" -- the office name alone does not say whose office it is. */
+  agency: string;
   branch: string;
   paidAt: Date;
   /** What THIS applicant paid. On a joint tenancy that is their share of the
@@ -1455,6 +1459,19 @@ export interface CommissionStatement {
 const monthKeyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const monthLabelOf = (d: Date) => `${MONTH_LONG[d.getMonth()]} ${d.getFullYear()}`;
 
+/* HOW MANY APPLICATIONS SHARE EACH TENANCY, counted once for the book.
+
+   (bs)(2) needs the same answer on both sides of this file -- the agency
+   payees and the supplier ones -- and the agency side was computing it by
+   filtering the whole set for every line, which is a scan per row. At a few
+   hundred applications that is invisible; it is the shape that stops being
+   invisible, and the supplier side needed the same number anyway. */
+function tenancySizes(set: FullApp[]): (id: string | null | undefined) => number {
+  const n = new Map<string, number>();
+  for (const a of set) if (a.tenancyId) n.set(a.tenancyId, (n.get(a.tenancyId) ?? 0) + 1);
+  return (id) => (id ? n.get(id) ?? 0 : 0);
+}
+
 /** THE ONE PASS. Every payee's lines for applications paid inside the window. */
 function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
   key: string; level: 'group' | 'agency' | 'branch'; orgId: string | null; orgName: string;
@@ -1464,11 +1481,12 @@ function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
     key: string; level: 'group' | 'agency' | 'branch'; orgId: string | null; orgName: string;
     partner: string; commission: number; apps: SettlementApp[]; lines: StatementLine[];
   }>();
+  const matesOf = tenancySizes(set);
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue; // net of refunds
     const fee = feeBaseFor(a);
-    const mates = a.tenancyId ? set.filter((x) => x.tenancyId === a.tenancyId).length : 0;
+    const mates = matesOf(a.tenancyId);
     // ONE LINE PER PAYEE. A historic row has no split and resolves to a single
     // agency line at the scalar rate, so it lands exactly where it always did.
     for (const p of payeesFor(a, fee)) {
@@ -1495,6 +1513,8 @@ function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
            all is a solo let, which is the common case and used to print
            a hyphen. */
         tenancyPlace: a.tenancyId && (mates || 0) > 1 ? `Joint (${mates})` : 'Single',
+        // (bs)(3) The agency as well as the office, on both sides.
+        agency: a.agency,
         branch: a.branch,
         paidAt: a.paidAt!,
         fee,
@@ -1615,6 +1635,7 @@ export function getCommissionStatements(role: Role, scope: PartnerScope, monthKe
      its own agents" it correctly returns nothing, and the supplier is still
      owed its own cut. */
   const bySupplier = new Map<string, CommissionStatement>();
+  const matesOf = tenancySizes(set);
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue;
@@ -1636,7 +1657,17 @@ export function getCommissionStatements(role: Role, scope: PartnerScope, monthKe
       ref: a.ref,
       tenant: findRecord(a.ref)?.name || a.ref,
       tenancyId: a.tenancyId ?? null,
-      tenancyPlace: a.tenancyId ? 'Joint' : 'Single',
+      /* (bs)(2) THE SAME WORDS AS THE AGENCY SIDE, COUNT AND ALL. Matt:
+         "tenancy as 'Joint (2)' on every row, including supplier ones."
+         This said "Joint" with no number, and said it for a tenancy of
+         ONE: a solo let can carry a tenancy row, which the agency side
+         has always known (it asks whether there is more than one
+         applicant on it) and this side did not. So a supplier's rows
+         read "Joint" on lets that were nothing of the kind. */
+      tenancyPlace: a.tenancyId && (matesOf(a.tenancyId) || 0) > 1 ? `Joint (${matesOf(a.tenancyId)})` : 'Single',
+      /* (bs)(3) AND THE AGENCY, because on a supplier's statement the
+         office alone does not say whose it is. */
+      agency: a.agency,
       branch: a.branch,
       paidAt: a.paidAt!,
       fee: feeBaseFor(a),

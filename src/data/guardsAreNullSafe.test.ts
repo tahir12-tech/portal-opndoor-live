@@ -345,6 +345,20 @@ describe('a raising guard cannot evaluate to NULL', () => {
        caller could write an ops alert. The EXECUTE grant is the other half
        that holds this, and the function is revoked from anon, so the guard
        gives the reason a sentence and the grant is what actually refuses. */
-    expect(denyIf.length).toBe(71);
+    /* 71 -> 72 with 20261009030000, set_agency_referencing_mode's new
+       target test (ci):
+
+           if exists (select ... where a.id = p_agency
+                        and p.partner_kind = 'supplier')
+
+       Total by construction: EXISTS is a boolean and never NULL, whatever
+       the subquery finds or fails to find, so there is nothing to coalesce.
+
+       Which way it fails if the row is missing: EXISTS answers false and
+       the set is allowed, which is the same answer the function gave
+       before this guard existed, and the rest of it still runs -- an
+       unknown agency id updates nothing. The guard narrows; it is not what
+       holds the function up. */
+    expect(denyIf.length).toBe(72);
   });
 });
