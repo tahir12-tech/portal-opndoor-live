@@ -5141,6 +5141,44 @@ report himself:
   "Add a new agency" still at the bottom from (vv). Recents per PERSON
   is the only part with no existing store behind it.
 
+**2026-10-05: the picker is done; the WHOLE-BOOK LOAD is not, and it
+needs Matt's call rather than a guess.**
+
+The pickers now search on the server (20261008270000). But the
+sentence "not by loading every agency into the page" also indicts
+something the picker does not control:
+
+- `src/lib/hydrate.ts:171` and `:175` select EVERY agency and EVERY
+  branch the caller's RLS allows, with no `.limit()`, `.range()` or
+  filter, inside the sign-in `Promise.all`. It runs on sign-in, on
+  partner switch and from Activity -- whether or not a picker is ever
+  opened.
+- `orgService.ts:19` then persists that whole array to localStorage on
+  every write, and `saveJSON` swallows a quota failure and returns
+  false, which orgService ignores. At thousands of agencies that is a
+  silent quota failure on every on-the-fly create.
+
+**WHY I HAVE NOT CAPPED IT.** That array is not the picker's; it feeds
+Reporting, the League, the exports and `keyOf`'s grouping. A blanket
+`.limit(500)` would not make those slow, it would make them WRONG --
+totals computed over a truncated book, silently. Wrong money is worse
+than a slow form.
+
+So the options, for Matt:
+1. Load the org tree ON DEMAND per screen, not at sign-in. Correct,
+   and the largest change.
+2. Keep the global load but make truncation impossible to miss: ask
+   the server for a count first and refuse to render money figures
+   over a book we did not fully load, with a banner. Smaller, honest,
+   and leaves the slow sign-in.
+3. Accept it for Wednesday on the grounds that Rightmove's agency
+   count at go-live is knowable -- and go and find out what it is,
+   which nobody has said.
+
+**(3) IS PROBABLY THE RIGHT ANSWER FOR WEDNESDAY AND THE QUESTION HAS
+NOT BEEN ASKED:** how many agencies will Rightmove have on day one?
+At a few hundred none of this bites.
+
 ### (dh) A per-level table of what each reader sees on Help
 
 > When the Help documents are done: give me a table of which guides, leaflets and FAQs each level sees on the Help page (admin, opndoor manager, agency Director, Manager, Negotiator, supplier Management, Referrer, Developer), and confirm for each that nothing shows rates, commission or anything that level shouldn't see, all of it follows the refund rule, joint-tenancy wording and "in favour of the property", and there are no em dashes. Then I'll spot-check each level.
