@@ -137,6 +137,43 @@ export function Register() {
   const [f, setF] = useState({ first_name: '', last_name: '', email: '', phone: '', password: '' });
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  /* (zz) PREFILLED FROM THE REFERRAL, AND EDITABLE.
+
+     Matt: "when a referred tenant opens their invite, prefill the account
+     form with the name, email and mobile from the referral (editable)".
+
+     The agent has just typed this person's name, email and mobile into a
+     referral, and the next screen they see asked for all three again.
+
+     EDITABLE IS THE WHOLE DIFFERENCE from the property fields above, which
+     an invited tenant sees locked: the property is the agent's to state,
+     and a person's own name and number are not. The referral's record of a
+     mobile is the agent's typing and the tenant is the one who knows.
+
+     NEVER OVER WHAT THEY HAVE TYPED. The fetch is async and a fast typist
+     beats it, so each field fills only while it is still empty. A failure
+     leaves the form exactly as it was: an invite that cannot be read is
+     for the landing screen to report, and this one asks the questions it
+     always did. */
+  useEffect(() => {
+    if (!invite) return undefined;
+    let ignore = false;
+    void (async () => {
+      try {
+        const r = await auth.inviteInfo(invite) as Record<string, unknown>;
+        if (ignore || !r || r.valid === false) return;
+        const from = (k: string) => (typeof r[k] === 'string' ? (r[k] as string).trim() : '');
+        setF((prev) => ({
+          ...prev,
+          first_name: prev.first_name || from('first_name'),
+          last_name: prev.last_name || from('last_name'),
+          email: prev.email || from('email'),
+          phone: prev.phone || from('phone'),
+        }));
+      } catch { /* The form asks, as it always did. */ }
+    })();
+    return () => { ignore = true; };
+  }, [invite]);
   // The address already has an account, and we say so. A deliberate trade: the
   // neutral answer kept the address private and left a real person waiting for
   // a code that was never sent.
