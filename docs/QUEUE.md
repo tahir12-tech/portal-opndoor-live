@@ -5390,6 +5390,33 @@ At a few hundred none of this bites.
   (dr2): the rebuilt sales guide must not show commission to a reader
   who may not see it.
 
+### (dt) ANSWERS ON THE GBP 20, and the edits to both drafts
+
+> Answers on the £20:
+> 1. Not refunded in any case: not if the reference is declined, not if the tenant stops after paying, not if opndoor can't complete the check.
+> 2. It does not come off the guarantee fee. It is on top.
+> 3. On a joint tenancy, each tenant pays £20.
+>
+> Edits to your drafts:
+> - Draft 1: remove the final paragraph about agencies that check their own tenants (only "opndoor checks" readers see it) and remove "because the eligibility check is the part that costs us". Replace "Nothing goes to referencing until it clears" with plain wording that says what must happen first.
+> - Draft 2: "the guarantee fee is usually one month's rent", and replace "after the first two sections and before the longer part" with "near the start of your application".
+> - Both: state it is £20 per tenant, non-refundable in every case, and on top of the guarantee fee.
+>
+> Show me the final wording of both, then commit. Make sure the tenant-facing screens on the apply journey say the same three things. Leave the landlord guide claims unchanged, I'm checking them against the deed.
+
+- **THE THREE FACTS ARE NOW RECORDED AND ARE THE SPECIFICATION:** GBP
+  20 per tenant, non-refundable in every case, on top of the guarantee
+  fee. They go in all three places and must agree word for word.
+- **THE APPLY JOURNEY IS ALREADY WRONG ON TWO OF THEM.** Apply.tsx
+  says "It is not refunded if the reference comes back declined",
+  which is narrower than the rule and reads as though the other cases
+  might be refunded; and nothing on that screen says per tenant or on
+  top. That is tenant-facing copy about money, so it is the most
+  important of the three edits.
+- "ONLY 'opndoor checks' READERS SEE IT" is why the last paragraph
+  goes: explaining who does NOT pay to an audience who all do is
+  noise, and the gate already does that work.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
