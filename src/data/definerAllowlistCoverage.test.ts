@@ -197,7 +197,14 @@ describe('the definer allowlist', () => {
      `set_app_setting_text` is Health's field, `statement_invoice_email`
      is what it reads back, and `statements_can_be_posted` is the
      boolean Home and Health both warn on. 2026-10-01. */
-  it('is 151 functions wide, and does not widen by accident', () => {
+  /* 151 -> 152, RAISED DELIBERATELY AND IN THE SAME COMMIT AS THE
+     FUNCTION. `opndoor_user_ids` answers which of the ids a caller
+     already holds belong to opndoor's own staff, so a referral opndoor
+     sent on a customer's behalf can be shown to that customer as
+     opndoor. Definer because users RLS hides those rows from the caller,
+     which is the whole reason the client cannot answer it. Exercised by
+     name in a_customer_is_told_opndoor_sent_it.test.sql. 2026-10-05. */
+  it('is 152 functions wide, and does not widen by accident', () => {
     /* 142 -> 144, 2026-10-01: refund_questions_open and
        decide_refund_question, the list and the answer for a refund that
        landed on commission already sent on a statement. Both are staff
@@ -412,7 +419,17 @@ describe('the definer allowlist', () => {
        they may not. They return a name, an address and an office
        count. No money, no people, no deal. They are definers because
        that predicate is, not to widen anything. */
-    expect(allowlist.length).toBeLessThanOrEqual(167);
+    /* 167 -> 168, RAISED WITH opndoor_user_ids (cq).
+
+       WHY IT IS SAFE, and it is the narrowest definer on this list. It
+       takes uuids the caller has already read off their own rows and
+       returns the subset that are opndoor's own staff. No name, no
+       email, no row, and nothing about an id it was not given: an id
+       that is nobody answers nothing, so it cannot be used to find out
+       whether some other uuid is a person. It is a definer only
+       because users RLS hides opndoor staff from a customer, which is
+       exactly why the browser could not answer the question itself. */
+    expect(allowlist.length).toBeLessThanOrEqual(168);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

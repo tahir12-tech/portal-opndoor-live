@@ -14,6 +14,7 @@ import { LEAST_PRIVILEGED_ROLE,
   type Agency, type AgencyGroup, type AgentContact, type ApplicationSummary, type Branch, type CommissionLine, type FullApp, type ManagedUser, type Role,
   type Partner, type Status,
 } from '@/data';
+import { OPNDOOR_ON_YOUR_BEHALF } from '@/data/whoSentThisReferral';
 import type { AppRecord } from '@/data/mock/applications';
 import type { UpcomingGuaranteeSeed } from '@/data/mock/guarantees';
 import { isDirectRail, isHousePartner } from '@/data/channel';
@@ -268,6 +269,53 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   const orgRate = new Map<string, { partner_rate: number | null; agent_rate: number | null }>(
     ((orgRatesRes.data ?? []) as any[]).map((r) => [`${r.level}:${r.org_id}`, { partner_rate: r.partner_rate, agent_rate: r.agent_rate }]),
   );
+
+  /* =====================================================================
+     A REFERRAL OPNDOOR SENT ON A CUSTOMER'S BEHALF SAYS "opndoor".
+
+     Matt (cq): "Referrals an Opndoor admin made on a customer's behalf
+     still show the admin's name ('Nicholas Dwyer') in that customer's
+     referrer lists, charts and exports; show 'opndoor (on your behalf)'
+     in every customer view."
+
+     DONE HERE BECAUSE THIS IS WHERE THE NAME IS MADE. Three lines below
+     build `referrer` and everything downstream reads it: the Applications
+     list and its filter, the referrer chart, the League, the application
+     page and three exports. (bm) fixed the surfaces it could find one at a
+     time and missed the ones it could not; naming it once at the source is
+     what stops the next surface being missed.
+
+     THE CLIENT CANNOT WORK THIS OUT. Measured on dev as Kestrel Management:
+     `referrer_name` reads "Nicholas Dwyer" off the application, and the
+     user row behind `referrer_id` is invisible to them, so `referrerRole`
+     is null for exactly the rows that need masking. The database is asked
+     instead, once, about the distinct referrer ids on rows RLS has already
+     handed over -- see 20261009010000.
+
+     THE READER'S OWN ID GOES IN THE SAME QUESTION, so whether this reader
+     is opndoor staff comes from the same source of truth as whether the
+     referrer was, with no second copy of the rule in the client and no
+     role plumbed through from the caller.
+
+     IT NEVER COSTS ANYBODY THEIR SIGN-IN. A failure leaves the set empty
+     and every name as it was: a label is not worth a login, and the
+     unmasked name is what the product showed yesterday. */
+  const referrerIds = [...new Set(apps.map((a: any) => a.referrer_id).filter(Boolean))] as string[];
+  let opndoorPeople = new Set<string>();
+  if (referrerIds.length) {
+    try {
+      // Deduped: the reader is usually a referrer too, and asking twice
+      // about the same id is a question answered twice.
+      const { data } = await client.rpc('opndoor_user_ids', { p_users: [...new Set([...referrerIds, userId])] });
+      if (Array.isArray(data)) opndoorPeople = new Set(data.map((x: any) => (typeof x === 'string' ? x : x?.opndoor_user_ids)).filter(Boolean));
+    } catch { /* The name stays as it was. */ }
+  }
+  const readerIsOpndoor = opndoorPeople.has(userId);
+  /** What this reader is told about who sent a referral. */
+  const referrerOf = (a: any): string | null => (
+    !readerIsOpndoor && a.referrer_id && opndoorPeople.has(a.referrer_id)
+      ? OPNDOOR_ON_YOUR_BEHALF
+      : (a.referrer_name ?? emb(a.referrer)?.full_name ?? null));
 
   const partnerSlug = new Map<string, string>(partners.map((p) => [p.id, p.slug]));
   // Fallback rates by partner (only used if a row somehow lacks its snapshot;
@@ -526,7 +574,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // 'management' and differ only here, so role alone cannot name either.
     referrerSeesCommission: emb(a.referrer)?.sees_commission === true,
     // #owner referrer name + sent-date for the Applications referrer/period filters.
-    referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? null,
+    referrer: referrerOf(a),
     sentAtTs: a.sent_at ? new Date(a.sent_at).getTime() : null,
     refunded: a.payment_state === 'refunded',
     // R2. A partial refund moves money, not the guarantee. See FullApp.
@@ -587,7 +635,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     groupId: a.agency_id ? (groupOfAgency.get(String(a.agency_id)) ?? null) : null,
     // #97 Prefer the snapshotted referrer name (survives deactivation / users-RLS);
     // fall back to the live join, then a stable placeholder that is never counted.
-    referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? '(unknown)',
+    referrer: referrerOf(a) ?? '(unknown)',
     // Walk fix 18: is there a referring PERSON. The name above is a label and
     // a direct signup has one ("Direct signup") without having a referrer.
     referrerId: a.referrer_id ?? null,
@@ -666,7 +714,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     rent: num(a.monthly_rent),
     status: a.status as Status,
     date: eventDate(a),
-    referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? '(unknown)', // #97
+    referrer: referrerOf(a) ?? '(unknown)', // #97
     owner: ownerFlag(a),
     referencingMode: a.referencing_mode ?? undefined,
     tenancyId: a.tenancy_id ?? null,

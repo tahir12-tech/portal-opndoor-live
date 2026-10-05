@@ -173,6 +173,7 @@ insert into allowed(name) values
   ('my_partner_summary'),
   ('not_in_network_agencies'),
   ('notification_matrix'),
+  ('opndoor_user_ids'),
   ('ops_route_live_count'),
   ('ops_routing_matrix'),
   ('org_add_contact'),
