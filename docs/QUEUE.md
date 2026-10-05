@@ -5500,6 +5500,55 @@ At a few hundred none of this bites.
   Help telling a Regent agent the fee is one month's rent is wrong on
   the only estate going live on Wednesday.
 
+## THE SECOND NIGHT RUN (instruction, 2026-10-05, verbatim). THIS IS THE PLAN UNTIL 09:00.
+
+> I'm going to sleep. Work through the night without waiting for me.
+>
+> Setup: create a new branch matt-fixes from partner-api at 4a39fe6 (the commit in Balal's bundle) and do all of tonight's work on it. Never touch partner-api again. Dev only, never live, never push.
+>
+> Build everything remaining, in this order:
+> 1. Help docs telling agents the fee is one month's rent (wrong for Regent): every fee mention must follow the agency's agreed fee basis or not state one.
+> 2. opndoor manager sees a blank Reporting page (paymentMetrics.scopeFull allowlist).
+> 3. (cp) draft-month "Reference couldn't be loaded" and the export filename; find the real error, don't hide it.
+> 4. (cq)/(cy) admin-on-behalf referrals show "opndoor", not the admin's name, in lists, charts, exports and historic activity.
+> 5. (ci) server refuses a referencing mode set on a supplier-estate agency.
+> 6. (bq)(br)(bs) the export fixes.
+> 7. (ck) duplicate check.
+> 8. (cl) second half, statement address hidden from readers who may not see money.
+> 9. (cs) supplier edits in Recent changes.
+> 10. (cu) sign-in lands on the user's home page.
+> 11. (cw)(cx)(cg)(df)(db)(nn)(oo)(zz) and the rest of the not-built list.
+> 12. A test sending a referral through the partner API on each of the three checking settings, including a supplier-estate agency inheriting its supplier's setting.
+> 13. (dg) the whole-book load, option 1: load per screen with sums on the server. Before starting, record every money figure on Reporting, League, exports and statements on dev; after, prove each matches exactly with a test. If it can't be finished complete and proven, don't commit a partial version.
+>
+> Do NOT build anything that needs my decision: the landlord guide claims, Kestrel's hidden deal, the bordereau September rule, admin seeing both rails' Help answers, the Expiries default month. If you hit any other decision, don't guess: add it to "For Matt in the morning" in QUEUE.md and move on.
+>
+> Rules: each item complete and tested before committing, one commit each. Run tests for the files you touched after each change and the full gate (drift, typecheck, vitest, pgTAP) every few items. If the gate fails, revert the change that broke it. Deploy any changed edge function to dev. Check the time with date, never estimate.
+>
+> When everything is done, or by 09:00 at the latest: run the full gate, update HANDOVER-BALAL.md, then make ~/Downloads/matt-fixes.bundle containing only the new commits (git bundle create ~/Downloads/matt-fixes.bundle partner-api..matt-fixes, using 4a39fe6 as the base), verify it, confirm no .env or key files are in it, and give me Balal's exact commands to load and merge it.
+>
+> In the morning give me a short plain-English summary: what's done, what's left, and decisions waiting for me.
+
+- **BRANCH `matt-fixes` CUT FROM 4a39fe6 AT 04:51.** That is the tip in
+  Balal's bundle, so the bundle he already has plus this branch is the
+  whole of the work. `partner-api` is not touched again.
+- **ITEM 1 CARRIES ITS OWN ESCAPE HATCH: "or not state one".** A
+  printed leaflet cannot know which agency's reader is holding it, so
+  for the static documents the buildable half of that sentence is the
+  second half. Where a surface DOES know the org (the portal's own
+  screens), it can state the figure.
+- **ITEM 13 IS GATED ON PROOF, NOT ON EFFORT.** "Record every money
+  figure before, prove each matches exactly after, and if it can't be
+  finished complete and proven, don't commit a partial version." The
+  before-picture is therefore the first commit-worthy artefact, and a
+  half-migrated org tree is explicitly not shippable.
+- **THE FIVE DECISION ITEMS ARE OFF THE TABLE**, including the two I
+  would otherwise have reached in item 11 (the Expiries default month
+  is (cv), so item 11's list loses it).
+- **"FIND THE REAL ERROR, DON'T HIDE IT" (item 3)** is the same
+  correction he made on (cz): a wrong sentence on a screen is a
+  symptom, and the cause gets measured before anything is written.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
