@@ -30,7 +30,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { rowIsItsOwnPartner } from '@/data/viaSupplier';
+import { rowIsItsOwnPartner, withQualifier } from '@/data/viaSupplier';
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8');
 const EXPORTS = read('src/data/exportsService.ts');
@@ -59,6 +59,8 @@ describe('the predicate the screen asks', () => {
     expect(rowIsItsOwnPartner({ name: '', partner: 'Kestrel Lettings' })).toBe(false);
   });
 });
+
+const LEAGUE_EXPORTS = readFileSync(join(process.cwd(), 'src/data/exportsService.ts'), 'utf8');
 
 describe('the screen', () => {
   /* (bz) NARROWED TO THE SUPPLIERS BOARD, which reverses the reasoning
@@ -161,5 +163,43 @@ describe('the export columns', () => {
      noise this whole change is about. */
   it('and the Route cell is empty when the sheet is one partner', () => {
     expect(EXPORTS).toContain("const route = showPartner && r.partner ? r.partner : '';");
+  });
+});
+
+/* =====================================================================
+   AND NEVER TWO BRACKETS. (bp)(3) and (bu) are one fault reported
+   twice: a name that already carries "(via X)" handed to something
+   that appends its own parenthetical.
+   ===================================================================== */
+describe('a qualifier on a via-labelled name', () => {
+  it('folds into the existing bracket rather than adding a second', () => {
+    expect(withQualifier('Frost Partnership (via Kestrel Lettings)', 'agency'))
+      .toBe('Frost Partnership (agency, via Kestrel Lettings)');
+  });
+
+  /* (bu) EXACTLY: the estate is the thing "via" already names, so
+     appending it produced "Frost Partnership (via Kestrel Lettings)
+     (Kestrel Lettings)". Say it once. */
+  it('and drops a qualifier that only repeats the estate', () => {
+    expect(withQualifier('Frost Partnership (via Kestrel Lettings)', 'Kestrel Lettings'))
+      .toBe('Frost Partnership (via Kestrel Lettings)');
+    expect(withQualifier('Frost Partnership (via Kestrel Lettings)', 'kestrel lettings'))
+      .toBe('Frost Partnership (via Kestrel Lettings)');
+  });
+
+  it('and an ordinary name still gets an ordinary bracket', () => {
+    expect(withQualifier('Regent’s Lettings', 'agency')).toBe('Regent’s Lettings (agency)');
+  });
+
+  /* NOTHING TO ADD IS NOT A BRACKET. An empty level would otherwise
+     print "Frost Partnership ()". */
+  it('and no qualifier leaves the name alone', () => {
+    expect(withQualifier('Regent’s Lettings', '')).toBe('Regent’s Lettings');
+    expect(withQualifier('Regent’s Lettings', null)).toBe('Regent’s Lettings');
+  });
+
+  it('and the export uses it', () => {
+    expect(LEAGUE_EXPORTS).toContain('withQualifier(a.agency, a.level)');
+    expect(LEAGUE_EXPORTS).not.toContain('${a.agency} (${a.level})');
   });
 });

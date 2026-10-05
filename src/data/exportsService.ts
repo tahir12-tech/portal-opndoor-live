@@ -40,7 +40,7 @@ import { liveAvailable, liveAggregate, liveVolume, liveMonths, getCommissionSett
 import type { BrandedDoc, ColType, Column, KeyValue, TableRow } from './xlsxTemplate';
 import { feeBaseFor, totalRate, agentAmountOf, supplierAmountOf, feeBasisCell, linesFor, agentRailApp } from './commissionSplit';
 import { orgCell } from './agencyOffices';
-import { viaSupplier, withoutVia } from './viaSupplier';
+import { viaSupplier, withoutVia, withQualifier } from './viaSupplier';
 import { formatDate, gbpPence } from '@/lib/format';
 import { plural } from '@/lib/plural';
 import { tenancyStartGiven } from './tenancyStartGiven';
@@ -953,7 +953,12 @@ export function buildLivePerformanceDoc(role: Role, period: Period): BrandedExpo
       blocks.push({
         kind: 'keyvalue',
         items: [
-          ...ag.payees.map((a) => moneyKv(`${agency ? 'Commission' : 'Agent commission'} payable to ${a.agency} (${a.level})`, a.commission)),
+          /* (bp)(3) ONE BRACKET. `a.agency` may already read
+             "Frost Partnership (via Kestrel Lettings)", and appending
+             the level gave "... (via Kestrel Lettings) (agency)".
+             withQualifier folds the level into the existing bracket,
+             and drops it where it would only repeat the estate. */
+          ...ag.payees.map((a) => moneyKv(`${agency ? 'Commission' : 'Agent commission'} payable to ${withQualifier(a.agency, a.level)}`, a.commission)),
           moneyKv(`Total ${agency ? '' : 'agent '}commission payable`, ag.total),
         ],
       });

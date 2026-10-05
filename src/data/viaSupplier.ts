@@ -155,3 +155,31 @@ export function isSupplierEstate(partnerSlug: string | null | undefined): boolea
 export function withoutVia(name: string | null | undefined): string {
   return (name ?? '').replace(/\s*\(via [^)]*\)\s*$/, '').trim();
 }
+
+/* =====================================================================
+   A NAME THAT ALREADY CARRIES "(via X)" DOES NOT TAKE A SECOND BRACKET.
+
+   Matt reported the same fault twice in one evening, in two places:
+
+     (bp)(3)  "Frost Partnership (via Kestrel Lettings) (agency)"
+     (bu)     "Frost Partnership (via Kestrel Lettings) (Kestrel Lettings)"
+
+   ONE CAUSE: a label built by viaSupplier, then handed to something
+   that appends its own parenthetical -- the payee LEVEL in the first
+   case, the estate in the second. Neither knows the other ran.
+
+   SO THE JOIN IS A FUNCTION, not a template at each site. A name with
+   a via-label folds the second fact INTO that bracket; a plain name
+   gets an ordinary one. And a qualifier that merely repeats what the
+   via-label already says is dropped rather than printed twice, which
+   is (bu) exactly: the estate is the thing "via" names.
+   ===================================================================== */
+export function withQualifier(name: string, qualifier: string | null | undefined): string {
+  const q = (qualifier ?? '').trim();
+  if (!q) return name;
+  const m = /^(.*) \(via (.+)\)$/.exec(name.trim());
+  if (!m) return `${name} (${q})`;
+  // The estate again, in other words: say it once.
+  if (m[2].trim().toLowerCase() === q.toLowerCase()) return name;
+  return `${m[1]} (${q}, via ${m[2]})`;
+}
