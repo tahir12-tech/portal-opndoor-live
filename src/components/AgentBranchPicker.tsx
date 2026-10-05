@@ -60,7 +60,7 @@
    create_referral_target).
    ===================================================================== */
 import { useEffect, useRef, useState } from 'react';
-import { ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, getPartners, loadOrgShape, mayInventAgency, mayInventBranch, orgNotSetUp, ownStockViewer, searchAgencies, searchBranches, FULL_PICKER, UNRESOLVED, type OrgShape } from '@/data';
+import { isOpndoorStaff, ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, getPartners, loadOrgShape, mayInventAgency, mayInventBranch, orgNotSetUp, ownStockViewer, searchAgencies, searchBranches, FULL_PICKER, UNRESOLVED, type OrgShape } from '@/data';
 import { mayAddWhileReferring, partyIsSupplier } from '@/data/capabilities';
 import { SupplierAddOrg } from '@/pages/PartnerManagement/SupplierAddOrg';
 import { useSession } from '@/session/SessionContext';
@@ -132,7 +132,23 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
 }) {
   const { role, partnerScope: ambientScope } = useSession();
   const partnerScope = scopePartner ?? ambientScope;
-  const isAdmin = role === 'superadmin';
+  /* THE OPNDOOR-STAFF FORM, WHICH IS NOT ONLY AN ADMIN'S.
+
+     Matt (cn): "Give managers exactly the admin form ... the Agency
+     picker then lists only that route's agencies, each labelled with
+     its supplier where relevant. The same server checks as for admins."
+
+     Every one of the ten things this gates IS "the admin form": the
+     FULL_PICKER shape, the supplier dropdown on a new agency, the
+     partner the new agency lands under, the one-office collapse. A
+     manager fell through all ten to the AGENCY user's form, which has
+     no route to narrow by -- which is why their picker listed every
+     agency on every rail, two identical Frost Partnerships among them.
+
+     RENAMED RATHER THAN QUIETLY WIDENED. `isStaffForm` meaning "or a
+     manager" is the kind of name the next reader trusts and should
+     not. */
+  const isStaffForm = isOpndoorStaff(role);
   /* What the form should ask. Derived on the server from what this person can
      reach, and from whether the partner owns its stock.
 
@@ -163,7 +179,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
      an admin and never collapses one of somebody else's agencies away. The
      AGENCIES are still the supplier's own: they come from partnerScope,
      which is the supplier chosen in Referred by. */
-  const shape = isAdmin ? FULL_PICKER : loadedShape;
+  const shape = isStaffForm ? FULL_PICKER : loadedShape;
   const collapsedOnce = useRef(false);
   // Releasing the once-guard when the admin changes partner: the shape is a
   // different partner's now, so re-collapsing is correct rather than a repeat.
@@ -234,7 +250,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
   /* THE FOUR THINGS THIS PICKER CAN BE MISSING, named here so the marks below
      and the form's own validity test cannot drift apart. `showErrors` decides
      whether to SAY them; these decide what is true. */
-  const missingPartner = showErrors && agencyNew && isAdmin && !adminPartner;
+  const missingPartner = showErrors && agencyNew && isStaffForm && !adminPartner;
   const missingSingleOffice = showErrors && agencyNew && singleOffice === null;
   const missingAgencyEmail = showErrors && agencyNew
     && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(agEmail.trim());
@@ -253,7 +269,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
   // The partner the referral resolves to.
   const resolvedPartner = (() => {
     if (selectedAgency && !agencyNew) return selectedAgencyPartner ?? '';
-    if (agencyNew) return isAdmin ? adminPartner : (partnerScope === ALL_PARTNERS ? '' : partnerScope);
+    if (agencyNew) return isStaffForm ? adminPartner : (partnerScope === ALL_PARTNERS ? '' : partnerScope);
     return partnerScope === ALL_PARTNERS ? '' : partnerScope;
   })();
 
@@ -291,13 +307,13 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
   useEffect(() => {
     // Nothing to ask for an admin: their shape is FULL_PICKER above, so the
     // call, its four retries and the collapse it drives are all skipped.
-    if (isAdmin) return;
+    if (isStaffForm) return;
     let live = true;
     // An admin viewing one partner gets THAT partner's form. Referring on behalf
     // of a single-office agent should not ask an opndoor admin to name the
     // agency either. Ignored by the server for everybody else, so it is a
     // filter and never a way in.
-    const scoped = isAdmin && partnerScope !== ALL_PARTNERS ? partnerScope : null;
+    const scoped = isStaffForm && partnerScope !== ALL_PARTNERS ? partnerScope : null;
     if (scopeSeen.current !== null && scopeSeen.current !== String(partnerScope)) {
       collapsedOnce.current = false;
     }
@@ -392,7 +408,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
     setRevealBranch(false);
     setSingleOffice(null); // #74 a fresh choice is unanswered
     if (!isNew) { setAgEmail(''); setAgName(''); setAgPhone(''); }
-    else if (isAdmin) setAdminPartner((p) => p || (partnerScope === ALL_PARTNERS ? '' : partnerScope));
+    else if (isStaffForm) setAdminPartner((p) => p || (partnerScope === ALL_PARTNERS ? '' : partnerScope));
     // #65 silent Head office default stays for EXISTING single-office agencies;
     // a NEW agency is asked explicitly (#74) rather than defaulted.
     if (!isNew) autoBranchIfSingleOffice(name);
@@ -455,14 +471,32 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
   const agentQuery = agentValue.trim();
   const agentMatches = searchAgencies(agentValue, partnerScope);
   const agentExact = agentMatches.some((a) => a.name.toLowerCase() === agentQuery.toLowerCase());
-  // For an admin viewing all partners, the same name can exist under two
-  // partners; label each option with its partner so the choice is explicit.
   const partnerName = (slug: string) => getPartners().find((p) => p.id === slug)?.name ?? slug;
+  /* WHOSE ESTATE THIS AGENCY IS IN. (cn): "two indistinguishable 'Frost
+     Partnership's (ours and Kestrel's) and nothing showing which
+     supplier each belongs to. A referral could be booked on the wrong
+     route, paying commission to the wrong party."
+
+     THE PARTNER'S OWN NAME IS NOT THE ANSWER FOR OUR OWN AGENCIES. The
+     house partner is `opndoor-agents`, so labelling every row with
+     `partnerName` would put a slug-derived house name against ours and
+     a real company against theirs -- true, and not the distinction the
+     reader needs, which is "ours or somebody's". A supplier is named; a
+     house or direct agency reads "Opndoor". */
+  const estateOf = (slug: string) => {
+    const p = getPartners().find((x) => x.id === slug);
+    if (!p) return slug;
+    return p.kind === 'supplier' ? p.name : 'Opndoor';
+  };
   const agentOptions: TypeAheadOption[] = agentMatches.map((a) => ({
     id: `${a.partner}:${a.name}`,
     icon: <Icon name="building" />,
     main: highlightMatch(a.name, agentQuery),
-    sub: `${a.branches.length} ${plural(a.branches.length, 'office')}${isAdmin ? ` · ${partnerName(a.partner)}` : ''}`,
+    /* THE ESTATE ON EVERY ROW, not only when two names collide. A label
+       that appears only on duplicates tells the reader nothing on the
+       row they are about to pick, because they cannot see from it
+       whether a duplicate exists. */
+    sub: `${a.branches.length} ${plural(a.branches.length, 'office')}${isStaffForm ? ` · ${estateOf(a.partner)}` : ''}`,
     onSelect: () => chooseAgency(a.name, false, a.partner),
   }));
   // Only a supplier invents an agency mid-referral. For an agent a new agency
@@ -616,7 +650,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
   const collapseChosenBranch = !!selectedAgency && !agencyNew && !revealBranch
     && !!selectedBranch && !branchAuto
     && (agencyRec?.branches.length ?? 0) === 1
-    && (isAdmin || shape.refersOwnStock);
+    && (isStaffForm || shape.refersOwnStock);
 
   const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 };
 
@@ -885,7 +919,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
         <div className="field span-2" style={{ background: 'var(--white-lilac)', border: '1px solid var(--line)', borderRadius: 'var(--r-md, 10px)', padding: 14 }}>
           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 8 }}>New agency contact</div>
           <div className="form-grid">
-            {isAdmin && (
+            {isStaffForm && (
               <div className={`field span-2${missingPartner ? ' is-invalid' : ''}`} style={fieldStyle}>
                 <label htmlFor="ag-partner">Supplier <span className="req" aria-hidden="true">*</span></label>
                 {/* =====================================================================

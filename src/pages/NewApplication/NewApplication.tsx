@@ -29,7 +29,7 @@ import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { mayAddAnotherTenant } from './jointAllowed';
 import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, rebalanceShares, shareSumError } from './shareMath';
-import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, newApplicationSectionCopy, type OrgShape } from '@/data';
+import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, newApplicationSectionCopy, type OrgShape, isOpndoorStaff } from '@/data';
 import { Modal } from '@/components/ui/Modal';
 import { useMissingFields } from '@/lib/useMissingFields';
 import { MissingFields } from '@/components/ui/MissingFields';
@@ -123,8 +123,27 @@ export function NewApplication() {
   // this property... You can add either on the fly"), which is the wrong thing to
   // print at an agency user for even one frame. See orgShapeService.
   /* Declared here rather than beside Referred by below, because the section
-     copy and the one-office collapse both read it. */
-  const isAdminForm = role === 'superadmin';
+     copy and the one-office collapse both read it.
+
+     EVERY OPNDOOR STAFF MEMBER, NOT ONLY AN ADMIN. Matt (cn): "opndoor
+     manager New application is not the admin form. It has no 'Referred
+     by' step, and the Agency picker is one long list of every agency on
+     every route, with two indistinguishable 'Frost Partnership's (ours
+     and Kestrel's) ... A referral could be booked on the wrong route,
+     paying commission to the wrong party."
+
+     THIS ONE LINE WAS THE WHOLE OF IT. `isAdminForm` drives the Referred
+     by section, the section numbering, the one-office collapse and --
+     through `scopePartner` on AgentBranchPicker -- whether the agency
+     list is narrowed to a route at all. A manager fell to the agency
+     user's form, which has no route to narrow by, so it listed every
+     agency on every rail.
+
+     IT IS THE SECOND HALF OF (bb), WHICH I LEFT UNDONE. I gave managers
+     the /new-application ROUTE and did not check which form they land
+     on. create_referral already admits them (20261008180000), so the
+     server was ready and the screen was not. */
+  const isAdminForm = isOpndoorStaff(role);
   const [orgShape, setOrgShape] = useState<OrgShape>(UNRESOLVED);
   /* WALK FIX 28. An admin is not asking any of the shape's questions, and
      my_org_shape returns no row for them at all, so the section used to sit
@@ -229,7 +248,7 @@ export function NewApplication() {
     referredBy, routeSupplier, railState, estate,
     /* The viewer's OWN party, not the origin's: a supplier's staff refer
        within their own estate, and an admin is handled by the arm above. */
-    viewerIsSupplier: role !== 'superadmin' && partyIsSupplier(partnerScope),
+    viewerIsSupplier: !isOpndoorStaff(role) && partyIsSupplier(partnerScope),
   });
   const rentNum = Number(values.rent);
   const pctNums = percents.map((p) => Number(p));
@@ -245,7 +264,11 @@ export function NewApplication() {
   const agencyEmailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(org.agencyContactEmail);
   const orgContactError = org.agencyNew && !agencyEmailOk;
   // An admin fly-creating an agency must choose the partner it lands under (#66).
-  const orgPartnerError = org.agencyNew && role === 'superadmin' && !org.partner;
+  // (cn) An opndoor MANAGER fly-creating an agency must choose the partner
+  // too: the field is drawn by the same isAdminForm gate above, so keying
+  // the error off superadmin alone would draw a required field nothing
+  // enforces.
+  const orgPartnerError = org.agencyNew && isOpndoorStaff(role) && !org.partner;
   // A new agency must answer the single-office question before submit (#74).
   const orgOfficeError = org.agencyNew && org.singleOffice === null;
   const isValid = Object.keys(errors).length === 0
