@@ -59,7 +59,7 @@ import { PersonNotifications } from '@/components/people/PersonNotifications';
 // Walk fix 15: this customer's report, on this customer's page.
 import { CustomerReport } from '@/components/CustomerReport';
 import { liveByCustomer } from '@/data/liveAnalytics';
-import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
+import { agencyLevelOf, AGENCY_LEVELS, checkingChoice, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
 import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import { getOrgDepartedReferrals, departedReferralsLine, type DepartedReferrals } from '@/data/positionsService';
 import { partyIsSupplier, readerIsTopOfEstate, mayEditOwnEstateOrg, dealIsSetBySupplier, isAgencyUser } from '@/data/capabilities';
@@ -615,7 +615,11 @@ export function AgencyHome() {
      admin looking at Kestrel's Frost must see the same absence a Kestrel
      manager does, because the fact is about the agency. `partner` is the
      agency's own partner, resolved above. */
-  const hasLogins = !partyIsSupplier(partner);
+  /* (ci) THE AGENCY IS IN A SUPPLIER'S ESTATE. One named answer, because
+     three separate absences hang off it: no logins, no checking setting of
+     its own, and nothing that creates a group above it. */
+  const inSupplierEstate = partyIsSupplier(partner);
+  const hasLogins = !inSupplierEstate;
   /* (gg) AN AGENCY IN A SUPPLIER'S ESTATE HAS NO DEAL OF ITS OWN.
      Matt: "Remove the deal editor from supplier-estate agency pages (show
      'Commission for this agency is set on [supplier]'s Commission tab',
@@ -1606,7 +1610,10 @@ export function AgencyHome() {
           <span className="ah-av">{initials(p.name || p.email)}</span>{p.name || p.email}<span className="ah-role">{levelLabelFor(p)}</span>
         </span>
       ))}
-      {isAdmin && <button className="ah-linkbtn ah-invite-inline" onClick={() => setInvite(ctx)}><Icon name="send" size={12} /> {inviteLabelFor(level)}</button>}
+      {/* (ci)(2) NOT IN A SUPPLIER'S ESTATE: "they have no logins and sit
+          under the supplier", so there is nobody to invite. The People TAB
+          already obeyed this predicate and this inline row did not. */}
+      {isAdmin && hasLogins && <button className="ah-linkbtn ah-invite-inline" onClick={() => setInvite(ctx)}><Icon name="send" size={12} /> {inviteLabelFor(level)}</button>}
     </div>
   );
 
@@ -1899,7 +1906,37 @@ export function AgencyHome() {
                         No branches yet. {possessive(a.name)} manager can add them, or add one here.
                       </div>
                     )}
-                    {open && isAdmin && a.id && (
+                    {/* (ci) AN AGENCY IN A SUPPLIER'S ESTATE HAS NO SETTING
+                        OF ITS OWN, so it is told whose it follows rather than
+                        offered a choice.
+
+                        Matt: "remove the 'How are [agency]'s tenants
+                        checked?' choice. It follows the supplier's setting;
+                        show 'Checked as Kestrel Lettings sets it: they check
+                        tenants, Opndoor accepts them as sent' with a link to
+                        Kestrel's Settings."
+
+                        THE SENTENCE IS THE SHARED ONE. REFERENCING_MODES
+                        carries the words every other surface uses for each
+                        setting, so the three settings cannot be described one
+                        way here and another on the supplier's own page.
+
+                        AND THE SERVER REFUSES IT TOO, 20261009030000: the
+                        inheritance is resolve_referencing_mode's coalesce, so
+                        a value stored here would not sit beside the
+                        supplier's, it would override it. */}
+                    {open && inSupplierEstate && a.id && (
+                      <div className="ah-route ah-route--inherited">
+                        <span className="ah-route__lbl">
+                          Checked as {getPartner(partner)?.name ?? 'the supplier'} sets it:{' '}
+                          {checkingChoice(getPartner(partner)?.referencingMode)}
+                        </span>
+                        <Link to={`/partners/${encodeURIComponent(String(partner))}?tab=settings`}>
+                          {possessive(getPartner(partner)?.name ?? 'the supplier')} settings
+                        </Link>
+                      </div>
+                    )}
+                    {open && isAdmin && !inSupplierEstate && a.id && (
                       /* TWO OPTIONS, EACH SAYING WHAT IT DOES TO THE TENANT.
                          Matt's own title and his own two labels. It was a
                          three-option select whose first option was
@@ -1946,7 +1983,10 @@ export function AgencyHome() {
                         <button className="ah-linkbtn" onClick={() => setGrow({ mode: 'branch', agencyId: a.id })}>
                           <Icon name="plus" size={12} /> Add branch to {a.name}
                         </button>
-                        {org.kind === 'agency' && (
+                        {/* (ci)(2) AND NOTHING THAT CREATES A GROUP ABOVE IT.
+                            A supplier's estate is the supplier's shape, not a
+                            group of ours. */}
+                        {org.kind === 'agency' && !inSupplierEstate && (
                           <button className="ah-linkbtn" onClick={() => setGrow({ mode: 'agency' })}>
                             <Icon name="plus" size={12} /> Add another agency
                             <span className="ah-node-add__why">creates a group above {a.name} and moves it in</span>
