@@ -61,7 +61,7 @@ export function SupplierRoleDialog({
       toast(`${user.name} is now ${chosen.level}.`);
       onSaved();
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not change that role.', 'error');
+      toast(e instanceof Error ? e.message : 'Could not change that level.', 'error');
     } finally {
       setBusy(false);
     }
@@ -72,13 +72,26 @@ export function SupplierRoleDialog({
       open
       onClose={onClose}
       width={560}
-      title={`Change ${possessive(user.name)} role`}
+      /* (cd) "level", HERE TOO. Matt: 'Supplier People tab: "Change
+         level", not "Change role", matching every other people list.'
+
+         I CHANGED THE ROW BUTTON AND LEFT THE DIALOG, on the reasoning
+         that the instruction named the button and a supplier person
+         has a role. The audit refuted it and was right: the reason
+         Matt gave for the rename is that "role" is the stored COLUMN
+         and "level" is the word the product uses to readers, and every
+         other people list says level in both places -- the row and the
+         modal. Leaving the dialog meant the tab contradicted itself
+         one click in, and the test offered as evidence could not see
+         it, because it asserted over the page without ever opening the
+         dialog. */
+      title={`Change ${possessive(user.name)} level`}
       sub="It applies immediately. They see the change the next time the page loads."
       footer={(
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button variant="primary" onClick={save} arrow disabled={busy || unchanged || !chosen}>
-            {busy ? 'Saving…' : 'Change role'}
+            {busy ? 'Saving…' : 'Change level'}
           </Button>
         </>
       )}
@@ -87,11 +100,13 @@ export function SupplierRoleDialog({
       {/* OLD AND NEW, both named. Matt, 2026-10-03: "Change level (show old
           and new level)." The dialog named the person and the levels on
           offer; what it never said is which one they are leaving. Same
-          sentence as the agency ladder's, from personConfirm, with "role"
-          as the word this rail uses (decision D11). */}
+          sentence as the agency ladder's, from personConfirm. It said
+          "role" until (cd); the levels on offer are still the
+          supplier's three, and only the word for the THING has
+          changed. */}
       {!unchanged && chosen && (() => {
         const was = levels.find((l) => l.role === user.current);
-        const q = levelChangeAsk(user.name, was?.level ?? user.current, chosen.level, 'role');
+        const q = levelChangeAsk(user.name, was?.level ?? user.current, chosen.level, 'level');
         return <p className="ph-note soft"><b>{q.title}</b> {q.body}</p>;
       })()}
       {!chosen && (

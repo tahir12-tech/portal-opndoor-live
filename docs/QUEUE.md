@@ -5167,6 +5167,47 @@ report himself:
 - "NO 'partner' WORDING" is (n) and (cr) again, in a third surface the
   sweep guard does not read.
 
+### (dj) The Dev Centre docs follow the supplier's checking setting
+
+> Make the Dev Centre's API documentation and Getting started follow the supplier's checking setting: show the journey, statuses and webhook events that apply to their current setting (accepts as sent / applies its own criteria / Opndoor checks), with the others available under "If your checking setting changes". State that each application keeps the setting in force when it was created, so changing it never changes applications already sent. Admins viewing a supplier's Dev Centre see that supplier's version. Test every example in sandbox under each of the three settings.
+
+- **IT EXTENDS (di) FROM "CORRECT" TO "THEIRS".** (di) asks that the
+  docs describe only what that supplier can do; this asks that they
+  describe the journey that supplier actually gets, with the other two
+  behind a heading rather than mixed in.
+- **"EACH APPLICATION KEEPS THE SETTING IN FORCE WHEN IT WAS CREATED"
+  IS THE SAME FROZEN RULE AS THE COMMISSION ONE**, on a different
+  column: `applications.referencing_mode`. A developer reading
+  live-updating docs needs telling that their in-flight applications
+  do not move when they flip the switch.
+- "TEST EVERY EXAMPLE IN SANDBOX UNDER EACH OF THE THREE SETTINGS" is
+  three passes of (cw)'s work, and it cannot be done by reading.
+
+### (dk) Help follows the checking setting AND the level
+
+> The Help page must also follow both the organisation's checking setting and the person's level:
+> - Guides and FAQs describe what happens after a referral as it actually works for that organisation: straight to payment (accepts as sent), Opndoor's decision first (applies its own criteria), or the tenant's eligibility check with the £20 application fee (Opndoor checks).
+> - The tenant leaflet matches the same journey, so an agent hands tenants the right version.
+> - Each level sees only what applies to them (e.g. no commission content for Managers, Negotiators, Referrers or Developers; team and agency management only for those who can do it).
+> In the table you give me, show for each level and each checking setting which guides, leaflets and FAQ answers they get.
+
+- **THIS CHANGES (pp) FROM A REWRITE INTO A MATRIX**, and the matrix is
+  eight levels by three settings. So the Help content cannot be one
+  set of documents with sections hidden; the JOURNEY differs, and a
+  guide that describes a decision step to an agency that has none is
+  wrong rather than merely verbose.
+- **THE TENANT LEAFLET IS THE SHARPEST CASE.** It leaves the building:
+  an agent hands it to a tenant. A leaflet describing a GBP 20
+  eligibility check to a tenant of an agency that goes straight to
+  payment is a false statement about money, given to a consumer.
+- (dh) IS NOW A TABLE OF LEVEL x SETTING, not level alone, which is
+  worth noting because I would otherwise have produced the smaller
+  one.
+- [[help-agency-guide-is-one-shared-set]] SAYS THE THREE AGENCY LEVELS
+  SHARE ONE SET. That still holds for the LEVEL axis -- one set, no
+  commission figures -- and is now crossed with the setting axis,
+  which it never contemplated.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04

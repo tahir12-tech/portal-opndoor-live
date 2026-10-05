@@ -191,7 +191,9 @@ function ConvChip({ cv }: { cv: number }) {
   );
 }
 
-function cellFor(col: SortKey, r: LeagueRow, view?: LeagueView) {
+/* `view` went with the branch-board dash in (ca): nothing in a cell
+   depends on which board it is on any more. */
+function cellFor(col: SortKey, r: LeagueRow) {
   switch (col) {
     case 'refs': return r.refs.toLocaleString('en-GB');
     case 'fees': return fmtBig(r.fees);
@@ -796,7 +798,7 @@ function FullLeagueView() {
                            in its heading. Both columns are always shown, so
                            without this the only sign of which one the order
                            follows is a small arrow at the top of a long table. */
-                        <td key={c[0]} className={`num${sort === c[0] ? ' is-ranked' : ''}`}>{cellFor(c[0], r, view)}</td>
+                        <td key={c[0]} className={`num${sort === c[0] ? ' is-ranked' : ''}`}>{cellFor(c[0], r)}</td>
                       ),
                     )}
                   </tr>

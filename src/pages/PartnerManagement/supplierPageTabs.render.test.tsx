@@ -242,12 +242,23 @@ describe('the People tab', () => {
      the same button everywhere else reads as a different button. The
      old assertion is inverted rather than deleted, so the reversal is
      visible to whoever reads this next. */
-  it('and says "Change level", like every other people list', async () => {
+  /* AND THE DIALOG IS OPENED BEFORE THE ABSENCE IS ASSERTED. My first
+     version of this checked the page without clicking, so the modal
+     was never mounted when it ran -- it asserted "Change role" was
+     gone from a DOM that could not have contained it, while the
+     sibling file was simultaneously passing an assertion that the open
+     dialog said exactly that. A green suite positively demonstrating
+     both answers at once. */
+  it('and says "Change level", like every other people list, in the dialog too', async () => {
     const v = await open();
     await openTab(v, 'People');
     const labels = [...v.container.querySelectorAll('button')].map((b) => b.textContent?.trim());
     expect(labels).toContain('Change level');
-    expect(labels).not.toContain('Change role');
+    const row = [...v.container.querySelectorAll('button')]
+      .find((b) => (b.textContent ?? '').trim() === 'Change level');
+    fireEvent.click(row!);
+    await waitFor(() => { if (!document.querySelector('[role="dialog"]')) throw new Error('no dialog'); });
+    expect(document.body.textContent).not.toContain('Change role');
   });
 
   it('and offers no Position, because positions are an agency-estate thing', async () => {

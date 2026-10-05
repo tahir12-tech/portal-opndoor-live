@@ -233,7 +233,7 @@ describe('changing a role, on the page the person is on', () => {
     await act(async () => { fireEvent.click(rowButton(v, 'Change level')!); });
     const dialog = document.querySelector('[role="dialog"]');
     expect(dialog, 'Change level opened no dialog').toBeTruthy();
-    expect(dialog!.textContent).toContain('Change Sam Supplier’s role');
+    expect(dialog!.textContent).toContain('Change Sam Supplier’s level');
     expect(document.body.textContent).not.toMatch(/from Users/i);
   });
 
@@ -261,12 +261,12 @@ describe('changing a role, on the page the person is on', () => {
     const v = await peopleTab();
     await act(async () => { fireEvent.click(rowButton(v, 'Change level')!); });
     const save = [...document.querySelectorAll<HTMLButtonElement>('button')]
-      /* THE DIALOG'S OWN SAVE BUTTON, which still says "Change role":
-         (cd) renamed the button ON THE ROW, and the dialog's title and
-         confirm are about a role because that is what a supplier
-         person has. A blanket rename caught this one and the test went
-         looking for a button that does not exist. */
-      .find((b) => (b.textContent ?? '').trim().startsWith('Change role') && b.closest('.modal'));
+      /* THE DIALOG'S OWN SAVE BUTTON. It said "Change role" until the
+         audit pointed out that leaving it made the tab contradict
+         itself one click in -- and that this very test proved the old
+         wording was still on screen while the sibling test asserted
+         it was gone. */
+      .find((b) => (b.textContent ?? '').trim().startsWith('Change level') && b.closest('.modal'));
     expect(save, 'no save button in the dialog').toBeTruthy();
     expect(save!.disabled).toBe(true);
   });
