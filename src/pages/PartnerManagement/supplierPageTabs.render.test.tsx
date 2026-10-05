@@ -17,6 +17,8 @@
  * stops working.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { SessionProvider } from '@/session/SessionContext';
@@ -386,5 +388,46 @@ describe('a branch with its own contact', () => {
     const row = branchRow(v, 'ZZZ Office');
     expect(row.textContent).toContain('ada@zzz.test');
     expect(row.textContent).not.toMatch(/No agent contact/);
+  });
+});
+
+/* =====================================================================
+   (cc2) THE PAGE IS NAMED AFTER THE SUPPLIER, AND THE TAG SAYS WHAT
+   HAPPENS.
+
+   Matt: "Supplier page: breadcrumb and page title show the supplier's
+   name ('Kestrel Lettings'), not 'Supplier'; the header tag uses the
+   plain wording of the checking setting ('They check tenants;
+   Opndoor accepts them as sent')."
+
+   A page titled with its own TYPE tells the reader what kind of page
+   they opened, which they know, instead of which one, which is the
+   question. The agency page has always passed its title; this one
+   had two hardcoded literals.
+
+   AND THE TAG WAS OUR VOCABULARY. REFERENCING_MODES carries both
+   `label` ("Pre-referenced, open", the name of the setting in our
+   words) and `choice` (the sentence a reader picks from, which says
+   what actually happens). A header should say what happens.
+   ===================================================================== */
+describe('(cc2) the page is named after the supplier', () => {
+  const src = readFileSync(join(process.cwd(), 'src/pages/PartnerManagement/PartnerHome.tsx'), 'utf8');
+
+  it('passes the supplier name to the title and the breadcrumb', () => {
+    expect(src).toContain("usePageMeta('partner-home', partner?.name ?? 'Supplier',");
+    expect(src).toContain("partner?.name ?? 'Supplier']);");
+    expect(src).not.toContain("usePageMeta('partner-home', 'Supplier', ['Home', 'Relationships', 'Suppliers', 'Supplier']);");
+  });
+
+  /* THE TYPE SURVIVES AS THE FALLBACK, for the moment before the
+     partner resolves: a blank breadcrumb is worse than a generic
+     one. */
+  it('and keeps the generic word only as a fallback', () => {
+    expect(src).toContain("?? 'Supplier'");
+  });
+
+  it('and the header tag uses the plain wording, not our label', () => {
+    expect(src).toContain('REFERENCING_MODES.find((x) => x.id === m)?.choice');
+    expect(src).not.toContain('REFERENCING_MODES.find((x) => x.id === m)?.label');
   });
 });

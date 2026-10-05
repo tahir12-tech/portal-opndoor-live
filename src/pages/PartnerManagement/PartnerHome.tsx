@@ -198,15 +198,36 @@ const ROLE_LABEL: Record<string, string> = {
 
 /* USER_STATUS_PILL moved into PeopleTable with the table itself: one
    place decides what Active, Invited and Deactivated look like. */
-const modeLabel = (m: ReferencingMode | undefined) => REFERENCING_MODES.find((x) => x.id === m)?.label ?? 'Screened referral';
+/* (cc2) THE PLAIN WORDING, NOT OUR LABEL. Matt: "the header tag uses
+   the plain wording of the checking setting ('They check tenants;
+   Opndoor accepts them as sent')."
+
+   REFERENCING_MODES carries both, and the difference is the point:
+   `label` is "Pre-referenced, open", which is the name of the
+   setting in our vocabulary, and `choice` is the sentence a reader
+   picks from in the editor -- the one that says what actually
+   happens. The header should say what happens. */
+const modeLabel = (m: ReferencingMode | undefined) => REFERENCING_MODES.find((x) => x.id === m)?.choice ?? 'Checking setting not recorded';
 
 export function PartnerHome() {
   const { key } = useParams<{ key: string }>();
   const { role, seesCommission, partnerScope, dataVersion, refresh } = useSession();
-  usePageMeta('partner-home', 'Supplier', ['Home', 'Relationships', 'Suppliers', 'Supplier']);
-
   const decoded = decodeURIComponent(key ?? '');
   const partner = getPartner(decoded);
+  /* (cc2) THE SUPPLIER'S NAME, NOT THE WORD "Supplier". Matt:
+     "breadcrumb and page title show the supplier's name ('Kestrel
+     Lettings'), not 'Supplier'."
+
+     A page titled with its own TYPE tells the reader what kind of
+     page they opened, which they know, instead of which one, which
+     is the question. The agency page has always done this -- it
+     passes its `title` -- and this one was two hardcoded literals.
+
+     The type stays as the fallback for the moment before the partner
+     resolves, because a blank breadcrumb is worse than a generic
+     one. */
+  usePageMeta('partner-home', partner?.name ?? 'Supplier',
+    ['Home', 'Relationships', 'Suppliers', partner?.name ?? 'Supplier']);
 
   // Agencies + branches tree, and the partner's users. Both are synchronous reads
   // off the hydrated working copy (RLS already scoped them in live mode).
