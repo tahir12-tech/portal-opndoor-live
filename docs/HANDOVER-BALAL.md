@@ -1723,12 +1723,20 @@ commit of `matt-fixes`, not remembered. The figures in brackets are the
 same gate on `partner-api` at `4a39fe6`, which is where the second night
 run started:
 
-| gate | result |
-| --- | --- |
-| `npm run drift` | clean. Dev matches a clean apply of the files |
-| `npm run typecheck` | clean |
-| `npm test` | see the final line of this section |
-| `npm run test:db` (pgTAP, against dev) | see the final line of this section |
+| gate | result on `matt-fixes` | on `4a39fe6` |
+| --- | --- | --- |
+| `npm run drift` | clean. 486 migrations; dev matches a clean apply: 405 functions, 115 policies, 51 triggers | clean, 403 functions |
+| `npm run typecheck` | clean | clean |
+| `npm test` | **347 files, 3,792 tests, 0 failing** | 333 files, 3,648 tests |
+| `npm run test:db` (pgTAP, against dev, two batches) | **142 files, 0 failing assertions, 0 errored** | 135 files, 0 failing |
+
+**What moved in the suite, rather than the total.** 14 new vitest files
+(135 tests between them) and 7 new pgTAP files. 9 new cases inside two
+existing vitest files. Nothing removed. Three existing cases renamed,
+all three because Matt changed the rule they pinned: two in
+`theGuidesSayItPlainly` and one in `noRatesInTheGuides`, where "usually
+one month's rent" stopped being the answer. Six new migrations, none of
+them a correction to an earlier one.
 
 Run all four yourself on the clone before you touch production; that is
 what section 1.1b is for. A green suite here is evidence about DEV, and
