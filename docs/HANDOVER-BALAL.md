@@ -1873,8 +1873,7 @@ entries that stood here are done; what follows is what is left, and why.
    nothing in the product displays `activity_log.actor`, so the
    function written for it was withdrawn rather than shipped unread.
    If a surface ever shows it, the mask is 20 minutes' work.
-4. **(cv) The Expiries default month: ANSWERED, see below.** Matt,
-   2026-10-05: keep next month. Pinned by a test.
+4. **(cv) The Expiries default month: ANSWERED.** See "Closed" below.
 5. **(nn)(oo) the remainder, and anything else in QUEUE.md not listed
    here.** (oo) is done for the leaflets and the browser furniture.
 
@@ -1889,6 +1888,19 @@ entries that stood here are done; what follows is what is left, and why.
 - **The agent one-pager's length.** Matt: "don't cut content. Rename
   it 'Agent guide' everywhere it's listed." Done; it is a guide and
   three pages is what a guide is.
+- **(cv) The Expiries dialog's default month.** Matt: "keep next month
+  as the default." The rule it keeps, which is the answer (cv) asked
+  for and had never been given: **the dialog opens on the earliest
+  month that still has a guarantee expiring for that reader, and where
+  their book has none it opens on the next calendar month**, with a
+  note naming their earliest if they have one later. "Next month" is
+  the fallback rather than the answer, which is what stops a new
+  agency opening a month with nothing in it and pressing Download on
+  an empty file. Nothing changed; the half that was unpinned -- the
+  live path, which every vitest run skips because it is behind
+  SUPABASE_ENABLED -- now has five assertions in
+  `theExpiriesDialogOpensOnSomething.test.ts`, including that an
+  expired or a refunded guarantee never decides the month.
 
 ### Done in the second night run, 2026-10-05 (branch `matt-fixes`)
 

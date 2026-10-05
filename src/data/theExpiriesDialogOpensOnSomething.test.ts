@@ -97,3 +97,118 @@ describe('the two sentences', () => {
     expect(CODE).not.toMatch(/receive this cohort/);
   });
 });
+
+/* =====================================================================
+   (cv) AND MATT HAS NOW DECIDED IT, 2026-10-05: "keep next month as
+   the default. Record the decision and pin it with a test."
+
+   THE RULE HE IS KEEPING, stated here because I owed him the statement
+   and the question (cv) asked was "what month does it default to, and
+   why?":
+
+       the earliest month that still has a guarantee expiring, FOR THAT
+       READER; and where their book has none, the next calendar month,
+       with a note naming their earliest if they have one later.
+
+   So "next month" is the default in the sense the dialog's own
+   fallback is: where there is nothing to open on, it opens on next
+   month rather than on a month in 2027 or on nothing at all.
+
+   THE FALLBACK WAS THE ONLY HALF UNDER TEST. Everything above runs in
+   mock mode, where there is no live book, so every assertion was of
+   the fallback. The decision to keep the rule is worth nothing if the
+   rule itself is unpinned, so these hydrate a book and read the other
+   half.
+   ===================================================================== */
+import { afterAll, beforeEach, vi } from 'vitest';
+import { hydrateFull, type FullApp } from './applicationsService';
+
+/* THE LIVE PATH IS BEHIND SUPABASE_ENABLED, and every vitest run is in
+   mock mode: nextExpiryMonth returns the fallback before it reads a
+   book at all. That is why every assertion above this line is of the
+   fallback, and it is why these mock the flag -- the rule Matt kept is
+   on the other side of it. */
+vi.mock('@/lib/supabase', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/supabase')>();
+  return { ...actual, SUPABASE_ENABLED: true, sb: () => { throw new Error('no client in this test'); } };
+});
+
+const D = (s: string) => new Date(`${s}T12:00:00Z`);
+const LINE = [{ level: 'agency' as const, orgId: 'ag-r', orgName: "Regent's Lettings", rate: 0.25, source: 'agreement' as const }];
+
+/* THE SPREAD GOES FIRST and the dates are set after it. Written the
+   other way round, `...o` put the caller's `expiry` STRING back over
+   the Date built from it, and expiryOf handed exportsService a string
+   to call getFullYear on. */
+function deed(o: { ref: string; expiry: string } & Partial<FullApp>): FullApp {
+  return {
+    partner: 'northwind', partnerRate: 0.25, agentRate: 0.25,
+    agency: "Regent's Lettings", agencyId: 'ag-r', branch: "Regent's Park", branchId: 'br-rp',
+    referrer: 'Rosa', owner: 0, rent: 2400, fee: 2400, feeBasisWeeks: 4.35, commissionLines: LINE,
+    sentAt: D('2026-01-05'), paidAt: D('2026-01-08'), deedAt: D('2026-01-10'),
+    tenancyStart: D('2026-02-01'), status: 'deed',
+    refunded: false, partiallyRefunded: false, refundedAt: null, refundedAmount: null, refundAfterStart: false,
+    deedState: 'executed', deedSentAt: null, deedViewedAt: null,
+    ...o,
+    expiry: D(o.expiry),
+  } as unknown as FullApp;
+}
+
+/* TODAY IS 3 OCTOBER 2026 for all of these, fixed, because "the earliest
+   month still ahead" is a statement about a clock. */
+const TODAY = new Date(2026, 9, 3);
+
+beforeEach(() => hydrateFull([]));
+afterAll(() => hydrateFull([]));
+
+describe('(cv) the rule Matt kept, with a book to read', () => {
+  it('opens on the earliest month that still has one', () => {
+    hydrateFull([
+      deed({ ref: 'GR-LATER', expiry: '2027-03-19' }),
+      deed({ ref: 'GR-SOONEST', expiry: '2026-12-02' }),
+      deed({ ref: 'GR-MIDDLE', expiry: '2027-01-30' }),
+    ]);
+    const r = nextExpiryMonth('superadmin', TODAY);
+    expect(r.month).toBe('2026-12');
+    expect(r.hasAny).toBe(true);
+  });
+
+  /* THIS MONTH COUNTS when something expires later in it, which is the
+     half "next month" would get wrong: a guarantee expiring on the 28th
+     is still ahead of a reader on the 3rd. */
+  it('including this month, where something expires later in it', () => {
+    hydrateFull([deed({ ref: 'GR-THISMONTH', expiry: '2026-10-28' })]);
+    expect(nextExpiryMonth('superadmin', TODAY).month).toBe('2026-10');
+  });
+
+  /* AND ONE THAT HAS ALREADY GONE DOES NOT DECIDE THE MONTH. The file
+     never lists an expired guarantee, so it must not choose the month
+     either, or the dialog opens on a month whose rows are all filtered
+     out -- the empty-file complaint in another costume. */
+  it('and never on a month whose guarantees have already expired', () => {
+    hydrateFull([
+      deed({ ref: 'GR-GONE', expiry: '2026-08-11' }),
+      deed({ ref: 'GR-AHEAD', expiry: '2027-02-04' }),
+    ]);
+    expect(nextExpiryMonth('superadmin', TODAY).month).toBe('2027-02');
+  });
+
+  /* NOR A CANCELLED ONE. Same reason: the file filters a refunded
+     guarantee out, so it cannot be what the dialog opens on. */
+  it('and never on a refunded one', () => {
+    hydrateFull([
+      deed({ ref: 'GR-REFUNDED', expiry: '2026-11-09', refunded: true }),
+      deed({ ref: 'GR-REAL', expiry: '2027-04-04' }),
+    ]);
+    expect(nextExpiryMonth('superadmin', TODAY).month).toBe('2027-04');
+  });
+
+  /* AND THE DEFAULT MATT KEPT: a book with nothing ahead opens on next
+     month, and says so rather than opening on a month in 2027. */
+  it('falls back to next month when nothing is ahead at all', () => {
+    hydrateFull([deed({ ref: 'GR-OLD', expiry: '2026-07-01' })]);
+    const r = nextExpiryMonth('superadmin', TODAY);
+    expect(r.month).toBe('2026-11');
+    expect(r.hasAny).toBe(false);
+  });
+});
