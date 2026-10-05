@@ -137,12 +137,30 @@ describe('a customer reading their own referrals', () => {
 
   /* ASKED ABOUT THE DISTINCT REFERRERS AND THE READER, in one call. The
      reader goes in so that "is this reader opndoor staff" comes from the
-     same answer as "was the referrer", with no second copy of the rule. */
-  it('by asking the database once, about the ids it already holds', async () => {
+     same answer as "was the referrer", with no second copy of the rule.
+
+     AND ONLY ABOUT THE ONES IT COULD NOT READ. The colleague's row came
+     back on the embed, so their role is already known and they are not
+     in the question; the admin's did not, which is precisely the state
+     that needs masking. */
+  it('by asking the database once, about the ids it could not read', async () => {
     await hydrateFromSupabase(NEGOTIATOR);
     const call = rpcCalls.filter((c) => c.name === 'opndoor_user_ids');
     expect(call).toHaveLength(1);
     expect((call[0].args as { p_users: string[] }).p_users.sort()).toEqual([ADMIN, NEGOTIATOR].sort());
+  });
+});
+
+describe('a book with nothing to mask', () => {
+  /* THE SIGN-IN PATH PAYS NOTHING. (dg) is about what sign-in costs, and
+     an unconditional round trip to answer a question about rows that
+     usually do not exist would be taking with one hand. Every referrer
+     readable means no question. */
+  it('asks nothing at all', async () => {
+    TABLES.applications = [SENT_BY_THE_AGENCY];
+    await hydrateFromSupabase(NEGOTIATOR);
+    expect(rpcCalls.filter((c) => c.name === 'opndoor_user_ids')).toHaveLength(0);
+    expect(byRef('GR-OWN')?.referrer).toBe('Rosa Vance');
   });
 });
 

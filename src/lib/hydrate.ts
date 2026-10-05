@@ -300,7 +300,23 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
      IT NEVER COSTS ANYBODY THEIR SIGN-IN. A failure leaves the set empty
      and every name as it was: a label is not worth a login, and the
      unmasked name is what the product showed yesterday. */
-  const referrerIds = [...new Set(apps.map((a: any) => a.referrer_id).filter(Boolean))] as string[];
+  /* ONLY THE ONES WE COULD NOT READ, which in the common case is none at
+     all and therefore no question asked.
+
+     The embed on the applications query returns the referrer's row where
+     RLS allows it, so for a colleague we already know the role. The only
+     ids worth asking about are those whose embed came back EMPTY, which
+     is exactly the state that needs the mask: users RLS hiding opndoor
+     staff from a customer.
+
+     IT MATTERS BECAUSE THIS IS THE SIGN-IN PATH. (dg) is about what
+     sign-in costs, and adding an unconditional round trip to it to
+     answer a question about rows that usually do not exist would be
+     taking with one hand. A book with no admin-sent referrals makes no
+     call. */
+  const referrerIds = [...new Set(
+    apps.filter((a: any) => a.referrer_id && !emb(a.referrer)).map((a: any) => a.referrer_id),
+  )] as string[];
   let opndoorPeople = new Set<string>();
   if (referrerIds.length) {
     try {
