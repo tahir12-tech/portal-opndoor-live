@@ -5431,6 +5431,25 @@ At a few hundred none of this bites.
   REAL WORK**, not the one leaflet: the payment page, the refund
   emails and the apply screens all talk about refunds.
 
+### (dv) Read the PDFs as images; no push; commit the deletion
+
+> 1. The two PDFs: render each page to an image and read it visually instead of extracting text. Cross-check every figure against the image and against the landlord guide (12 months, £120k, £10k). Then rebuild both as HTML guides in the Management guide template, with the commission line removed from the Sales guide as already instructed. List anything you couldn't read with confidence rather than guessing.
+> 2. Stop trying to push. I'm handing Balal a git bundle at the end instead.
+> 3. TO-DELETE: commit the deletion.
+>
+> At 04:30 stop new work, run the full gate, update HANDOVER-BALAL.md, and tell me it's ready.
+
+- **RENDERING SIDESTEPS THE WHOLE PROBLEM.** The glyph codes only
+  matter if you are decoding bytes; a rendered page is just what the
+  reader sees. Obvious in hindsight and I did not think of it.
+- **"CROSS-CHECK EVERY FIGURE AGAINST THE IMAGE AND AGAINST THE
+  LANDLORD GUIDE"** is the safeguard that makes a visual read safe:
+  two independent sources for every number, and the landlord guide's
+  figures are already written down in (dr8).
+- "LIST ANYTHING YOU COULDN'T READ WITH CONFIDENCE RATHER THAN
+  GUESSING" is the standing rule applied to a new medium.
+- NO MORE PUSH ATTEMPTS. A bundle at the end instead.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
