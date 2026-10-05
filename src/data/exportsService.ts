@@ -2055,12 +2055,24 @@ export async function statementReference(monthKey: string, payeeKey: string): Pr
     /* THE `error` CHANNEL IS THE ONE A USER ACTUALLY REACHES. postgrest-js
        turns a dropped connection into an error rather than a rejection, so
        this arm, not the catch below, is what a train tunnel looks like. */
-    if (error) { reportUnreadable(monthKey); return REFERENCE_UNREADABLE; }
+    if (error) { reportUnreadable(monthKey, errorCode(error)); return REFERENCE_UNREADABLE; }
     return typeof data === 'string' && data ? data : REFERENCE_ON_POST;
-  } catch {
-    reportUnreadable(monthKey);
+  } catch (e) {
+    reportUnreadable(monthKey, errorCode(e));
     return REFERENCE_UNREADABLE;
   }
+}
+
+/* THE CODE, AND ONLY IF IT IS A CODE. postgrest-js puts a PostgreSQL SQLSTATE
+   or a PGRST number on `.code`; a thrown TypeError has none. The shape is
+   checked HERE as well as in the RPC, because a report that is itself refused
+   is the failure this whole thing exists to stop: the point is to learn why,
+   and a second rejection teaches nothing. Twelve characters is the RPC's
+   limit, and anything outside it is dropped rather than trimmed, so a
+   surprise arrives as "no code" instead of as a truncated half-word. */
+function errorCode(e: unknown): string | null {
+  const c = (e as { code?: unknown } | null)?.code;
+  return typeof c === 'string' && /^[A-Za-z0-9_]{1,12}$/.test(c) ? c : null;
 }
 
 /* TELL HEALTH, AND NEVER FAIL DOING IT. Matt: "and log it to Health."
@@ -2068,17 +2080,26 @@ export async function statementReference(monthKey: string, payeeKey: string): Pr
    FIRE AND FORGET, in both directions. The caller is already handling a
    failure and must not acquire a second one; a reporting call that could
    throw or reject would be the same defect this whole change is about. The
-   RPC takes the month and nothing else: it builds the alert text itself, so
-   nothing from the browser reaches a human-read operational alert.
+   RPC takes the month and an error CODE: it builds the alert text itself, so
+   nothing from the browser reaches a human-read operational alert, while the
+   code says which failure this was.
+
+   IT SENT `p_month` FOR A DAY AND REACHED NOTHING. 20261008020000 created
+   this function as (p_type, p_month); 20261008080000 added export failures
+   and renamed the second argument to p_context, updating the export caller
+   and not this one. PostgREST resolves by argument NAME, so every call since
+   has been a PGRST202 against a function signature that does not exist, and
+   Health has never once heard about an unreadable reference. The mechanism
+   built to find this error could not report itself.
 
    SILENT IN MOCK AND DEMO MODE, where there is no back end to tell and no
    failure to report. */
-function reportUnreadable(monthKey: string): void {
+function reportUnreadable(monthKey: string, code: string | null = null): void {
   if (!SUPABASE_ENABLED) return;
   try {
     void sb()
       .rpc('report_portal_incident', {
-        p_type: 'portal_statement_reference_unreadable', p_month: monthKey,
+        p_type: 'portal_statement_reference_unreadable', p_context: monthKey, p_code: code,
       })
       .then(() => {}, () => {});
   } catch { /* The client is the thing that failed. Saying so twice helps nobody. */ }
