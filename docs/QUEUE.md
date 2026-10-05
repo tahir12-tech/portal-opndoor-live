@@ -5629,7 +5629,15 @@ guessed at. Numbered as they came up.
    like the agency picker, and the "Harbour Lets" duplicate (it IS two
    records, one a supplier partner and one of our own agencies, which
    I can label once you have answered the above).
-7. **THE DEMO'S OWN COMMISSION LABEL SAYS "of one month's rent".**
+7. **(oo) THE AGENT ONE-PAGER IS THREE PAGES, and I have not cut your
+   words to make it one.** The three tenant leaflets now print to one
+   A4 page each, measured: 2, 2 and 3 pages before, 1 each after. The
+   agent one-pager is called a one-pager and, since it was rebuilt
+   from the PDF last night, it is not one: tightening the type got it
+   nowhere near, and the only way to one page is to remove content.
+   **Do you want it cut to one page, and if so what goes?** It reads
+   well at three.
+8. **THE DEMO'S OWN COMMISSION LABEL SAYS "of one month's rent".**
    `analyticsService.ts:563`, on the mock and demo path only. It is
    TRUE of the synthetic figures, which are all priced at a month, so
    it is not a wrong statement about anybody's real deal. But the
