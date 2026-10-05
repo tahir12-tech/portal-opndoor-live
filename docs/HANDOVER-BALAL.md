@@ -1894,6 +1894,97 @@ line on dev today carries one, so it fires on nothing -- but if any
 ever lands without an id, a renamed agency silently reports GBP 0
 commission. Measured 2026-10-05: 27 lines, 0 without an id.
 
+## 12b. The 04:45 stop: the gate, and everything remaining in three groups
+
+### The gate, on `db7f4f3`
+
+| Check | Result |
+|---|---|
+| `npm run drift` | **clean.** 480 migrations, 403 functions, 99 policies, 52 triggers in the files; dev matches a clean apply |
+| `npm run typecheck` | **clean** |
+| `npm test` | **333 files, 3,648 tests, all passing** |
+| pgTAP against dev, in two batches | **135 files, 0 failing assertions, 0 errored files** |
+
+**Nothing was reverted: no assertion failed at the stop.** The first
+full run did report two files red, both `Test timed out in 5000ms` and
+neither an assertion: `orgList.render.test.tsx` and
+`pressSendAndBeTold.render.test.tsx`, while two pgTAP batches were
+running against dev on the same machine. Re-run on their own the same
+second, they are **16 passed (16)**. They are the two slowest render
+files in the suite and they are the ones to watch if CI ever runs the
+suites concurrently.
+
+The night's last two commits, each complete with tests: `3ea02cc`
+**(cl)** and `db7f4f3` **(v)**.
+
+### Group 1: needs Matt's decision. Not built, and not to be guessed.
+
+1. **(dr8) The landlord guide's five claims.** 12 months, a GBP 120,000
+   cap, GBP 10,000 of legal costs, notify within two weeks of the second
+   month of arrears, payments one month after proceedings start. The
+   deed is a PandaDoc template, not in this repo, so nobody here can
+   check them against the instrument.
+2. **(gg) Kestrel's hidden deal `e4b75778`** (live, scope `agency`,
+   12% / 20% / 24%). The conversion plan has to be written and shown
+   before anything is converted. That hold stands.
+3. **The September bordereau rule.** He is confirming with the
+   underwriter. Nothing was changed, as instructed.
+4. **(cv) The Expiries default month.** He asked to answer first.
+5. **(dr7) One answer per question, or both rails labelled for an
+   admin?** Built as one answer, the agency's winning. The other
+   reading is one comparison in `oneAnswerPerQuestion`.
+6. **(ds) The two source PDFs in `public/help-docs/`.** Nothing points
+   at them now. They go once he has read the HTML.
+7. **The Regent fee wording** (item 1 of Still not built) needs his
+   words, not mine: what a Regent agent should be told the fee is.
+
+The whole-book sign-in load is **no longer here**: he chose option 1,
+on demand per screen, and it stays under After launch.
+
+### Group 2: built and tested tonight, NOT walked by me on a screen
+
+Each has tests and a clean gate behind it. None was clicked through on
+a running dev screen by me, which is the difference between this group
+and the walked work above it.
+
+1. **(cl)** The supplier Overview hides the commission card from a
+   reader who may not see money, instead of reporting a refusal as
+   "no commission deal set". Its statement-address half is NOT done.
+2. **(v)** The branch card prints every band of a banded deal, and
+   drops the total it cannot honestly add up.
+3. **(dj)** Both Dev Centre tabs open on the reader's own checking
+   setting, the other two behind a disclosure.
+4. **(dk)** Three tenant leaflets, one per journey, each true alone on
+   paper.
+5. **(ds)** The Sales and conversation guide and the agent one-pager,
+   rebuilt as HTML in the management-guide template.
+6. **(dh)(do)(dp)** Help varies by checking setting as well as by
+   level, and the matrix is generated from the code.
+7. **(dt)(du)** The GBP 20 copy, and every tenant-facing refund line
+   saying which fee it means.
+8. **(dn)** An office named after its agency follows a rename; a typed
+   name never changes.
+9. **(dg)** The agency and office pickers search on the server.
+10. **(cc2)(cm)(ct)** The supplier page's name, the back link, and the
+    rename that no longer loses its referrals.
+
+### Group 3: not built
+
+In the order of "Still not built" above, which is the order I would
+take them: the Regent fee wording in the Help documents; the
+`opndoor_manager` blank Reporting page; **(cp)** the draft-month
+reference error; **(cq)(cy)** the admin's name on a referral made for
+a customer; **(ci)** the server-side refusal of a referencing mode;
+**(bq)(br)(bs)** the export fixes; **(ck)** the duplicate check;
+**(cl)**'s statement-address half; **(cs)** supplier edits missing
+from Recent changes; **(cu)** sign-in landing; **(cw)** the sandbox
+proof; **(df)** the supplier pickers; **(db)** the Go-live
+verification section of this document, which is the one item on the
+list that is about this document; **(q)(s)(t)** part done, with
+"Included as a schedule in" still unwritten and the Source and Payee
+level columns still at `exportsService.ts:969`; and
+**(cx)(cg)(by)(bx)(nn)(oo)(pp)(zz)**, each with evidence in QUEUE.md.
+
 ## 13. If something goes wrong
 
 1. **Do not restore production to fix a cosmetic fault.** The cost is every row
