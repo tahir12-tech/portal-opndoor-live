@@ -403,6 +403,11 @@ export function createBranchOnTheFly(agencyName: string, name: string): Branch |
    edits apply to the local working copy so the demo behaves identically.
    ===================================================================== */
 const orgLive = (): boolean => SUPABASE_ENABLED && isHydrated();
+/** Whether the pickers should ask the server rather than filter the
+    hydrated array. Exported because the picker has to choose a code
+    path, and it must make that choice on the same answer these
+    functions do. */
+export const pickerSearchesOnServer = (): boolean => orgLive();
 
 /**
  * Never surface a raw Postgres internal error to the UI (#67). Our RPCs raise
@@ -832,6 +837,95 @@ export async function getSupplierDeal(
     nextRate: null,
     nextBasis: null,
   };
+}
+
+/* ===========================================================================
+   THE PICKERS ASK THE SERVER.
+
+   Matt (dg): "with a large supplier (Rightmove could have thousands of
+   agencies), don't list everything on click ... Make sure search is
+   done on the server, not by loading every agency into the page."
+
+   `searchAgencies` filters an array the browser already holds, which
+   means the browser holds every agency. These three replace that at
+   scale. They return [] in mock mode, where the caller keeps using the
+   in-memory search: there the whole book IS the fixture, and routing
+   it through a server that is not there would turn every picker test
+   into a test of nothing.
+   =========================================================================== */
+export interface PickerAgency {
+  id: string;
+  name: string;
+  address: string | null;
+  /** How many offices it has, for the option's second line. */
+  offices: number;
+  /** 'name' | 'office' | 'address' -- why it matched, so the row can say. */
+  matchedOn?: string;
+  lastUsed?: string | null;
+}
+
+/** The fewest characters worth asking the database about. One letter
+    matches most of the book and is a scan dressed up as a search; the
+    SQL enforces the same floor, and this stops the round trip. */
+export const PICKER_MIN_QUERY = 2;
+/** Matt's number. The SQL returns one more so the caller can say there
+    are more without a second counting query. */
+export const PICKER_LIMIT = 20;
+
+const pickerRow = (r: Record<string, unknown>): PickerAgency => ({
+  id: String(r.id),
+  name: String(r.name ?? ''),
+  address: (r.address as string) ?? null,
+  offices: Number(r.offices ?? 0),
+  matchedOn: (r.matched_on as string) ?? undefined,
+  lastUsed: (r.last_used as string) ?? null,
+});
+
+/**
+ * Best matches for what was typed, plus whether there are more.
+ *
+ * `more` is true when the server returned one over the limit, which is
+ * how "Keep typing to narrow it down" is decided without counting the
+ * whole set twice.
+ */
+export async function searchAgenciesOnServer(
+  partner: string, query: string, limit = PICKER_LIMIT,
+): Promise<{ rows: PickerAgency[]; more: boolean }> {
+  if (!orgLive() || query.trim().length < PICKER_MIN_QUERY) return { rows: [], more: false };
+  const { data, error } = await sb().rpc('search_agencies_for_referral',
+    { p_partner: partner, p_query: query, p_limit: limit });
+  if (error) throw new Error(cleanRpcError(error.message));
+  const all = ((data ?? []) as Record<string, unknown>[]).map(pickerRow);
+  return { rows: all.slice(0, limit), more: all.length > limit };
+}
+
+/** The ten this person last referred for, which is the empty state. */
+export async function recentAgenciesForPicker(partner: string, limit = 10): Promise<PickerAgency[]> {
+  if (!orgLive()) return [];
+  const { data, error } = await sb().rpc('recent_agencies_for_referral',
+    { p_partner: partner, p_limit: limit });
+  if (error) throw new Error(cleanRpcError(error.message));
+  return ((data ?? []) as Record<string, unknown>[]).map(pickerRow);
+}
+
+export interface PickerBranch { id: string; name: string; address: string | null; area: string | null }
+
+/** Offices within one agency. An empty query is allowed here and not on
+    agencies: an agency's office list is bounded by that agency, where
+    the agency list is bounded by the supplier and is the thing that can
+    be thousands. */
+export async function searchBranchesOnServer(
+  agencyId: string, query: string, limit = PICKER_LIMIT,
+): Promise<{ rows: PickerBranch[]; more: boolean }> {
+  if (!orgLive()) return { rows: [], more: false };
+  const { data, error } = await sb().rpc('search_branches_for_referral',
+    { p_agency: agencyId, p_query: query, p_limit: limit });
+  if (error) throw new Error(cleanRpcError(error.message));
+  const all = ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: String(r.id), name: String(r.name ?? ''),
+    address: (r.address as string) ?? null, area: (r.area as string) ?? null,
+  }));
+  return { rows: all.slice(0, limit), more: all.length > limit };
 }
 
 /* ===========================================================================

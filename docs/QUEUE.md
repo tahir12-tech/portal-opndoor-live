@@ -5226,6 +5226,26 @@ report himself:
   HANDOVER-BALAL.md, final push by 4:50. The handover entry is a
   deliverable, not a courtesy -- Balal picks this up.
 
+### (dm) Does "Guaranteed rent in force" drop expired deeds, and what is it?
+
+> Confirm "Guaranteed rent in force" excludes deeds past their expiry date (not only cancelled ones), on screen, in exports and the bordereau. Show me with a test that moves a deed's expiry into the past. Also say whether the figure is the full 12 months' guaranteed rent or what remains, and label it accordingly.
+
+- THE FIRST HALF IS CHECKABLE AND I BELIEVE THE ANSWER IS YES:
+  `inForceDuring` asks `ends >= start` with `coverEnds` falling back
+  to a year less a day from the tenancy start, so a guarantee whose
+  year is over fails for any later period. But "I believe" is not the
+  standard Matt set -- "show me with a test that moves a deed's expiry
+  into the past" -- so it gets one.
+- **THE SECOND HALF IS A REAL QUESTION I CANNOT ANSWER BY ASSERTION.**
+  `guaranteedValue` sums twelve months of rent per in-force deed. For
+  a guarantee six months through its year, that is the full twelve
+  months, not the six remaining. Whether that is right depends on
+  what the figure is FOR -- total exposure written, or exposure
+  outstanding -- and the label must say which. Opndoor's own risk
+  reading and an underwriter's are different questions.
+- SO THE DELIVERABLE IS: a test for the first, and a plain statement
+  plus a proposed label for the second.
+
 ---
 
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04

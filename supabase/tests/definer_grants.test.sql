@@ -192,6 +192,12 @@ insert into allowed(name) values
      the setters. Covered by
      a_person_panel_says_what_you_may_change.test.sql. */
   ('person_notification_panel'),
+  /* (dg) The ten agencies this person last referred for, which is the
+     picker's empty state. Reads their OWN applications (referrer_id =
+     auth.uid()) and applies app_reachable_agency to each agency, so it
+     can only surface orgs they could have opened anyway.
+     20261008270000, covered by the_pickers_search_on_the_server. */
+  ('recent_agencies_for_referral'),
   ('reconciliation_queue'),
   ('referral_fee_preview'),
   ('referrer_league'),
@@ -225,6 +231,16 @@ insert into allowed(name) values
      MFA are checked inside, and an agency of another supplier is refused.
      Covered by one_save_for_a_share_deal. */
   ('save_share_deal'),
+  /* (dg) THE PICKERS SEARCH ON THE SERVER rather than filtering an
+     array the browser downloaded. Definers because they apply
+     app_reachable_agency inside -- the authorisation test on the
+     agency rail, where partner_id is not one -- per candidate row and
+     BEFORE the limit, so the twenty shown are twenty the reader may
+     see. They return a name, an address and an office count: no
+     money, no people, no deal. 20261008270000, corrected by
+     20261008280000, covered by the_pickers_search_on_the_server. */
+  ('search_agencies_for_referral'),
+  ('search_branches_for_referral'),
   ('send_deed_to_agent'),
   ('send_deed_to_landlord'),
   /* CORRECTING AN AGENCY'S OR OFFICE'S OWN DETAILS. Reachable by any

@@ -403,7 +403,16 @@ describe('the definer allowlist', () => {
        shown money. A Manager fails the second and a reader outside the
        estate fails the first. It returns one row of terms and the
        supplier's own name. */
-    expect(allowlist.length).toBeLessThanOrEqual(164);
+    /* 164 -> 167, RAISED WITH THE THREE PICKER READS (dg).
+
+       WHY THEY ARE SAFE TO HAND TO EVERY SIGNED-IN USER. Each applies
+       app_reachable_agency INSIDE, per candidate row and before the
+       limit, so a reader never sees an agency they could not open --
+       and the limit is applied to the rows they may see, not to rows
+       they may not. They return a name, an address and an office
+       count. No money, no people, no deal. They are definers because
+       that predicate is, not to widen anything. */
+    expect(allowlist.length).toBeLessThanOrEqual(167);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

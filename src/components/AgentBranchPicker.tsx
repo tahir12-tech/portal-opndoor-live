@@ -63,6 +63,11 @@ import { useEffect, useRef, useState } from 'react';
 import { isOpndoorStaff, ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFly, findAgency, getPartners, loadOrgShape, mayInventAgency, mayInventBranch, orgNotSetUp, ownStockViewer, searchAgencies, searchBranches, FULL_PICKER, UNRESOLVED, type OrgShape } from '@/data';
 import { mayAddWhileReferring, partyIsSupplier } from '@/data/capabilities';
 import { SupplierAddOrg } from '@/pages/PartnerManagement/SupplierAddOrg';
+import {
+  pickerSearchesOnServer, searchAgenciesOnServer, recentAgenciesForPicker,
+  searchBranchesOnServer, PICKER_MIN_QUERY, PICKER_LIMIT,
+  type PickerAgency, type PickerBranch,
+} from '@/data/orgService';
 import { useSession } from '@/session/SessionContext';
 import { Icon } from '@/components/ui/Icon';
 import { TypeAhead, highlightMatch, type TypeAheadOption } from '@/components/ui/TypeAhead';
@@ -265,6 +270,78 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
      other's text. */
   const [addOrgName, setAddOrgName] = useState('');
   const openAddOrg = (what: 'agency' | 'branch', seed = '') => { setAddOrgName(seed); setAddOrg(what); };
+
+  /* =====================================================================
+     (dg) THE PICKER ASKS THE SERVER.
+
+     Matt: "with a large supplier (Rightmove could have thousands of
+     agencies), don't list everything on click ... Make sure search is
+     done on the server, not by loading every agency into the page."
+
+     IN MOCK MODE THE OLD PATH STAYS, and that is not a shortcut: under
+     vitest the hydrated array IS the whole fixture, so filtering it is
+     the honest answer and routing through a server that is not there
+     would turn every picker test into a test of nothing.
+
+     DEBOUNCED, because this fires per keystroke. 180ms is below the
+     gap between characters for anyone typing an agency name and above
+     the burst you get from a paste.
+
+     AND THE RESPONSE IS CHECKED AGAINST THE QUERY IT WAS FOR. Two
+     requests in flight can land out of order, and the reader would
+     then see results for a word they have finished deleting. The
+     query is captured and compared on arrival rather than cancelled,
+     which is the same guard every other async read on this page uses
+     with `alive`. */
+  const serverSearch = pickerSearchesOnServer();
+  const [remote, setRemote] = useState<{ rows: PickerAgency[]; more: boolean; forQuery: string }>(
+    { rows: [], more: false, forQuery: '' },
+  );
+  const [recents, setRecents] = useState<PickerAgency[]>([]);
+  const [remoteBranches, setRemoteBranches] = useState<{ rows: PickerBranch[]; more: boolean; forKey: string }>(
+    { rows: [], more: false, forKey: '' },
+  );
+
+  // THE TEN THEY LAST REFERRED FOR, asked once per route rather than
+  // per keystroke: it does not change while somebody is typing.
+  useEffect(() => {
+    if (!serverSearch || partnerScope === ALL_PARTNERS) { setRecents([]); return; }
+    let alive = true;
+    recentAgenciesForPicker(String(partnerScope), 10)
+      .then((r) => { if (alive) setRecents(r); })
+      .catch(() => { if (alive) setRecents([]); });
+    return () => { alive = false; };
+  }, [serverSearch, partnerScope]);
+
+  useEffect(() => {
+    if (!serverSearch || partnerScope === ALL_PARTNERS) return;
+    const q = agentValue.trim();
+    if (q.length < PICKER_MIN_QUERY) { setRemote({ rows: [], more: false, forQuery: q }); return; }
+    let alive = true;
+    const t = setTimeout(() => {
+      searchAgenciesOnServer(String(partnerScope), q, PICKER_LIMIT)
+        .then((r) => { if (alive) setRemote({ ...r, forQuery: q }); })
+        .catch(() => { if (alive) setRemote({ rows: [], more: false, forQuery: q }); });
+    }, 180);
+    return () => { alive = false; clearTimeout(t); };
+  }, [serverSearch, partnerScope, agentValue]);
+
+  useEffect(() => {
+    if (!serverSearch) return;
+    const rec = selectedAgency ? findAgency(selectedAgency) : undefined;
+    const id = rec?.id;
+    if (!id) { setRemoteBranches({ rows: [], more: false, forKey: '' }); return; }
+    const q = branchValue.trim();
+    const key = `${id}|${q}`;
+    let alive = true;
+    const t = setTimeout(() => {
+      searchBranchesOnServer(id, q, PICKER_LIMIT)
+        .then((r) => { if (alive) setRemoteBranches({ ...r, forKey: key }); })
+        .catch(() => { if (alive) setRemoteBranches({ rows: [], more: false, forKey: key }); });
+    }, 180);
+    return () => { alive = false; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverSearch, selectedAgency, branchValue]);
 
   // The partner the referral resolves to.
   const resolvedPartner = (() => {
@@ -488,7 +565,36 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
     if (!p) return slug;
     return p.kind === 'supplier' ? p.name : 'Opndoor';
   };
-  const agentOptions: TypeAheadOption[] = agentMatches.map((a) => ({
+  /* (dg) THE ROWS, FROM WHEREVER THEY CAME FROM.
+
+     On the server path the list is what the server returned -- the
+     best 20 for what was typed, or the ten they last referred for
+     before they type anything. In mock mode it is the filtered
+     fixture, unchanged, because there the fixture IS the whole book.
+
+     THE SHAPE OF AN OPTION IS THE SAME EITHER WAY, deliberately:
+     everything below this line -- the add row, Enter, the branch
+     step -- works on options, so only the SOURCE changes and nothing
+     downstream has to know which it was. */
+  const serverRows: PickerAgency[] = !serverSearch ? []
+    : agentQuery.length >= PICKER_MIN_QUERY ? remote.rows : recents;
+  const agentOptions: TypeAheadOption[] = serverSearch
+    ? serverRows.map((a) => ({
+      id: a.id,
+      icon: <Icon name="building" />,
+      main: highlightMatch(a.name, agentQuery),
+      /* WHY IT MATCHED, where it was not the name. Searching a
+         postcode and getting agency names with nothing saying why is
+         a list the reader cannot check. */
+      sub: [
+        `${a.offices} ${plural(a.offices, 'office')}`,
+        a.matchedOn === 'office' ? 'matched an office'
+          : a.matchedOn === 'address' ? 'matched the address' : '',
+        agentQuery.length < PICKER_MIN_QUERY ? 'recently used' : '',
+      ].filter(Boolean).join(' \u00b7 '),
+      onSelect: () => chooseAgency(a.name, false, String(partnerScope)),
+    }))
+    : agentMatches.map((a) => ({
     id: `${a.partner}:${a.name}`,
     icon: <Icon name="building" />,
     main: highlightMatch(a.name, agentQuery),
@@ -499,6 +605,18 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
     sub: `${a.branches.length} ${plural(a.branches.length, 'office')}${isStaffForm ? ` · ${estateOf(a.partner)}` : ''}`,
     onSelect: () => chooseAgency(a.name, false, a.partner),
   }));
+  /* "Keep typing to narrow it down", Matt's own sentence, as a row that
+     cannot be chosen. It belongs IN the list, where the reader is
+     looking, rather than underneath it. */
+  if (serverSearch && remote.more && agentQuery.length >= PICKER_MIN_QUERY) {
+    agentOptions.push({
+      id: '__more',
+      icon: <Icon name="search" />,
+      main: <span className="soft">Keep typing to narrow it down</span>,
+      sub: `More than ${PICKER_LIMIT} agencies match \u201c${agentQuery}\u201d`,
+      onSelect: () => { /* a note, not a choice */ },
+    });
+  }
   // Only a supplier invents an agency mid-referral. For an agent a new agency
   // is an acquisition, and that belongs to an admin on the Agencies screen, not
   // to whoever happens to be sending a referral.
@@ -562,13 +680,35 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
   const agencyRec = selectedAgency ? findAgency(selectedAgency) : undefined;
   const branchMatches = selectedAgency ? searchBranches(selectedAgency, branchValue) : [];
   const branchExact = branchMatches.some((b) => b.name.toLowerCase() === branchQuery.toLowerCase());
-  const branchOptions: TypeAheadOption[] = branchMatches.map((b) => ({
+  /* (dg) "Same for offices when an agency has many." Scoped to the
+     chosen agency, so an empty query is allowed here where it is not
+     on agencies: an agency's office list is bounded by that agency,
+     and the agency list is bounded by the supplier, which is the
+     thing that can be thousands. */
+  const branchOptions: TypeAheadOption[] = serverSearch && remoteBranches.rows.length
+    ? remoteBranches.rows.map((b) => ({
+      id: b.id,
+      icon: <Icon name="home" />,
+      main: highlightMatch(b.name, branchQuery),
+      sub: b.area || b.address || '',
+      onSelect: () => chooseBranch(b.name, false),
+    }))
+    : branchMatches.map((b) => ({
     id: b.name,
     icon: <Icon name="home" />,
     main: highlightMatch(b.name, branchQuery),
     sub: b.area || '',
     onSelect: () => chooseBranch(b.name, false),
   }));
+  if (serverSearch && remoteBranches.more) {
+    branchOptions.push({
+      id: '__more-offices',
+      icon: <Icon name="search" />,
+      main: <span className="soft">Keep typing to narrow it down</span>,
+      sub: `More than ${PICKER_LIMIT} offices in ${selectedAgency ?? 'this agency'}`,
+      onSelect: () => { /* a note, not a choice */ },
+    });
+  }
   /* WHO MAY INVENT A BRANCH MID-REFERRAL. The same question as mayAddAgency,
      and the same answer: a SUPPLIER's agency set is open at referral time, so an
      office they have never sent us before must not stop the form. One of OUR
@@ -807,7 +947,15 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
             onEnter={commitAgentEnter}
             options={agentOptions}
             placeholder={shape.mayAddAgency ? 'Search agencies or add a new one' : 'Search your agencies'}
-            emptyText={shape.mayAddAgency ? 'No agencies found. Type a name to add one' : 'No agencies found'}
+            /* (dg) "Show 'Start typing an agency name'". On the server
+               path an empty box is not an empty RESULT -- nothing has
+               been asked yet -- and "No agencies found" over a
+               supplier with three thousand of them is simply false.
+               Once two characters are in and the server has answered,
+               "no matches" is true again and says so. */
+            emptyText={serverSearch && agentQuery.length < PICKER_MIN_QUERY
+              ? (recents.length ? 'Start typing an agency name' : 'Start typing an agency name, or add a new one')
+              : shape.mayAddAgency ? 'No agencies found. Type a name to add one' : 'No agencies found'}
           />
           {!shape.mayAddAgency && (
             <span className="hint">Referrals go against one of your own agencies. A new agency is set up by opndoor, not here.</span>
