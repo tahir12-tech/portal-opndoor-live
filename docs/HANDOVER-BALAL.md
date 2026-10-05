@@ -1725,18 +1725,19 @@ run started:
 
 | gate | result on `matt-fixes` | on `4a39fe6` |
 | --- | --- | --- |
-| `npm run drift` | clean. 486 migrations; dev matches a clean apply: 405 functions, 115 policies, 51 triggers | clean, 403 functions |
+| `npm run drift` | clean. 487 migrations; dev matches a clean apply | clean |
 | `npm run typecheck` | clean | clean |
-| `npm test` | **347 files, 3,792 tests, 0 failing** | 333 files, 3,648 tests |
-| `npm run test:db` (pgTAP, against dev, two batches) | **142 files, 0 failing assertions, 0 errored** | 135 files, 0 failing |
+| `npm run build` | clean | not run |
+| `npm test` | **348 files, 3,810 tests, 0 failing** | 333 files, 3,648 tests |
+| `npm run test:db` (pgTAP, against dev, two batches) | **143 files, 0 failing assertions, 0 errored** | 135 files, 0 failing |
 
-**What moved in the suite, rather than the total.** 14 new vitest files
-(135 tests between them) and 7 new pgTAP files. 9 new cases inside two
-existing vitest files. Nothing removed. Three existing cases renamed,
-all three because Matt changed the rule they pinned: two in
-`theGuidesSayItPlainly` and one in `noRatesInTheGuides`, where "usually
-one month's rent" stopped being the answer. Six new migrations, none of
-them a correction to an earlier one.
+**What moved in the suite, rather than the total.** Across both runs on
+this branch: 15 new vitest files and 8 new pgTAP files; 24 new cases
+inside five existing vitest files; nothing removed; three existing
+cases renamed, all three because Matt changed the rule they pinned (two
+in `theGuidesSayItPlainly`, one in `noRatesInTheGuides`, where "usually
+one month's rent" stopped being the answer). Seven new migrations, none
+of them a correction to an earlier one.
 
 Run all four yourself on the clone before you touch production; that is
 what section 1.1b is for. A green suite here is evidence about DEV, and
@@ -1928,9 +1929,29 @@ and each carries its own test.
 | 12 | The partner API on each of the three checking settings: two of the three are refused by design, and the inheritance is proved on all three | `b3e77ea` |
 | 13 | Every money figure on dev, before (dg) | `f28391a` |
 
-**Six questions are waiting for Matt**, all in `docs/QUEUE.md` under
-"For Matt in the morning (2026-10-05 night run)". None of them was
-guessed at.
+**Six questions were waiting for Matt. He answered all eight points on
+2026-10-05 and the work is below.**
+
+### And the eight decisions, 2026-10-05 (same branch)
+
+| # | decision | what it came to |
+| --- | --- | --- |
+| 1 | (df) explain the three candidate tests, don't build | three plain lines and three lists, in QUEUE.md. "Live from" set shows 1 supplier of 10, a live negotiated agreement 3, a rate at all 8 |
+| 2 | write `merge_branches` | `20261009070000`, plus the grant that made it matter: `merge_agencies` was service_role only, so the "Merge into" button added with (ck) would have failed at the click |
+| 3 | mask the referrer under View as | recomputed from two facts each row keeps, swapped by SessionContext beside the commission one. A customer's rows carry no facts at all, so the name never reaches the browser that must not have it |
+| 4 | close (cu) | closed, with what was checked |
+| 5 | rename the agent one-pager | "Agent guide", in the shelf, the type chip, all fifteen matrix listings and its own `<title>`, which had been the management guide's |
+| 6 | delete the four PDFs | 1.3 MB gone, pinned both ways |
+| 7 | demo says "of the guarantee fee" | and the basis line under the figures with it |
+| 8 | (cv) keep next month | recorded with the rule it keeps, and the live path pinned for the first time |
+
+**One thing went wrong and is not fixed.** Checking whether the browser
+could call `merge_agencies` at all, I ran it against two real dev
+agencies rather than inside a transaction: Southbank Residential is
+merged into Northgate Lettings on dev. No money moved and nothing else
+was touched; the reversal is written out in QUEUE.md and needs one
+approval, because writing to dev's org tables is not something I may do
+unattended.
 
 **(dr8) The landlord guide's figures are unverified.** It claims 12
 months, a GBP 120,000 cap, GBP 10,000 of legal costs, notify within
