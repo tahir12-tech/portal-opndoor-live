@@ -42,36 +42,16 @@ export type ToastTone = 'ok' | 'error';
 interface ToastItem {
   id: number;
   message: string;
-<<<<<<< HEAD
-  type: ToastType;
-  shown: boolean;
-}
-
-type ToastFunction = (
-  message: string,
-  type?: ToastType
-) => void;
-
-const ToastContext = createContext<ToastFunction>(() => {});
-=======
   tone: ToastTone;
   shown: boolean;
 }
 
 const ToastContext = createContext<(message: string, tone?: ToastTone) => void>(() => {});
->>>>>>> partner-api
 
 const DURATION = 3200;
 /** Errors sit longer: they are usually longer to read and worth reading. */
 const ERROR_DURATION = 6000;
 
-<<<<<<< HEAD
-export function ToastProvider({
-  children,
-}: {
-  children: ReactNode;
-}) {
-=======
 /**
  * ONE TOAST AT A TIME, newest wins.
  *
@@ -88,61 +68,10 @@ export function ToastProvider({
  * replaces this one.
  */
 export function ToastProvider({ children }: { children: ReactNode }) {
->>>>>>> partner-api
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const seq = useRef(0);
   const timers = useRef<number[]>([]);
 
-<<<<<<< HEAD
-  const toast = useCallback(
-    (
-      message: string,
-      type: ToastType = "success"
-    ) => {
-      const id = ++seq.current;
-
-      setToasts((prev) => [
-        ...prev,
-        {
-          id,
-          message,
-          type,
-          shown: false,
-        },
-      ]);
-
-      // Animate in
-      requestAnimationFrame(() => {
-        setToasts((prev) =>
-          prev.map((t) =>
-            t.id === id
-              ? { ...t, shown: true }
-              : t
-          )
-        );
-      });
-
-      // Animate out
-      window.setTimeout(() => {
-        setToasts((prev) =>
-          prev.map((t) =>
-            t.id === id
-              ? { ...t, shown: false }
-              : t
-          )
-        );
-      }, DURATION);
-
-      // Remove from DOM
-      window.setTimeout(() => {
-        setToasts((prev) =>
-          prev.filter((t) => t.id !== id)
-        );
-      }, DURATION + 260);
-    },
-    []
-  );
-=======
   const toast = useCallback((message: string, tone: ToastTone = 'ok') => {
     const id = ++seq.current;
     const life = tone === 'error' ? ERROR_DURATION : DURATION;
@@ -158,7 +87,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       window.setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), life + 260),
     );
   }, []);
->>>>>>> partner-api
 
   // A provider unmounting mid-toast must not leave a timer holding a setState.
   useEffect(() => () => { timers.current.forEach(window.clearTimeout); }, []);
@@ -209,17 +137,6 @@ function ToastPortal({
       {toasts.map((t) => (
         <div
           key={t.id}
-<<<<<<< HEAD
-          className={`toast toast-${t.type}${
-            t.shown ? " is-in" : ""
-          }`}
-        >
-          <Icon
-            name={getIconName(t.type)}
-            strokeWidth={2.4}
-          />
-
-=======
           className={`toast toast--${t.tone}${t.shown ? ' is-in' : ''}`}
           // Errors are announced assertively so a screen reader interrupts
           // rather than queueing behind whatever is being read.
@@ -227,7 +144,6 @@ function ToastPortal({
           aria-live={t.tone === 'error' ? 'assertive' : 'polite'}
         >
           <Icon name={t.tone === 'error' ? 'alert' : 'check'} strokeWidth={2.4} />
->>>>>>> partner-api
           <span>{t.message}</span>
         </div>
       ))}
@@ -236,10 +152,6 @@ function ToastPortal({
   );
 }
 
-<<<<<<< HEAD
-export function useToast(): ToastFunction {
-=======
 export function useToast(): (message: string, tone?: ToastTone) => void {
->>>>>>> partner-api
   return useContext(ToastContext);
 }

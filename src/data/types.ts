@@ -331,14 +331,6 @@ export interface Partner {
   users: number;
   apps: number;
   /** Per-partner commission rates (fractions of one month's rent). Never hard-coded.
-<<<<<<< HEAD
-      null = WITHHELD from this viewer: the rates are commercially confidential and
-      the database gives them only to opndoor admin and to that partner's own
-      Management, so a Referrer's session never carries them. Never substitute a
-      default for null — a withheld rate must read as "—", not as a made-up figure. */
-  partnerRate: number | null;
-  agentRate: number | null;
-=======
 
       ON A SUPPLIER THESE ARE ONE NUMBER AND A SLICE OF IT, not two that add
       up. Matt, 2026-09-30: "Supplier commission is one total rate ... and
@@ -365,7 +357,6 @@ export interface Partner {
       whole total to the supplier for it to settle with its own. Off by
       default. NM-C 5. */
   opndoorPaysAgents?: boolean;
->>>>>>> partner-api
   /** #79 What a referrer sees on the League Referrers tab for this partner.
       full = peers ranked with fees + counts; rankings = counts only; private =
       own performance only. Commission is never shown to referrers. Default full. */

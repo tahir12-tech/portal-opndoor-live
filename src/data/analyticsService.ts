@@ -256,19 +256,6 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
   // the "% of one month's rent" label always reconciles with the £ figure beside it
   // and never moves when a partner's live rate is later edited. Only when the period
   // has no fees at all (nothing to reconcile) do we fall back to the current headline
-<<<<<<< HEAD
-  // rate as an indicative label — and when even that is withheld (null: a referrer's
-  // session never carries commission rates) the label is an em dash, never an
-  // invented percentage.
-  const live = getRatesFor(scope);
-  const effRate = (net: number, excl: number, fallback: number | null): string =>
-    a.feesGross ? fmtRatePct((net + excl) / a.feesGross) : fallback == null ? '—' : fmtRatePct(fallback);
-  const pPct = effRate(a.partnerCommNet, a.partnerCommExcl, live.partner);
-  const aPct = effRate(a.agentCommNet, a.agentCommExcl, live.agent);
-  // Under an all-partners scope the £ amounts blend per-partner rates, so a single
-  // "%" descriptor would not reconcile with the figure - label it per-partner.
-  const blended = !isRef && scope === ALL_PARTNERS;
-=======
   // rate as an indicative label.
   //
   // THAT FALLBACK IS A REAL RATE, so it is not fetched for a reader who may not see
@@ -449,7 +436,6 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
       ? fmtMoney(a.agentCommExcl)
       : `Partner ${fmtMoney(a.partnerCommExcl)} · Agent ${fmtMoney(a.agentCommExcl)}`,
   };
->>>>>>> partner-api
 
   return {
     sub: ownOnly
@@ -482,24 +468,8 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
     deedcount: a.deed.toLocaleString('en-GB'),
     deedsIssued: a.deed,
     fees: fmtMoney(a.feesGross),
-<<<<<<< HEAD
-    // Commission is Management/opndoor-admin only. A referrer is never shown a
-    // commission figure (#79 League, #109 exports; the Dashboard's commission card
-    // is RoleOnly superadmin/management) and their session does not even carry the
-    // rates, so these four read as WITHHELD rather than being computed from a
-    // withheld rate. A referrer's own card shows referral performance instead.
-    commTag: isRef
-      ? 'Commission is not shown to referrers'
-      : blended ? `Partner commission · per-partner rates, net of refunds` : `Partner · ${pPct} of one month's rent, net of refunds`,
-    commHeadline: isRef ? '—' : fmtMoney(a.partnerCommNet),
-    commSecondLbl: isRef
-      ? ''
-      : blended ? 'Agent commission (per-partner rates, net of refunds)' : `Agent commission (${aPct} of one month's rent, net)`,
-    commSecondVal: isRef ? '—' : fmtMoney(a.agentCommNet),
-=======
     ...comm,
     feeBasisCopy,
->>>>>>> partner-api
     rent: fmtMoney(a.avgRent),
     stuckSent: a.stuckSent.toLocaleString('en-GB'),
     stuckPaid: a.stuckPaid.toLocaleString('en-GB'),
@@ -546,15 +516,6 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
   const basePaid = ownOnly ? BASE_PAID_REF : BASE_PAID_FULL;
   const kc = sent / baseSent;
   const kf = paid / basePaid;
-<<<<<<< HEAD
-  const baseStuck = isRef ? [8, 3] : [74, 27];
-  const rates = getRatesFor(scope);
-  // Same rule as the live path: a withheld rate has no percentage to show.
-  const pRate = rates.partner ?? 0;
-  const aRate = rates.agent ?? 0;
-  const pPct = rates.partner == null ? '—' : fmtRatePct(rates.partner);
-  const aPct = rates.agent == null ? '—' : fmtRatePct(rates.agent);
-=======
   const baseStuck = ownOnly ? [8, 3] : [74, 27];
   /* THE RATES ARE THE WHOLE OF THE COMMISSION HERE, so a reader who may not see
      money is never given them. Everything downstream of this line is earnings: the
@@ -635,7 +596,6 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
     commExcl: signedNeg(0),
     commExclDetail: '',
   };
->>>>>>> partner-api
 
   return {
     sub: ownOnly
@@ -656,30 +616,13 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
     deedcount: deed.toLocaleString('en-GB'),
     deedsIssued: deed,
     fees: fmtMoney(feesNum),
-<<<<<<< HEAD
-    // Commission is never shown to a referrer (see the live path above).
-    commTag: isRef ? 'Commission is not shown to referrers' : `Partner · ${pPct} of one month's rent`,
-    commHeadline: isRef ? '—' : fmtMoney(feesNum * pRate),
-    commSecondLbl: isRef ? '' : `Agent commission (${aPct} of one month's rent)`,
-    commSecondVal: isRef ? '—' : fmtMoney(feesNum * aRate),
-=======
     ...comm,
     feeBasisCopy: "one month's rent each",
->>>>>>> partner-api
     rent: '£2,180',
     stuckSent: Math.round(baseStuck[0] * kc).toString(),
     stuckPaid: Math.round(baseStuck[1] * kc).toString(),
     avgSentToPaid: '4.2',
     avgPaidToDeed: '1.8',
-<<<<<<< HEAD
-    branchScope: isRef ? 'your branches' : 'top branches',
-    agencyScope: isRef ? 'your agency' : 'by agency',
-    referrerTitle: isRef ? 'Your monthly volume' : 'Volume by referrer',
-    referrerScope: isRef ? 'recent months' : 'top performers',
-    branches: synthEntity('branch', scaleRows(shape.branches, kc, kf), pRate, aRate),
-    agencies: synthEntity('agency', scaleRows(shape.agencies, kc, kf), pRate, aRate),
-    referrers: synthEntity('referrer', scaleRows(shape.referrers, kc, kf), pRate, aRate),
-=======
     branchScope: ownOnly ? 'your branches' : 'top branches',
     agencyScope: ownOnly ? 'your agency' : 'by agency',
     referrerTitle: ownOnly ? 'Your monthly volume' : 'Volume by referrer',
@@ -694,7 +637,6 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
        empty list simply omits it. */
     suppliers: [],
     referrers: synthEntity('referrer', scaleRows(shape.referrers, kc, kf), rates.partner, rates.agent),
->>>>>>> partner-api
     live: false,
     feesGross: fmtMoney(feesNum),
     refunds: signedNeg(0),
@@ -717,11 +659,6 @@ export type TrendMeasure = 'commission' | 'value' | 'count';
  */
 export function getTrend(view: TrendView, role: Role, scope: PartnerScope): TrendRow[] {
   if (liveAvailable()) return liveTrend(view, role, scope);
-<<<<<<< HEAD
-  // The commission measure is Management/admin only (the trend card is RoleOnly),
-  // so a withheld rate contributes nothing rather than a substituted default.
-  const rate = getRatesFor(scope).partner ?? 0;
-=======
   /* TrendRow.comm IS the commission measure of the monthly volume card, and that
      card used to OPEN on it: twelve bars of what the agency earned were the first
      thing a Manager saw on Reporting. The label, the referral count and the fees
@@ -730,7 +667,6 @@ export function getTrend(view: TrendView, role: Role, scope: PartnerScope): Tren
      the measure is refused in the page as well, and this is what is underneath it
      if it ever is not. */
   const rate = maySeeCommission(role) ? getRatesFor(scope).partner : 0;
->>>>>>> partner-api
   if (view === 'month') {
     /* The mock path carries the two new measures too. `payable` uses the
        same modelled rate: this is the synthetic book, so there is no real

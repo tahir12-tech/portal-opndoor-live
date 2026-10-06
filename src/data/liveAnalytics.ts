@@ -282,11 +282,6 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
   // £3,000 pair and one £1,500 single as averaging £2,500 instead of £2,250.
   const rentedLets = new Set<string>();
   for (const app of set) {
-<<<<<<< HEAD
-    const r = ratesOf(app);
-    rentSum += app.rent;
-    if (inRange(app.sentAt, start, end)) a.sent += 1;
-=======
     // COMMISSION COMES OFF THE LINES. agent_rate is written as their total at
     // creation and is equal today, but it is a denormalised copy that cannot name
     // a payee or say where its rate came from, and the statement needs both.
@@ -323,7 +318,6 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
     const supplierComm = seesComm ? supplierAmountOf(app) : 0;
     if (!rentedLets.has(letOf(app))) { rentedLets.add(letOf(app)); rentSum += app.rent; }
     if (inRange(app.sentAt, start, end)) { a.sent += 1; sentLets.add(letOf(app)); }
->>>>>>> partner-api
     if (inRange(app.paidAt, start, end)) {
       paidLets.add(letOf(app));
       // A fee is attributed to the period it was PAID; a refunded application
@@ -716,9 +710,6 @@ function groupRows(
     if (!reachedPayment(app)) continue;
     const k = keyOf(app, key, monthLabel, scope);
     if (!k) continue;
-<<<<<<< HEAD
-    const r = ratesOf(app);
-=======
     // PER-ORG ATTRIBUTION. An agency/branch row earns its OWN lines; a referrer or
     // month row is not an org, so it carries the whole payout. partnerRate is the
     // supplier rail and is untouched.
@@ -761,7 +752,6 @@ function groupRows(
     // the row allows. A Manager reading League saw both columns in full, per agency
     // and per branch, which is the agency's income broken down by office.
     const supplierComm = !seesComm ? 0 : supplierAmountOf(app);
->>>>>>> partner-api
     const sentIn = inRange(app.sentAt, start, end);
     const paidIn = inRange(app.paidAt, start, end);
     const deedIn = inRange(app.deedAt, start, end);
@@ -1104,9 +1094,6 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
     if (app.sentAt && idx(app.sentAt) >= lo && idx(app.sentAt) <= hi) { const m = at(app.sentAt); if (m) m.refs += 1; }
     if (app.paidAt && idx(app.paidAt) >= lo && idx(app.paidAt) <= hi) {
       const m = at(app.paidAt);
-<<<<<<< HEAD
-      if (m) { m.fees += app.rent; if (!app.refunded) m.comm += app.rent * ratesOf(app).partner; }
-=======
       /* isHousePartner, not agentRailApp. On a HOUSE partner partnerRate is
          Opndoor's own cut and must never appear as the reader's commission;
          a NAMED partner configured 'opndoor_referenced' is still owed real
@@ -1157,7 +1144,6 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
           if (!isHousePartner(app.partner)) m.payable += supplierAmountOf(app);
         }
       }
->>>>>>> partner-api
     }
     if (app.deedAt && idx(app.deedAt) >= lo && idx(app.deedAt) <= hi) { const m = at(app.deedAt); if (m) m.deeds += 1; }
   }
@@ -1280,9 +1266,6 @@ export function getCommissionSettlement(role: Role, scope: PartnerScope, window:
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue; // net of refunds: a refunded application earns no commission
-<<<<<<< HEAD
-    const commission = a.rent * ratesOf(a).partner;
-=======
     /* OPNDOOR'S OWN MARGIN IS NOT THE AGENCY'S BUSINESS. Round 6. This was
        the one commission accumulator in the file with no rail test -- compare
        the three at :199, :412 and :664 -- so an agency Director's Reporting
@@ -1309,7 +1292,6 @@ export function getCommissionSettlement(role: Role, scope: PartnerScope, window:
        a payee. */
     if (isHousePartner(a.partner) || agentRailApp(a)) continue;
     const commission = supplierAmountOf(a);
->>>>>>> partner-api
     let ps = byPartner.get(a.partner);
     if (!ps) { ps = { partner: a.partner, partnerName: partnerName(a.partner), commission: 0, apps: [] }; byPartner.set(a.partner, ps); }
     ps.commission += commission;
@@ -1349,10 +1331,6 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
   const map = new Map<string, PartnerCommissionRow>();
   for (const app of set) {
     if (!inRange(app.paidAt, start, end)) continue; // commission attributed to the payment period
-<<<<<<< HEAD
-    const r = ratesOf(app);
-    let row = map.get(app.partner);
-=======
     // Lines, not the scalar; and no partner cut on the agent rail. Identical to
     // liveAggregate, so this table foots to the KPIs above it.
     // Both sides are stored amounts since 20261007580000. See
@@ -1367,7 +1345,6 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
        its referrals stay in the totals and stop being a route. */
     const route = routeOf(app.partner);
     let row = map.get(route.key);
->>>>>>> partner-api
     if (!row) {
       row = { partner: route.key, partnerName: route.name, paid: 0, feesGross: 0, refundValue: 0,
         partnerCommGross: 0, partnerCommNet: 0, agentCommGross: 0, agentCommNet: 0 };
@@ -1505,15 +1482,6 @@ function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue; // net of refunds
-<<<<<<< HEAD
-    const commission = a.rent * ratesOf(a).agent;
-    // Key by partner + agency so same-named agencies under different partners never merge.
-    const key = `${a.partner}${a.agency}`;
-    let ag = byAgency.get(key);
-    if (!ag) { ag = { agency: a.agency || '(unknown agency)', partner: a.partner, partnerName: partnerName(a.partner), commission: 0, apps: [] }; byAgency.set(key, ag); }
-    ag.commission += commission;
-    ag.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, commission, tenantInitials: tenantInitialsFor(a.ref) });
-=======
     const fee = feeBaseFor(a);
     const mates = a.tenancyId ? set.filter((x) => x.tenancyId === a.tenancyId).length : 0;
     // ONE LINE PER PAYEE. A historic row has no split and resolves to a single
@@ -1551,7 +1519,6 @@ function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
         commission: p.amount,
       });
     }
->>>>>>> partner-api
   }
   return byPayee;
 }

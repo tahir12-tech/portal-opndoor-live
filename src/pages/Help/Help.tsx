@@ -361,11 +361,7 @@ export function Help() {
     } else if (r.file) {
       const u = fileToBlobUrl(r.file);
       if (!u) {
-<<<<<<< HEAD
-        toast('Could not open this file.','error');
-=======
         toast('Could not open this file.', 'error');
->>>>>>> partner-api
         return;
       }
       a.href = u;

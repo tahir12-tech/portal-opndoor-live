@@ -126,10 +126,6 @@ function toContact(c: any): AgentContact {
    removing it would be an unrelated change to every call site. */
 export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LEAST_PRIVILEGED_ROLE): Promise<void> {
   const client = sb();
-<<<<<<< HEAD
-  const [partnersRes, usersRes, agenciesRes, branchesRes, contactsRes, appsRes, partnerRatesRes, appRatesRes] = await Promise.all([
-    client.from('partners').select('id, slug, name, status, live_from, is_primary, referrer_leaderboard_mode'),
-=======
   const [partnersRes, partnerRatesRes, usersRes, ratesRes, orgRatesRes, agenciesRes, groupsRes, branchesRes, contactsRes, appsRes, linesRes] = await Promise.all([
     // THE RATES ARE NO LONGER SELECTABLE HERE BY ANYONE, exactly as on
     // applications. They came off the table grant for `authenticated`
@@ -146,7 +142,6 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // and refused in the function rather than skipped here, because a client
     // that skipped the call would be back to a TypeScript decision.
     client.rpc('my_partner_rates'),
->>>>>>> partner-api
     // Admin user list via RPC: TRUTHFUL last-active (auth.users.last_sign_in_at)
     // and status/role, visibility-scoped like the users_select RLS policy.
     client.rpc('list_managed_users'),
@@ -186,9 +181,6 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
       'id, guarantee_ref, tenant_title, tenant_first_name, tenant_last_name, ' +
         'tenant_dob, tenant_email, tenant_phone, ' +
         'prop_addr1, prop_addr2, prop_city, prop_county, prop_postcode, ' +
-<<<<<<< HEAD
-        'monthly_rent, status, beneficiary, tenancy_start, sent_at, paid_at, deed_issued_at, expiry_date, ' +
-=======
         // The rates are NO LONGER SELECTABLE HERE BY ANYONE. partner_rate and
         // agent_rate came off the table grant for `authenticated` entirely
         // (20260811180000), because narrowing this string was never enforcement:
@@ -209,7 +201,6 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
            from a real referral that expired unpaid -- and `sent_at` cannot,
            because every direct draft carries it from creation. */
         'expired_from, ' +
->>>>>>> partner-api
         'payment_state, refunded_at, refunded_amount, paid_amount, refund_after_start, ' +
         'withdrawn_at, withdrawn_reason, withdrawn_note, ' +
         'deed_state, deed_sent_at, deed_viewed_at, expiry_reminders_sent, ' +
@@ -234,23 +225,6 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
            the agency or branch they last referred for." */
         'branch:branches(name), agency:agencies(name), referrer:users!referrer_id(full_name, role, sees_commission, partner_id), partner:partners(slug)',
     ),
-<<<<<<< HEAD
-    // Commission rates are commercially confidential and no longer live on the
-    // rows above: authenticated has no column privilege on partners.partner_rate
-    // /agent_rate or applications.partner_rate/agent_rate. They arrive through two
-    // SECURITY DEFINER readers that hand rates to opndoor admin (every partner)
-    // and to a partner's own Management (their partner only). A Referrer gets ZERO
-    // rows from both — never an error — so their rates stay null and every
-    // commission figure derived from them is withheld rather than fabricated
-    // (#79/#109: commission is never shown to a referrer). Migrations:
-    // 20260904120000 (masking + grant helper), 20260904120500 (the column
-    // cut-over), 20260904130000 (these two readers).
-    client.rpc('commission_rates_for_partners'),
-    client.rpc('commission_rates_for_applications'),
-  ]);
-
-  for (const res of [partnersRes, usersRes, agenciesRes, branchesRes, contactsRes, appsRes, partnerRatesRes, appRatesRes]) {
-=======
     // The frozen commission split, one row per payee. Deliberately OUTSIDE the
     // throw-list below: a row with no lines is a historic row, not a failure, and
     // losing the payee breakdown must never cost anybody their sign-in.
@@ -261,7 +235,6 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   // referrer or a developer by design, and treating that as a hydration failure
   // would break login for two roles to protect a figure they are not shown.
   for (const res of [partnersRes, usersRes, agenciesRes, groupsRes, branchesRes, contactsRes, appsRes]) {
->>>>>>> partner-api
     if (res.error) throw new Error(`Failed to load data: ${res.error.message}`);
   }
 
@@ -360,11 +333,6 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     ...(isHousePartner(p.slug) ? { isHouse: true } : {}),
     users: usersByPartner[p.slug] || 0,
     apps: appsByPartner[p.slug] || 0,
-<<<<<<< HEAD
-    // Live rates, or null when the viewer is not entitled to them (Referrer).
-    partnerRate: partnerRates.get(p.id)?.partner ?? null,
-    agentRate: partnerRates.get(p.id)?.agent ?? null,
-=======
     /* NULL SURVIVES THE HYDRATE, 20261007680000. `num()` coalesces to 0,
        which would turn "no deal has been set" into "a deal of nothing" --
        two different facts, and the second one is a real state that Letly
@@ -376,7 +344,6 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
        WHO Opndoor pays rather than how much, and the Commission tab
        needs it to render a switch. */
     opndoorPaysAgents: p.opndoor_pays_agents === true,
->>>>>>> partner-api
     referrerLeaderboard: (p.referrer_leaderboard_mode ?? 'full') as Partner['referrerLeaderboard'],
     referencingMode: (p.referencing_mode ?? 'pre_referenced_screened') as Partner['referencingMode'],
     /* WHAT THIS PARTNER IS. No coalesce and no fall back to the mode
@@ -646,12 +613,6 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
        from a referral that expired unpaid. See reachedPayment(). */
     expiredFrom: (a.expired_from ?? null) as Status | null,
     rent: num(a.monthly_rent),
-<<<<<<< HEAD
-    // The application's SNAPSHOT (rate-snapshot law), or null when the viewer is
-    // not entitled to commission rates. Never the partner's live rate.
-    partnerRate: appRates.get(a.id)?.partner ?? null,
-    agentRate: appRates.get(a.id)?.agent ?? null,
-=======
     // The FEE, which is what commission is a share of. Falls back to rent so a
     // row created before M1 (or a mock row) reads exactly as it always did.
     fee: a.fee_amount == null ? num(a.monthly_rent) : num(a.fee_amount),
@@ -673,7 +634,6 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
        coalesce, because "not recorded" and "the supplier settles its own
        agents" are different answers and only one of them is false. */
     opndoorPaysAgentsAtFreeze: a.opndoor_pays_agents_at_freeze ?? null,
->>>>>>> partner-api
     sentAt: toDate(a.sent_at),
     paidAt: toDate(a.paid_at),
     deedAt: toDate(a.deed_issued_at),

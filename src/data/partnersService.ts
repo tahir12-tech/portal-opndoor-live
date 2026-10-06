@@ -220,17 +220,11 @@ export interface PartnerAuditEntry {
 // Mock/test audit store, keyed by partner id (slug). Supabase mode uses the
 // partner_audit table + update_partner_settings RPC instead.
 const PARTNER_AUDIT: Record<string, PartnerAuditEntry[]> = {};
-<<<<<<< HEAD
-// A withheld rate (null) has no percentage to record; the Manage Partner screen
-// that drives this is opndoor-admin only, so in practice it is never null here.
-const pct = (f: number | null): string => (f == null ? '—' : fmtRatePct(f));
-=======
 /** A rate for the audit trail. Null is "no deal set" rather than "0%", in
     the same words the SQL side writes: a partner created with no deal has
     null rates since 20261007680000, and an audit row reading "0.0%" would
     record a deal that was never struck. */
 const pct = (f: number | null | undefined): string => (f == null ? 'no deal set' : fmtRatePct(f));
->>>>>>> partner-api
 
 /**
  * Persist a partner-settings edit. Supabase mode calls the update_partner_settings

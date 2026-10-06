@@ -112,14 +112,6 @@ export interface FullApp {
   rent: number;
   /** Commission rates SNAPSHOTTED at creation (fractions of one month's rent).
       Every commission/settlement/league/export figure reads these, never the
-<<<<<<< HEAD
-      partner's live rate, so editing a partner's rate never moves history.
-      null = WITHHELD from this viewer (a Referrer never receives commission
-      rates; see Partner.partnerRate). Treat null as "no commission figure",
-      not as zero-with-a-label. */
-  partnerRate: number | null;
-  agentRate: number | null;
-=======
       partner's live rate, so editing a partner's rate never moves history. */
   partnerRate: number;
   agentRate: number;
@@ -147,7 +139,6 @@ export interface FullApp {
       any row with no snapshot, where the live flag is the fallback.
       Mirrors applications.opndoor_pays_agents_at_freeze. */
   opndoorPaysAgentsAtFreeze?: boolean | null;
->>>>>>> partner-api
   sentAt: Date | null;
   paidAt: Date | null;
   deedAt: Date | null;
@@ -376,9 +367,6 @@ function inPeriod(r: ApplicationSummary, range?: [Date, Date]): boolean {
   return ts >= range[0].getTime() && ts <= range[1].getTime();
 }
 
-<<<<<<< HEAD
-export function countByStatus(opts: AppFilterOpts): { all: number; sent: number; paid: number; deed: number; refunded: number; awaiting: number; deliveryFailed: number; withdrawn: number; expired: number } {
-=======
 /* THE SEARCH, AS A PREDICATE RATHER THAN A LINE INSIDE ONE READER.
 
    Matt, 2026-10-01: "every status tab count follows the current filters
@@ -401,25 +389,10 @@ function matchesQuery(r: ApplicationSummary, q?: string): boolean {
 }
 
 export function countByStatus(opts: AppFilterOpts): { all: number; draft: number; invited: number; feeUnpaid: number; referencing: number; declined: number; sent: number; paid: number; deed: number; refunded: number; awaiting: number; deliveryFailed: number; cannotDeliver: number; withdrawn: number; expired: number } {
->>>>>>> partner-api
   // #owner Chips recount within the selected period (sent-date bucketed), and
   // must follow the same partner/agency/branch/referrer filters as the rows.
   let set = scopedSet(opts);
   if (opts.partner) set = set.filter((r) => r.partner === opts.partner);
-<<<<<<< HEAD
-  set = set.filter((r) => {
-    if (opts.branch && r.branch !== opts.branch) return false;
-    if (opts.agency && r.agency !== opts.agency) return false;
-    if (opts.referrer && r.referrer !== opts.referrer) return false;
-    return inPeriod(r, opts.periodRange);
-  });
-  // 'refunded' and 'awaiting' overlap 'paid' (both keep status Paid by design), so
-  // they are counted in addition to paid, not instead of it. all = sent+paid+deed.
-  // 'deliveryFailed' is a cross-cut of Deed (issued but no reachable agent contact).
-  // #2/#13 'withdrawn' and 'expired' are terminal and OUT of the funnel: not part of
-  // all/sent/paid/deed, only their own separate counts (surfaced via their chips).
-  const counts = { all: 0, sent: 0, paid: 0, deed: 0, refunded: 0, awaiting: 0, deliveryFailed: 0, withdrawn: 0, expired: 0 };
-=======
   /* BY ID, NOT BY NAME. Matt, 2026-10-04. Resolved once over the set rather
      than per row: see branchFilter for why that distinction is the whole of
      it. Built from the PARTNER-NARROWED set, which is the same rows the
@@ -458,7 +431,6 @@ export function countByStatus(opts: AppFilterOpts): { all: number; draft: number
      sentence means "All holds everything" rather than "add the chips
      up". */
   const counts = { all: 0, draft: 0, invited: 0, feeUnpaid: 0, referencing: 0, declined: 0, sent: 0, paid: 0, deed: 0, refunded: 0, awaiting: 0, deliveryFailed: 0, cannotDeliver: 0, withdrawn: 0, expired: 0 };
->>>>>>> partner-api
   set.forEach((r) => {
     counts.all++;
     if (r.status === 'withdrawn') { counts.withdrawn++; return; }

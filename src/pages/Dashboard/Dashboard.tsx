@@ -543,28 +543,6 @@ export function Dashboard() {
     void run(buildExpiriesDoc(role, +mv[0], +mv[1] - 1), 'expiries');
     setExpOpen(false);
   }
-<<<<<<< HEAD
-  async function exportBordereau() {
-    if (bdxBusy) return;
-    const mv = (bdxMonth || '2026-06').split('-');
-    const parsed = parseFloat(bdxRate);
-    const rate = isNaN(parsed) ? getBordereauRate() : parsed;
-    setBdxBusy(true);
-    try {
-      // Persist the applied rate (audited if it changed) so the next export defaults
-      // to it and there is a record of what was applied when, and by whom.
-      await setBordereauRate(rate);
-      await exportBordereauFile(role, +mv[0], +mv[1] - 1, rate);
-      setBdxOpen(false);
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not save the insurance rate.','error');
-    } finally {
-      setBdxBusy(false);
-    }
-  }
-
-=======
->>>>>>> partner-api
   return (
     <>
       <div className="page-head">

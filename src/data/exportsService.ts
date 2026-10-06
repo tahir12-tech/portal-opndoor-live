@@ -1011,17 +1011,6 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
         { label: 'Conversion: Sent to Paid', value: m.sent ? m.paid / m.sent : 0, type: 'pct' },
         { label: 'Conversion: Paid to Deed', value: m.paid ? m.deed / m.paid : 0, type: 'pct' },
         { label: 'Conversion: Sent to Deed', value: m.sent ? m.deed / m.sent : 0, type: 'pct' },
-<<<<<<< HEAD
-        { label: 'Total guaranteed rent value', value: m.deed * ANNUAL, type: 'money' },
-        { label: 'Guarantor fees collected', value: m.fees, type: 'money' },
-        ...(showComm ? [
-          // showComm is false for referrers (#109), the only role whose rates are withheld.
-          { label: 'Partner commission (share of one month rent)', value: m.fees * (xrates.partner ?? 0), type: 'money' as const },
-          { label: 'Agent commission (share of one month rent)', value: m.fees * (xrates.agent ?? 0), type: 'money' as const },
-        ] : []),
-        { label: 'Average monthly rent', value: AVG_RENT, type: 'money' },
-        { label: 'Average guarantor fee', value: m.paid ? m.fees / m.paid : 0, type: 'money' },
-=======
         moneyKv('Guaranteed rent in force (whole book, not affected by the period)', m.deed * ANNUAL),
         moneyKv('Guarantee fees collected', m.fees),
         ...(showComm ? (agency ? [
@@ -1037,7 +1026,6 @@ export function buildPerformanceDoc(role: Role, period: Period): BrandedExport {
         moneyKv('Average monthly rent', AVG_RENT),
         moneyKv('Average guarantee fee', m.paid ? m.fees / m.paid : 0),
         // Same removal as the live builder: the figure above is this one.
->>>>>>> partner-api
         { label: 'Total deeds issued', value: m.deed, type: 'int' },
       ],
     },
@@ -1426,13 +1414,6 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     // rows both read £0, not earned-looking money). Rates are the application's
     // SNAPSHOT (frozen at creation), so a past-period export stays immune to edits.
     const earned = !!a.paidAt && !a.refunded;
-<<<<<<< HEAD
-    // A null rate is WITHHELD (a Referrer never receives commission rates), and
-    // this export is blocked for referrers anyway (#109) — so it reads as zero
-    // rather than being back-filled from the partner's live rate.
-    const partnerComm = earned ? a.rent * (a.partnerRate ?? 0) : 0;
-    const agentComm = earned ? a.rent * (a.agentRate ?? 0) : 0;
-=======
     // NO PARTNER COMMISSION ON THE AGENT RAIL. partner_rate is populated on every
     // row whichever rail it came in on, so multiplying by it on one of our own
     // agencies invented a payable nobody owes. Same rule as liveAggregate, so the
@@ -1459,7 +1440,6 @@ export function buildRealApplicationDoc(role: Role, period: Period, basis: Expor
     const agentComm = earned ? agentAmountOf(a) : 0;
     const payees = linesFor(a).map((l) => `${l.orgName} ${Math.round(l.rate * 10000) / 100}%`).join(' + ');
     const exp = expiryOf(a);
->>>>>>> partner-api
     const row: TableRow = [
       ...(agency ? [] : [partnerName(a.partner)]),
       a.ref,

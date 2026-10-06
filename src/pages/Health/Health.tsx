@@ -137,11 +137,7 @@ export function Health() {
       setData(await getCronHealth());
       setRefreshedAt(new Date());
     } catch (e) {
-<<<<<<< HEAD
       toast(e instanceof Error ? e.message : 'Could not load the health metrics.','error');
-=======
-      toast(e instanceof Error ? e.message : 'Could not load the health metrics.', 'error');
->>>>>>> partner-api
     } finally {
       setLoading(false);
     }

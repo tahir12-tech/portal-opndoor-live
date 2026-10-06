@@ -128,10 +128,6 @@ export function getLeague(view: LeagueView, opts: LeagueOpts): LeagueRow[] {
     });
   }
 
-<<<<<<< HEAD
-  // Commission columns are Management/admin only (the referrer board never carries
-  // them, #79), so a withheld rate contributes zero instead of a substituted default.
-=======
   /* THE RATE IS NEVER APPLIED for a reader who may not see money, so the rows go
      out with the zeros they were constructed with. What a Manager could see before:
      League drew "Partner comm." and "Agent comm." (or "Own commission" on the
@@ -139,7 +135,6 @@ export function getLeague(view: LeagueView, opts: LeagueOpts): LeagueRow[] {
      the agency's income broken down office by office. Live mode answers the same
      question one layer down, at the row, in groupRows. */
   if (!seesComm) return rows;
->>>>>>> partner-api
   rows.forEach((r) => {
     r.partnerComm = r.fees * (rates.partner ?? 0);
     r.agentComm = r.fees * (rates.agent ?? 0);
