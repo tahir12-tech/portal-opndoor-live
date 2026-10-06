@@ -1,22 +1,6 @@
-<<<<<<< HEAD
-// =====================================================================
-// Deed-to-agent delivery, shared by the automatic path (pandadoc-webhook, on
-// execution) and the manual path (send-deed-to-agent). Sends the branded deed
-// email to the resolved claim contact with a short-lived signed download link,
-// and writes the activity log. In this test build every message is redirected to
-// EMAIL_REVIEW_ADDRESS; the business activity entry names the intended recipient
-// and the test-mode redirect is a separate opndoor-admin-only internal entry.
-// =====================================================================
-// deno-lint-ignore-file no-explicit-any
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <noreply@opndoor.co>";
-const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
-// const REVIEW_ADDRESS = Deno.env.get("EMAIL_REVIEW_ADDRESS");
-=======
 import { sendMessage, bytesToBase64, type SendResult, type Attachment } from "./mailer.ts";
 import { executedDeedAgentEmail, executedDeedLandlordEmail } from "./emailTemplates.ts";
 import { managedByFor } from "./managedBy.ts";
->>>>>>> partner-api
 
 /** ISO tenancy start (yyyy-mm-dd) as a readable date for the email, e.g.
     "1 September 2026". Parsed from the parts so a timezone cannot shift the day. */
