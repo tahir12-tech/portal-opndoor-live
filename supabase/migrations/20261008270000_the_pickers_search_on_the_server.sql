@@ -42,10 +42,17 @@
 
 create extension if not exists pg_trgm;
 
-create index if not exists agencies_name_trgm on public.agencies using gin (name gin_trgm_ops);
-create index if not exists agencies_address_trgm on public.agencies using gin (address gin_trgm_ops);
-create index if not exists branches_name_trgm on public.branches using gin (name gin_trgm_ops);
-create index if not exists branches_address_trgm on public.branches using gin (address gin_trgm_ops);
+create index if not exists agencies_name_trgm
+  on public.agencies using gin (name extensions.gin_trgm_ops);
+
+create index if not exists agencies_address_trgm
+  on public.agencies using gin (address extensions.gin_trgm_ops);
+
+create index if not exists branches_name_trgm
+  on public.branches using gin (name extensions.gin_trgm_ops);
+
+create index if not exists branches_address_trgm
+  on public.branches using gin (address extensions.gin_trgm_ops);
 -- The recents read walks one person's applications newest first.
 create index if not exists applications_referrer_recent
   on public.applications (referrer_id, created_at desc) where agency_id is not null;

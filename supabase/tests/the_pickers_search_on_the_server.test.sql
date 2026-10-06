@@ -20,7 +20,7 @@
 -- the picker to a ROUTE and says nothing about who may see what.
 
 begin;
-select plan(11);
+select plan(14);
 
 insert into public.partners (id, slug, name, referencing_mode, partner_rate, agent_rate,
                              is_house_route, refers_own_stock, portal_referrals_enabled,
@@ -46,8 +46,13 @@ insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                         email_confirmed_at, created_at, updated_at)
 values ('d4000000-0000-0000-0000-00000000c001','00000000-0000-0000-0000-000000000000',
         'authenticated','authenticated','zzz.pk.admin@o.test','',now(),now(),now());
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
+                        email_confirmed_at, created_at, updated_at)
+values ('d4000000-0000-0000-0000-00000000c002','00000000-0000-0000-0000-000000000000',
+        'authenticated','authenticated','zzz.pk.supplier@o.test','',now(),now(),now());
 insert into public.users (id, full_name, email, role, partner_id, status, sees_commission)
-values ('d4000000-0000-0000-0000-00000000c001','ZZZ PK Admin','zzz.pk.admin@o.test','superadmin',null,'active',true);
+values ('d4000000-0000-0000-0000-00000000c001','ZZZ PK Admin','zzz.pk.admin@o.test','superadmin',null,'active',true),
+       ('d4000000-0000-0000-0000-00000000c002','ZZZ PK Supplier User','zzz.pk.supplier@o.test','referrer','d4000000-0000-0000-0000-00000000ff01','active',false);
 
 select set_config('request.jwt.claims',
   '{"sub":"d4000000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal2"}', true);
@@ -104,6 +109,31 @@ select ok(
   not exists (select 1 from public.search_agencies_for_referral(
     'd4000000-0000-0000-0000-00000000ff01','zedbury', 20) where name = 'Zedbury Elsewhere'),
   'and another route''s agency is not in this route''s picker');
+
+select is(
+  (select partner_slug from public.search_agencies_for_referral(
+     null,'zedbury', 20) where name = 'Zedbury Elsewhere'),
+  'zzz-pk-other',
+  'all-route search returns an agency only with its owning route');
+
+select is(
+  (select partner_slug from public.search_agencies_for_referral(
+     null,'zedbury', 20) where name = 'Zedbury Lettings'),
+  'zzz-pk-supplier',
+  'same-name search results retain their distinct estate');
+
+reset role;
+select set_config('request.jwt.claims',
+  '{"sub":"d4000000-0000-0000-0000-00000000c002","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
+select ok(
+  not exists (select 1 from public.search_agencies_for_referral(
+    null,'zedbury', 20) where partner_slug = 'zzz-pk-other'),
+  'all-route search still limits a supplier user to their own reachable estate');
+reset role;
+select set_config('request.jwt.claims',
+  '{"sub":"d4000000-0000-0000-0000-00000000c001","role":"authenticated","aal":"aal2"}', true);
+set local role authenticated;
 
 -- ===========================================================================
 -- 7. ONE CHARACTER ASKS NOTHING. A single letter matches most of the
