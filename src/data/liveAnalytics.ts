@@ -90,9 +90,9 @@ const MONTH_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'Jul
  * rate contributes nothing here — and must NEVER be substituted with a partner
  * default, which would invent a figure the viewer is not allowed to see.
  */
-function ratesOf(app: FullApp): { partner: number; agent: number } {
-  return { partner: app.partnerRate ?? 0, agent: app.agentRate ?? 0 };
-}
+// function ratesOf(app: FullApp): { partner: number; agent: number } {
+//   return { partner: app.partnerRate ?? 0, agent: app.agentRate ?? 0 };
+// }
 
 /**
  * True when live analytics should be used: Supabase mode AND the live set has

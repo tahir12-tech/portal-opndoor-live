@@ -1104,8 +1104,8 @@ export function ApplicationDetail() {
     setAmendOpen(false);
     // The Edge Function's summary reflects what actually happened to the deed
     // (voided+regenerated, or archived+replaced); prefer it in live mode.
-    if (serverMsg) toast(serverMsg,'error');
-    else toast(result.reissued ? `Tenancy start updated to ${fmtLong(parsedDate)}. New deed of guarantee issued.` : `Tenancy start updated to ${fmtLong(parsedDate)}.`,'success');
+    if (serverMsg) toast(serverMsg);
+    else toast(result.reissued ? `Tenancy start updated to ${fmtLong(parsedDate)}. New deed of guarantee issued.` : `Tenancy start updated to ${fmtLong(parsedDate)}.`);
     void loadPayment();
   }
 

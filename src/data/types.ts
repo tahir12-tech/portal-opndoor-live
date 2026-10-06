@@ -439,8 +439,8 @@ export type LeaderboardMode = 'full' | 'rankings' | 'private';
 
 export interface CommissionRates {
   /** null = withheld from this viewer (see Partner.partnerRate). */
-  partner: number | null;
-  agent: number | null;
+  partner: number;
+  agent: number;
 }
 
 /* ---------- Organisation hierarchy ---------- */

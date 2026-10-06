@@ -27,7 +27,7 @@ export function TenancyCorrection() {
   const [proposed, setProposed] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
-  const [applied, setApplied] = useState(true);
+  const [applied] = useState(true);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ newStart: string; reissued: boolean; tenantNames: string[] } | null>(null);
 
