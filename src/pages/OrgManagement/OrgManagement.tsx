@@ -928,22 +928,10 @@ export function OrgManagement() {
   const [ctPrimary, setCtPrimary] = useState(false);
   const [ctConfirm, setCtConfirm] = useState<CtConfirm | null>(null);
 
-<<<<<<< HEAD
-  const rates = getRatesFor(partnerScope);
-  const isMgmt = role === 'management';
-  // The commission stats below render for Management only, whose session carries
-  // the partner's rates. A referrer's rates are withheld (null) by the database
-  // and no commission stat is rendered for them at all.
-  const pRate = rates.partner ?? 0;
-  const aRate = rates.agent ?? 0;
-  const q = query.trim().toLowerCase();
-  const pool = getAgencies(partnerScope);
-=======
   // Commission editor (superadmin): set this agency's own override, or clear to
   // inherit the next tier up. Server-side set_agency_rates is superadmin-only.
   // Commission is now edited per node on the agency detail page (as percentages),
   // not from a list modal — see AgencyHome. The old fraction-input modal is gone.
->>>>>>> partner-api
 
   // Group editor (superadmin/management): put a brand (agency) into a real group,
   // create one on the fly, or detach. This is what makes "a whole group" position
@@ -1591,19 +1579,6 @@ function requestCloseContacts() {
           <p className="page-head__sub">The group → agency → branch hierarchy. Search a group, agency or branch, expand to see branches, or click any figure to view the applications behind it.</p>
         </div>
         <div className="page-head__actions">
-<<<<<<< HEAD
-          {role === 'superadmin' && (
-            <PartnerSelect
-              ariaLabel="Partner"
-              value={selectedPartner}
-              onChange={setSelectedPartner}
-              options={[{ value: ALL_PARTNERS, label: 'All partners' }, ...getPartners().map((p) => ({ value: p.id, label: p.name }))]}
-            />
-          )}
-      
-          {canManageOrg && (
-            <Button variant="primary" size="sm" onClick={() => { setAgencyName(''); setAgencyGroup(''); setAgencyPartner(selectedPartner !== ALL_PARTNERS ? selectedPartner : ''); setAgencyContact({ name: '', email: '', phone: '' }); setAgencyOpen(true); }}><Icon name="plus" /> Add agency</Button>
-=======
           {/* WHO ONBOARDS AN AGENCY, which changed on 2026-10-03 and the comment
               that used to sit here is why this is a predicate now rather than a
               role test. It read: "Opndoor onboards agencies:
@@ -1622,7 +1597,6 @@ function requestCloseContacts() {
               management may genuinely do. */}
           {mayAddOwnEstateAgency(role, partnerScope) && (
             <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}><Icon name="plus" /> Add agency</Button>
->>>>>>> partner-api
           )}
         </div>
       </div>
@@ -1704,49 +1678,6 @@ function requestCloseContacts() {
                   <div className="agency__stat"><div className="n">{fmtK(groupFees)}</div><div className="l">Fees collected</div></div>
                   {isMgmt && <div className="agency__stat"><div className="n">{fmtK(groupFees * rates.agent)}</div><div className="l">Agency commission</div></div>}
                 </div>
-<<<<<<< HEAD
-                <Link className="statlink statlink--agency" to={`/applications?agency=${encodeURIComponent(a.name)}`} title={`View all applications for ${a.name}`}>
-                  <div className="agency__stat"><div className="n">{a.referrals}</div><div className="l">Referrals</div></div>
-                  <div className="agency__stat"><div className="n">{fmtK(fees)}</div><div className="l">Fees collected</div></div>
-                  {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * pRate)}</div><div className="l">Your commission</div></div>}
-                  {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * aRate)}</div><div className="l">Agent comm.</div></div>}
-                  {goIcon}
-                </Link>
-                {role === 'superadmin' && (
-                  <div className="agency__actions" data-stop>
-                    <button className="iconbtn iconbtn--sm" title="Edit"  onClick={() => openContacts(a.name, null)}><Icon name="edit" /></button>
-                  </div>
-                )}
-              </div>
-              <div className="branches">
-                {branches.map((b) => {
-                  const bFees = feesOf(b, false);
-                  return (
-                    <div className="branch" key={b.name}>
-                      <span className="branch__line">│</span>
-                      <span className="branch__ic"><Icon name="home" /></span>
-                      <div className="branch__txt">
-                        <div className="branch__name">{highlight(b.name, q)}</div>
-                        <div className="branch__meta">{b.area}</div>
-                        <ContactSummary agency={a} branch={b} canManage={canManageContacts} onManage={() => openContacts(a.name, b.name)} />
-                      </div>
-                      <Link className="statlink statlink--branch" to={`/applications?branch=${encodeURIComponent(b.name)}`} title={`View applications for ${b.name}`}>
-                        <div className="branch__stat"><b>{b.referrals}</b>referrals</div>
-                        <div className="branch__stat"><b>{fmtK(bFees)}</b>fees collected</div>
-                        {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * pRate)}</b>your comm.</div>}
-                        {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * aRate)}</b>agent comm.</div>}
-                        {goIcon}
-                      </Link>
-                    </div>
-                  );
-                })}
-                {!q && canManageOrg && (
-                  <div className="branch__add">
-                    <Button variant="ghost" size="sm" onClick={() => openAddBranch(a.name)}><Icon name="plus" /> Add branch</Button>
-                  </div>
-                )}
-=======
->>>>>>> partner-api
               </div>
               {/* Unmounted when closed, so a collapsed group costs one row. */}
               {gOpen && (
