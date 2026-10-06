@@ -64,7 +64,7 @@ import { isOpndoorStaff, ALL_PARTNERS, createAgencyOnTheFly, createBranchOnTheFl
 import { mayAddWhileReferring, partyIsSupplier } from '@/data/capabilities';
 import { SupplierAddOrg } from '@/pages/PartnerManagement/SupplierAddOrg';
 import {
-  pickerSearchesOnServer, searchAgenciesOnServer, recentAgenciesForPicker,
+  pickerSearchesOnServer, searchAgenciesOnServer, //recentAgenciesForPicker,
   searchBranchesOnServer, PICKER_MIN_QUERY, PICKER_LIMIT,
   type PickerAgency, type PickerBranch,
 } from '@/data/orgService';
@@ -318,6 +318,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
   // }, [serverSearch, partnerScope]);
 
   //Our code
+  
   useEffect(() => {
   setRecents([]);
 }, []);
