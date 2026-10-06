@@ -305,7 +305,10 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
   // THE TEN THEY LAST REFERRED FOR, asked once per route rather than
   // per keystroke: it does not change while somebody is typing.
   useEffect(() => {
-    if (!serverSearch || partnerScope === ALL_PARTNERS) { setRecents([]); return; }
+    if (!serverSearch || partnerScope === ALL_PARTNERS)
+      
+       { setRecents([]); return; }
+       
     let alive = true;
     recentAgenciesForPicker(String(partnerScope), 10)
       .then((r) => { if (alive) setRecents(r); })
@@ -319,7 +322,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
     if (q.length < PICKER_MIN_QUERY) { setRemote({ rows: [], more: false, forQuery: q }); return; }
     let alive = true;
     const t = setTimeout(() => {
-      searchAgenciesOnServer(String(partnerScope), q, PICKER_LIMIT)
+      searchAgenciesOnServer(q, PICKER_LIMIT)
         .then((r) => { if (alive) setRemote({ ...r, forQuery: q }); })
         .catch(() => { if (alive) setRemote({ rows: [], more: false, forQuery: q }); });
     }, 180);

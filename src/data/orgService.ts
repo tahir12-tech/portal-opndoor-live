@@ -889,15 +889,30 @@ const pickerRow = (r: Record<string, unknown>): PickerAgency => ({
  * whole set twice.
  */
 export async function searchAgenciesOnServer(
-  partner: string, query: string, limit = PICKER_LIMIT,
+  query: string,
+  limit = PICKER_LIMIT,
 ): Promise<{ rows: PickerAgency[]; more: boolean }> {
-  if (!orgLive() || query.trim().length < PICKER_MIN_QUERY) return { rows: [], more: false };
-  const { data, error } = await sb().rpc('search_agencies_for_referral',
-    {  p_partner: partner === ALL_PARTNERS ? null : partner,
-      p_query: query, p_limit: limit });
+  if (!orgLive() || query.trim().length < PICKER_MIN_QUERY) {
+    return { rows: [], more: false };
+  }
+
+  const { data, error } = await sb().rpc(
+    'search_agencies_for_referral',
+    {
+      p_partner: null,
+      p_query: query,
+      p_limit: limit,
+    }
+  );
+
   if (error) throw new Error(cleanRpcError(error.message));
+
   const all = ((data ?? []) as Record<string, unknown>[]).map(pickerRow);
-  return { rows: all.slice(0, limit), more: all.length > limit };
+
+  return {
+    rows: all.slice(0, limit),
+    more: all.length > limit,
+  };
 }
 
 /** The ten this person last referred for, which is the empty state. */
