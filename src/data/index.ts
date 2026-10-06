@@ -10,17 +10,26 @@ export * from './types';
 export * as authService from './authService';
 export * from './partnersService';
 export * from './orgService';
+export * from './orgShapeService';
 export * from './applicationsService';
+export * from './origin';
+export * from './documentsService';
 export * from './analyticsService';
 export * from './activityService';
 export * from './leagueService';
+export * from './leagueLink';
+export * from './deedsStuck';
 export * from './exportsService';
 export * from './usersService';
+// notificationMatrixService and opsRoutingService went with the two grids
+// they fed. Notifications are per person now: personNotifications.ts.
 export * from './settingsService';
 export * from './reconciliationService';
 export * from './addressService';
 export * from './paymentService';
 export * from './paymentMetrics';
+export * from './feePreview';
+export * from './tenancyGroups';
 export * from './notesService';
 export * from './healthService';
 export * as helpService from './helpService';

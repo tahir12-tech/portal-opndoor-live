@@ -13,7 +13,7 @@ describe('getActivity', () => {
   });
 
   it('scopes a Referrer to their own referrals', () => {
-    const feed = getActivity({ role: 'referrer', scope: 'rightmove' });
+    const feed = getActivity({ role: 'referrer', scope: 'northwind' });
     const all = getActivity({ role: 'superadmin', scope: ALL_PARTNERS });
     expect(feed.length).toBeGreaterThan(0);
     expect(feed.length).toBeLessThan(all.length);
@@ -39,7 +39,7 @@ describe('getUpcomingExpiries', () => {
   });
 
   it('scopes a Referrer to their own guarantees', () => {
-    const mine = getUpcomingExpiries({ role: 'referrer', scope: 'rightmove' });
+    const mine = getUpcomingExpiries({ role: 'referrer', scope: 'northwind' });
     const all = getUpcomingExpiries({ role: 'superadmin', scope: ALL_PARTNERS });
     expect(mine.length).toBeGreaterThan(0);
     expect(mine.length).toBeLessThan(all.length);

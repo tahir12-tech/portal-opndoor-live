@@ -1,0 +1,60 @@
+/* NM-N. A list built for retyping, not for reading.
+   One card per agency, each field on its own line and selectable, in the
+   order a CRM asks for them. No accent and no action styling: there is no
+   action on this screen. */
+.nin { display: flex; flex-direction: column; gap: 12px; }
+
+.nin__lede { margin: 0 0 4px; font-size: 13px; color: var(--ink-mute); max-width: 68ch; }
+
+.nin__card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px 16px;
+}
+
+.nin__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.nin__name { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink); }
+.nin__meta { margin-top: 4px; font-size: 12.5px; color: var(--ink-mute); }
+.nin__meta b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.nin__none {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px; color: var(--ink-mute);
+}
+
+/* A definition list, because that is what this is: a label and the value to
+   copy. Two columns at desk width, stacked on a phone. */
+.nin__contact {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 16px;
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+.nin__contact + .nin__contact { margin-top: 4px; }
+.nin__contact dt { color: var(--ink-mute); }
+.nin__contact dd { margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  .nin__contact { grid-template-columns: 1fr; gap: 2px; }
+  .nin__contact dd { margin-bottom: 6px; }
+}
+
+/* The two actions, on the card's head row beside the name. */
+.nin__acts { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+@media (max-width: 520px) { .nin__acts { width: 100%; } }
+
+/* THE ROW'S OWN CONTROLS. "Add email" sets the address in place and the
+   link opens the agency on its supplier's page; they sit at the right of
+   the card head so the name and the counts stay the first thing read. */
+.nin__acts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}

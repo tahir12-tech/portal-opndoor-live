@@ -1,7 +1,18 @@
 /* =====================================================================
    Health (opndoor admin only, enforced by the route guard) - #7.
-   The operational health page: is every cron alive and did its call actually
-   succeed, plus the 24h failure counts and the backlog a human must clear.
+   MACHINERY ONLY, for whoever operates the deployment. It answers: is every
+   cron alive, did its call actually succeed, and what should I do about the
+   ones that did not.
+
+   IT USED TO CARRY THE HUMAN WORK QUEUE TOO ("Needs attention": applications
+   stuck at sent, awaiting signature, pending reconciliation). That is a
+   person's backlog, it lives on Home, and having it here invited whoever was
+   holding the deployment to think the backlog was theirs.
+
+   AND EVERY FAILING ROW NOW SAYS WHAT TO DO. A row said "succeeded" and
+   "401", and the reader had to already know that a 401 from a cron is the
+   Authorization header. The reading is in src/data/healthAdvice.ts, which is
+   pure and asserted without a database.
 
    The headline concern is the silent-401 class: a cron whose run details say
    "succeeded" while the edge function actually answered 401. cron.job_run_details
@@ -13,24 +24,29 @@
    render smoke test stays meaningful.
    ===================================================================== */
 import { useCallback, useEffect, useState } from 'react';
-import { getCronHealth, type CronHealth } from '@/data';
+import { getCronHealth, type CronHealth, type RecentHttp } from '@/data';
+import { jobAdvice, refInResponse, responseAdvice, type Advice } from '@/data/healthAdvice';
+import { Link } from 'react-router-dom';
 import { SUPABASE_ENABLED } from '@/lib/supabase';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
 import { Card, CardHead } from '@/components/ui/Card';
+import { InvoiceEmailCard } from './InvoiceEmailCard';
+import { NoCommissionDealCard } from './NoCommissionDealCard';
 import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { useToast } from '@/components/ui/Toast';
 import '@/components/ui/opbar.css';
 import './Health.css';
+import { plural } from '@/lib/plural';
+import { formatDateTime } from '@/lib/format';
 
 /** dd/mm/yyyy HH:MM in local time; 'Never' when there is no timestamp. */
 function fmtDateTime(iso: string | null): string {
   if (!iso) return 'Never';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return 'Never';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return formatDateTime(d);
 }
 
 /** A short label for a run status, plus the pill colour to show it in. */
@@ -46,17 +62,56 @@ interface StatDef {
   value: number;
   /** Highlight in red when the value is non-zero (a failure metric). */
   bad?: boolean;
+  /** Where the count goes when clicked. A tally of failures that cannot be
+      opened is a number to worry about with nowhere to go. */
+  href?: string;
+}
+
+/** The two sentences a failing row carries. Nothing is drawn when there is
+    nothing to act on, which is the rule that stops a working system being
+    painted red. */
+function AdviceRow({ advice, ref: appRef }: { advice: Advice | null; ref?: string | null }) {
+  if (!advice) return null;
+  return (
+    <div className={`hadvice hadvice--${advice.tone}`}>
+      <div className="hadvice__means">{advice.meaning}</div>
+      <div className="hadvice__do">
+        {advice.action}
+        {appRef && (
+          <> <Link className="hadvice__link" to={`/applications/${encodeURIComponent(appRef)}`}>Open {appRef}</Link></>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** One HTTP response, with its reading under it. */
+function ResponseRow({ r, disabledHere }: { r: RecentHttp; disabledHere?: boolean }) {
+  return (
+    <div className={`hresp${r.ok ? '' : ' hresp--bad'}`}>
+      <div className="hresp__line">
+        <span className={`hhttp${r.ok ? ' hhttp--ok' : ' hhttp--bad'}`}>
+          {r.status_code != null ? r.status_code : r.timed_out ? 'timeout' : 'error'}
+        </span>
+        <span className="hresp__job">{r.job ?? 'unattributed'}</span>
+        <span className="hresp__when">{fmtDateTime(r.created)}</span>
+      </div>
+      {(r.content || r.error_msg) && <div className="hsnippet">{r.content ?? r.error_msg}</div>}
+      <AdviceRow advice={responseAdvice({ ...r, disabledHere })} ref={refInResponse(r)} />
+    </div>
+  );
 }
 
 function StatGrid({ stats }: { stats: StatDef[] }) {
   return (
     <div className="hstat">
-      {stats.map((s) => (
-        <div key={s.label} className={`hstat__card${s.bad && s.value > 0 ? ' hstat__card--bad' : ''}`}>
-          <div className="hstat__n">{s.value}</div>
-          <div className="hstat__l">{s.label}</div>
-        </div>
-      ))}
+      {stats.map((s) => {
+        const cls = `hstat__card${s.bad && s.value > 0 ? ' hstat__card--bad' : ''}`;
+        const body = <><div className="hstat__n">{s.value}</div><div className="hstat__l">{s.label}</div></>;
+        return s.href && s.value > 0
+          ? <a key={s.label} className={`${cls} hstat__card--link`} href={s.href}>{body}</a>
+          : <div key={s.label} className={cls}>{body}</div>;
+      })}
     </div>
   );
 }
@@ -69,6 +124,11 @@ export function Health() {
   // #108 A visible "snapshot" time so Refresh has an observable effect even when the
   // underlying cron figures are unchanged.
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+  /* UNDEFINED UNTIL THE CARD HAS READ IT, and the warning tests for
+     `=== false` rather than falsiness: a page that flashed "the invoice
+     email is not set" for the half second before the read came back
+     would be the most alarming thing on the screen and wrong. */
+  const [invoiceSet, setInvoiceSet] = useState<boolean | undefined>(undefined);
 
   const reload = useCallback(async () => {
     if (!SUPABASE_ENABLED) { setLoading(false); return; }
@@ -77,7 +137,11 @@ export function Health() {
       setData(await getCronHealth());
       setRefreshedAt(new Date());
     } catch (e) {
+<<<<<<< HEAD
       toast(e instanceof Error ? e.message : 'Could not load the health metrics.','error');
+=======
+      toast(e instanceof Error ? e.message : 'Could not load the health metrics.', 'error');
+>>>>>>> partner-api
     } finally {
       setLoading(false);
     }
@@ -90,7 +154,7 @@ export function Health() {
       <div>
         <div className="rec-eyebrow"><span className="opx">opndoor</span> · operational health</div>
         <h1 className="page-head__title" style={{ marginTop: 10 }}>Health</h1>
-        <p className="page-head__sub">Cron liveness and the real HTTP outcome of each scheduled call, the last 24 hours of email, webhook and deed failures, and the backlog awaiting a human.</p>
+        <p className="page-head__sub">Machinery, for whoever runs the deployment. Cron liveness, the real HTTP outcome of each scheduled call, and what to do about the ones that failed. The human work queue is on Home.</p>
       </div>
       {SUPABASE_ENABLED && (
         <div className="page-head__actions" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -132,7 +196,22 @@ export function Health() {
   }
 
   const c = data.counts;
-  const n = data.needs_attention;
+  const baseUrlSet = !!data.functions_base_url;
+  /* "6 hours" -> 6. Anything this cannot read is null, and jobAdvice then
+     skips the age test rather than guessing: a wrong number here would
+     silence a genuinely missing response. */
+  const ttlHours = (() => {
+    const m = /^(\d+(?:\.\d+)?)\s*hour/i.exec((data.response_ttl ?? '').trim());
+    return m ? Number(m[1]) : null;
+  })();
+  const gatedJobs = data.jobs.filter((j) => j.needs_base_url && j.active);
+  // The RPC already returns errors first; this is the same rows, named.
+  /* A JOB THAT IS OFF ON PURPOSE IS NOT FAILING. Its responses keep their
+     status, so the page still shows what happened, but they are not counted
+     as failures and they carry the "disabled here" reading instead. */
+  const disabledJobs = new Set(data.jobs.filter((j) => j.disabled_here).map((j) => j.jobname));
+  const isDisabled = (job: string | null) => !!job && disabledJobs.has(job);
+  const failures = data.recent_http.filter((r) => !r.ok && !isDisabled(r.job));
   // Any silent-success job (run said succeeded, HTTP said non-2xx) or a non-2xx
   // most-recent response, or any non-2xx in the window: make it loud.
   const silentJobs = data.jobs.filter((j) => j.last_status === 'succeeded' && j.http_ok === false);
@@ -142,6 +221,58 @@ export function Health() {
     <>
       {head}
       {opbar}
+
+      {/* THE ONE STATE THIS PAGE MUST NOT BE QUIET ABOUT. With the secret
+          unset, the gated jobs report "succeeded" having made no call: every
+          row above is green and nothing has run. */}
+      {!baseUrlSet && gatedJobs.length > 0 && (
+        <div className="halert" role="alert">
+          <Icon name="alert" />
+          <div>
+            <div className="halert__title">
+              The functions base URL is not set, so {gatedJobs.length} {gatedJobs.length === 1 ? 'job does' : 'jobs do'} nothing and report success
+            </div>
+            <div className="halert__sub">
+              {gatedJobs.map((j) => j.jobname).join(', ')} end their command with{' '}
+              <code className="hcode">where public.ops_functions_base_url() is not null</code>, which matches no rows,
+              so cron records <b>succeeded</b> for a job that made no call.
+              <br />
+              <b>What to do:</b> set <code className="hcode">ops_secrets.functions_base_url</code> to this project's functions URL,
+              then re-run one of these jobs and confirm a response appears against it below.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* THE OTHER STATE THIS PAGE MUST NOT BE QUIET ABOUT, and it is the
+          same shape as the one above: a thing that is unset, a scheduled
+          job that therefore does nothing, and no other screen that would
+          say so. Matt, 2026-10-01: "Until it's set, don't send
+          statements; show a clear warning on Home and Health saying the
+          invoice email needs setting."
+
+          "No warning needed while it's set", from his second message, is
+          why this is conditional rather than a standing note: the setting
+          is seeded with accounts@opndoor.co, so on a healthy estate this
+          block never renders. */}
+      {invoiceSet === false && (
+        <div className="halert" role="alert">
+          <Icon name="alert" />
+          <div>
+            <div className="halert__title">
+              The invoice email is not set, so no commission statement can be posted
+            </div>
+            <div className="halert__sub">
+              Every statement tells the payee where to send their invoice. With no address the
+              monthly run refuses rather than sending a statement that cannot say where to
+              invoice, so nothing goes out to any agency or supplier.
+              <br />
+              <b>What to do:</b> set it under <b>Settings</b> below, then re-run the statement
+              job in test mode and confirm it reports payees rather than skipping.
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAlert && (
         <div className="halert" role="alert">
@@ -155,6 +286,13 @@ export function Health() {
           </div>
         </div>
       )}
+
+      <InvoiceEmailCard onChanged={setInvoiceSet} />
+
+      {/* ABOVE the scheduled jobs, because it is money going past unbilled
+          and the jobs below are mostly green. It draws nothing when there
+          is nothing, so it costs the page no space on a normal day. */}
+      <NoCommissionDealCard />
 
       <Card style={{ marginBottom: 18 }}>
         <CardHead title="Scheduled jobs" sub="The last run of each cron, and the real HTTP status of its call." />
@@ -175,11 +313,16 @@ export function Health() {
                 const rp = runPill(j.last_status);
                 const httpBad = j.http_ok === false;
                 const silent = j.last_status === 'succeeded' && httpBad;
+                /* THE RETENTION, so a weekly job's missing response reads
+                   as "the database deleted it six hours later" rather than
+                   as a warning nobody can act on. */
+                const advice = jobAdvice(j, baseUrlSet, ttlHours);
                 return (
-                  <tr key={j.jobname}>
+                  <tr key={j.jobname} className={advice ? `hrow hrow--${advice.tone}` : undefined}>
                     <td>
                       <div className="dt__name">{j.jobname}</div>
                       {j.last_return_message && <div className="dt__sub">{j.last_return_message}</div>}
+                      <AdviceRow advice={advice} />
                     </td>
                     <td><code className="hcode">{j.schedule}</code></td>
                     <td>{j.active ? <Pill variant="deed">Active</Pill> : <Pill variant="muted">Paused</Pill>}</td>
@@ -214,51 +357,65 @@ export function Health() {
             { label: 'Webhook failures', value: c.webhook_failures, bad: true },
             { label: 'Deed failures', value: c.deed_failures, bad: true },
             { label: 'Anomalies', value: c.anomalies, bad: true },
-            { label: 'HTTP errors', value: c.http_errors, bad: true },
+            /* THE PORTAL'S OWN. Everything else on this card is something the
+               back end noticed; this is the browser saying it could not read
+               something it needed, and this page is where the only person who
+               would act on it is looking. */
+            { label: 'Portal errors', value: c.portal_errors ?? 0, bad: true },
+            { label: 'HTTP errors', value: c.http_errors, bad: true, href: '#responses' },
           ]} />
         </div>
       </Card>
 
+
+      <div id="responses" />
       <Card style={{ marginBottom: 18 }}>
-        <CardHead title="Needs attention" sub="Operational backlog awaiting a human." />
+        <CardHead
+          title="Recent responses"
+          sub="The authoritative HTTP signal, straight from net._http_response. Failures first, then one line per job. A job name here is CORRELATED by run window, not recorded: pg_net discards the request URL when the response lands, so two jobs firing in the same second can be attributed to each other."
+        />
         <div className="card__body">
-          <StatGrid stats={[
-            { label: 'Applications stuck at sent', value: n.stuck_sent, bad: true },
-            { label: 'Awaiting tenant signature', value: n.awaiting_signature, bad: true },
-            { label: 'Pending reconciliation', value: n.pending_reconciliation, bad: true },
-            { label: 'Tenancy corrections to resolve', value: n.pending_tenancy_corrections, bad: true },
-          ]} />
-        </div>
-      </Card>
+          {/* FAILURES FIRST AND IN FULL. This is what the HTTP errors count
+              links to, and what the page exists for; a 2xx needs no reading. */}
+          {failures.length > 0 && (
+            <div className="hresp-group">
+              <div className="hresp-group__head">
+                <b>{failures.length}</b> failing {plural(failures.length, 'response')} in the last 24 hours
+              </div>
+              {failures.map((r) => <ResponseRow key={r.id} r={r} />)}
+            </div>
+          )}
 
-      <Card style={{ marginBottom: 18 }}>
-        <CardHead title="Recent HTTP responses" sub="The authoritative HTTP signal, straight from net._http_response." />
-        <div className="table-wrap">
-          <table className="dt hdt">
-            <thead>
-              <tr>
-                <th>Status</th>
-                <th>When</th>
-                <th>Response</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.recent_http.length === 0 && (
-                <tr><td colSpan={3} className="dt__sub">No HTTP responses recorded yet.</td></tr>
-              )}
-              {data.recent_http.map((r) => (
-                <tr key={r.id}>
-                  <td>
-                    <span className={`hhttp${r.ok ? ' hhttp--ok' : ' hhttp--bad'}`}>
-                      {r.status_code != null ? r.status_code : r.timed_out ? 'timeout' : 'error'}
-                    </span>
-                  </td>
-                  <td className="dt__num">{fmtDateTime(r.created)}</td>
-                  <td><div className="hsnippet">{r.content ?? r.error_msg ?? '-'}</div></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* GROUPED BY JOB, LATEST PER JOB. partner-webhooks answers every
+              minute; ungrouped it filled the whole list on its own and the
+              other five jobs were simply not on the page. */}
+          {data.http_by_job.length === 0 && failures.length === 0 && (
+            <div className="dt__sub">No HTTP responses recorded in the last 24 hours.</div>
+          )}
+          {data.http_by_job.map((g) => (
+            <details key={g.job ?? 'unattributed'} className="hresp-group">
+              <summary className="hresp-group__head">
+                <span className="hresp__job">{g.job ?? 'unattributed'}</span>
+                <span className="muted">
+                  {g.total} {plural(g.total, 'response')}
+                  {g.errors > 0 && (g.disabled_here
+                    ? <>, {g.errors} expected while off</>
+                    : <>, <b className="hresp__errs">{g.errors} failing</b></>)}
+                </span>
+                {g.disabled_here && <span className="hresp__off">disabled on this environment</span>}
+                {g.latest && (
+                  <span className={`hhttp${g.latest.ok ? ' hhttp--ok' : ' hhttp--bad'}`}>
+                    {g.latest.status_code != null ? g.latest.status_code : g.latest.timed_out ? 'timeout' : 'error'}
+                  </span>
+                )}
+                {g.latest && <span className="hresp__when">{fmtDateTime(g.latest.created)}</span>}
+              </summary>
+              {g.latest ? <ResponseRow r={g.latest} disabledHere={g.disabled_here} /> : <div className="dt__sub">Nothing recorded.</div>}
+              {/* Every response for this job that the snapshot carried. */}
+              {data.recent_http.filter((r) => r.job === g.job && r.id !== g.latest?.id)
+                .map((r) => <ResponseRow key={r.id} r={r} disabledHere={g.disabled_here} />)}
+            </details>
+          ))}
         </div>
       </Card>
 

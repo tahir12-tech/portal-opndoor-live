@@ -23,29 +23,48 @@ function app(o: Partial<FullApp> & Pick<FullApp, 'ref' | 'rent' | 'partner' | 'a
 // Two branches both called "City" under different agencies/partners; two agencies
 // both called "Prime" under different partners.
 const APPS: FullApp[] = [
-  app({ ref: 'X', rent: 1000, partner: 'rightmove', agency: 'Alpha Lettings', branch: 'City' }),
-  app({ ref: 'Y', rent: 2000, partner: 'zoopla', agency: 'Beta Homes', branch: 'City' }),
-  app({ ref: 'P', rent: 1500, partner: 'rightmove', agency: 'Prime', branch: 'North' }),
-  app({ ref: 'Q', rent: 2500, partner: 'zoopla', agency: 'Prime', branch: 'South' }),
+  app({ ref: 'X', rent: 1000, partner: 'northwind', agency: 'Alpha Lettings', branch: 'City' }),
+  app({ ref: 'Y', rent: 2000, partner: 'harbourside', agency: 'Beta Homes', branch: 'City' }),
+  app({ ref: 'P', rent: 1500, partner: 'northwind', agency: 'Prime', branch: 'North' }),
+  app({ ref: 'Q', rent: 2500, partner: 'harbourside', agency: 'Prime', branch: 'South' }),
 ];
 
 hydrateFull(APPS);
 afterAll(() => hydrateFull([]));
 const allTime = getPeriods().find((p) => p.id === 'alltime')!;
 
+/* THE NAMES THEMSELVES NOW DISAMBIGUATE TOO, 2026-10-02. Matt: an
+   agency or branch from a supplier's estate is labelled with its
+   supplier wherever it sits beside one of ours. `harbourside` holds no
+   referencingMode in the mock seed, so it is supplier-shaped and its
+   agencies read "(via Harbourside Homes)".
+
+   THE GUARANTEE THIS FILE IS ABOUT IS UNCHANGED and is now true twice
+   over: the two entities are still two rows with their own figures,
+   keyed on the partner, AND a reader can tell them apart without
+   reading the subtitle. The assertions below are widened to say both,
+   rather than loosened to accommodate the label. */
 describe('distinct entities sharing a name are not merged', () => {
   it('two "City" branches under different agencies stay separate', () => {
     const rows = liveLeague('branch', 'superadmin', ALL_PARTNERS, '', allTime).filter((r) => r.name === 'City');
     expect(rows.length).toBe(2);
     expect(rows.map((r) => r.fees).sort((a, b) => a - b)).toEqual([1000, 2000]);
-    // each row's sub disambiguates by its agency
-    expect(rows.map((r) => r.sub).sort()).toEqual(['Alpha Lettings', 'Beta Homes']);
+    // each row's sub disambiguates by its agency, and names the supplier
+    // behind it where there is one
+    expect(rows.map((r) => r.sub).sort()).toEqual(['Alpha Lettings', 'Beta Homes (via Harbourside Homes)']);
   });
 
   it('two "Prime" agencies under different partners stay separate', () => {
-    const rows = liveLeague('agency', 'superadmin', ALL_PARTNERS, '', allTime).filter((r) => r.name === 'Prime');
+    const rows = liveLeague('agency', 'superadmin', ALL_PARTNERS, '', allTime)
+      .filter((r) => r.name.startsWith('Prime'));
     expect(rows.length).toBe(2);
     expect(rows.map((r) => r.fees).sort((a, b) => a - b)).toEqual([1500, 2500]);
+  });
+
+  it('and the supplier estate one says whose it is', () => {
+    const rows = liveLeague('agency', 'superadmin', ALL_PARTNERS, '', allTime)
+      .filter((r) => r.name.startsWith('Prime'));
+    expect(rows.map((r) => r.name).sort()).toEqual(['Prime', 'Prime (via Harbourside Homes)']);
   });
 });
 
@@ -54,10 +73,16 @@ describe('trend carries real per-application net commission', () => {
     const rows = liveTrend('month', 'superadmin', ALL_PARTNERS);
     const feb = rows.find((r) => r.label === 'Feb 2026')!;
     expect(feb.count).toBe(4); // all four sent in Feb
-    // commission is real per-partner, not fees * a single scope rate
+    /* REAL PER-PARTNER, not fees times a single scope rate, which is what
+       this test is about and is unchanged. What changed on 2026-10-02 is
+       which partners owe anything: `northwind` is `opndoor_referenced`,
+       so it is an agency-shaped partner and not a supplier, and Opndoor
+       owes it nothing on its own estate's referrals. The aggregate and
+       the route breakdown have always said that; the trend now says it
+       too, because it reads `supplierAmountOf` rather than multiplying
+       partner_rate. Harbourside, a real supplier, is untouched. */
     const expected =
-      1000 * getRatesFor('rightmove').partner + 2000 * getRatesFor('zoopla').partner +
-      1500 * getRatesFor('rightmove').partner + 2500 * getRatesFor('zoopla').partner;
+      2000 * getRatesFor('harbourside').partner + 2500 * getRatesFor('harbourside').partner;
     expect(feb.comm).toBeCloseTo(Math.round(expected), 0);
   });
 });

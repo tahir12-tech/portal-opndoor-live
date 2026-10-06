@@ -1,0 +1,21 @@
+/* "ADD EMAIL", inline on the row that reports the gap. A quiet link
+   rather than a button: it sits beside a warning, and two heavy things
+   side by side make neither read.
+
+   THESE LIVE WITH THE COMPONENT, not with the first page that used it.
+   They were in PartnerHome.css until 2026-10-02, when Matt asked for the
+   same control on Reconciliation's "Supplier agencies with no email"
+   rows: a shared control whose look lives in one page's stylesheet
+   renders unstyled on the second page, and the second page then grows a
+   copy of the rules that drifts from the first. */
+.ph-addemail {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: 600 12.5px/1.4 inherit; color: var(--heliotrope-deep);
+}
+.ph-addemail:hover { text-decoration: underline; }
+.ph-addemail__form { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ph-addemail__form input {
+  min-width: 220px; padding: 5px 9px; font-size: 13px;
+  border: 1px solid var(--line); border-radius: 8px;
+}

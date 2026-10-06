@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // =====================================================================
 // Tenant refund confirmation email, sent from the Stripe charge.refunded
 // webhook. Branded shell shared with the rest of the portal's emails; ALWAYS
@@ -10,73 +11,17 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <noreply@opndoor.co>";
 const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
 // const REVIEW_ADDRESS = Deno.env.get("EMAIL_REVIEW_ADDRESS");
+=======
+import { sendMessage } from "./mailer.ts";
+import { refundEmail, guaranteesCancelledEmail } from "./emailTemplates.ts";
+>>>>>>> partner-api
 
-interface SendResult { ok: boolean; error?: string; to?: string }
-
-//email for only user
-export async function sendEmail(opts: { subject: string; html: string; to: string }): Promise<SendResult> {
-  if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
-  if (!opts.to) return { ok: false, error: "No recipient email provided." };
-  const recipients = [opts.to];
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: EMAIL_FROM, to: recipients, reply_to: REPLY_TO, subject: opts.subject, html: opts.html }),
-    });
-    if (!res.ok) {
-      const detail = await res.text();
-      return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", ") };
-    }
-    return { ok: true, to: recipients.join(", ") };
-  } catch (e) {
-    return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
-  }
-}
-
-const VALHALLA = "#271d5f";
-const INK_SOFT = "#5b4d86";
-const LILAC = "#f8eff9";
-
-
-//email for tenat only 
-function layout(inner: string): string {
-  return `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;">
-    <tr><td align="center">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">
-        <tr><td style="background:${VALHALLA};padding:22px 28px;">
-          <span style="font:800 22px 'Sora',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:-0.04em;color:#ffffff;">opndoor</span>
-          <span style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Guarantee Referral Portal</span>
-        </td></tr>
-        <tr><td style="padding:28px;font:400 15px/1.6 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${VALHALLA};">${inner}</td></tr>
-        <tr><td style="padding:18px 28px;background:${LILAC};font:400 12px/1.5 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};">opndoor. Questions? Reply to this email or contact ${REPLY_TO}.</td></tr>
-      </table>
-    </td></tr>
-  </table></body></html>`;
-}
-
-function refundEmailTemplate(p: { title: string; lastName: string; propertyAddr: string; amount: string; guaranteeRef: string;  }): { subject: string; html: string } {
-  const dear = [p.title, p.lastName].filter((x) => (x || "").trim()).join(" ").trim();
-  const subject = `Your guarantor fee has been refunded - ${p.guaranteeRef}`;
-  const inner = `
-    <p style="margin:0 0 14px;">Dear ${dear || "there"},</p>
-    <p style="margin:0 0 16px;">Your guarantor fee for ${p.propertyAddr} has been refunded. The refund is on its way back to the card you paid with.</p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border:1px solid rgba(39,29,95,0.12);border-radius:12px;"><tr><td style="padding:16px 18px;">
-      <div style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:0.12em;text-transform:uppercase;color:${INK_SOFT};">Amount refunded</div>
-      <div style="font:800 30px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${VALHALLA};margin-top:4px;">${p.amount}</div>
-      <div style="font:400 13px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};margin-top:2px;">Reference ${p.guaranteeRef}.</div>
-    </td></tr></table>
-    <p style="margin:0 0 8px;font-size:13px;color:${INK_SOFT};">Refunds usually take 5 to 10 working days to appear, depending on your bank. You do not need to do anything.</p>
-    <p style="margin:12px 0 0;font-size:13px;color:${INK_SOFT};">If you have any questions about this refund, reply to this email or contact ${REPLY_TO}.</p>`;
-  return { subject, html: layout(inner) };
-}
-
-/** Send the branded refund confirmation and record the activity entries. */
-export async function deliverRefund(service: any, p: { appId: string; tenantEmail: string; title: string; lastName: string; propertyAddr: string; amount: string; guaranteeRef: string }): Promise<void> {
+export async function deliverRefund(service: any, p: { appId: string; tenantEmail: string; title: string; lastName: string; propertyAddr: string; amount: string; guaranteeRef: string; deedCancelled?: boolean; cascaded?: boolean }): Promise<void> {
   if (!p.tenantEmail) return;
-  const tpl = refundEmailTemplate({ title: p.title, lastName: p.lastName, propertyAddr: p.propertyAddr, amount: p.amount, guaranteeRef: p.guaranteeRef });
-  const res = await sendEmail({ subject: tpl.subject, html: tpl.html, to: p.tenantEmail });
+  const res = await sendMessage({
+    to: p.tenantEmail,
+    message: refundEmail({ propertyAddr: p.propertyAddr, guaranteeRef: p.guaranteeRef, amount: p.amount, deedCancelled: p.deedCancelled, cascaded: p.cascaded }),
+  });
   await service.from("activity_log").insert({
     application_id: p.appId,
     kind: res.ok ? "refund_email_sent" : "refund_email_failed",
@@ -90,4 +35,97 @@ export async function deliverRefund(service: any, p: { appId: string; tenantEmai
       message: `Refund confirmation email delivered to ${res.to}.`, actor: "System", visibility: "internal",
     });
   }
+}
+
+/* ONE EMAIL TO THE PROPERTY, not one per tenant.
+ *
+ * Matt (al): "the agent (and any landlord sent a deed) gets one email listing
+ * every tenant on the tenancy and saying all guarantees for the property are
+ * cancelled."
+ *
+ * WHO GETS IT IS A SQL QUESTION and is answered by
+ * guarantee_cancellation_notice: the distinct inboxes a deed was actually
+ * DELIVERED to, plus any landlord one was sent to. Not the branch's current
+ * contact list, which on a let that fell through three weeks ago is somebody
+ * who has never heard of this tenancy.
+ *
+ * NOBODY IS THE COMMON ANSWER and it is not a failure. A tenancy refunded
+ * before any deed went out has no agent delivery and no landlord, and the
+ * right thing to do is send nothing.
+ *
+ * THE LOG ROW GOES ON THE TRIGGER APPLICATION, once, because the email went
+ * once. Writing it to every sibling would tell three screens that three
+ * emails had gone.
+ */
+export async function deliverCancellationNotice(service: any, appId: string, guaranteeRef: string): Promise<void> {
+  const { data, error } = await service.rpc("guarantee_cancellation_notice", { p_application: appId });
+  if (error) {
+    await service.from("activity_log").insert({
+      application_id: appId, kind: "cancellation_notice_failed",
+      message: `Could not work out who to tell about the cancellation: ${error.message}`,
+      actor: "System", visibility: "internal",
+    });
+    return;
+  }
+  const n = (Array.isArray(data) ? data[0] : data) as {
+    property: string; agent_emails: string[] | null; landlord_email: string | null;
+    landlord_name: string | null; tenants: Array<{ name: string; guaranteeRef: string }>;
+  } | null;
+  if (!n) return;
+
+  const tenants = n.tenants ?? [];
+  const agents = (n.agent_emails ?? []).filter(Boolean);
+  if (!agents.length && !n.landlord_email) {
+    await service.from("activity_log").insert({
+      application_id: appId, kind: "cancellation_notice_skipped",
+      message: "No deed had been delivered to anybody, so there was nobody to tell that it was cancelled.",
+      actor: "System", visibility: "internal",
+    });
+    return;
+  }
+
+  const sent: string[] = [];
+  const failed: string[] = [];
+
+  if (agents.length) {
+    /* EVERY INBOX ON ONE MESSAGE, which `sendMessage` takes as an array and
+       `resolveRecipients` redirects wholesale in test mode. Two agents at the
+       branch each receiving their own cancellation for one property would
+       each think they had the whole story; on one message they can see it is
+       the property, not their tenant. */
+    const res = await sendMessage({
+      to: agents,
+      message: guaranteesCancelledEmail({ propertyAddr: n.property, tenants, audience: "agent" }),
+    });
+    (res.ok ? sent : failed).push(agents.join(", "));
+  }
+
+  if (n.landlord_email) {
+    /* A SEPARATE MESSAGE, NOT A COPY. The landlord gets different closing
+       wording -- they are told to speak to the agent, not to us -- and
+       putting them on the agent's email would show the agent's address book
+       to the landlord and vice versa. */
+    const res = await sendMessage({
+      to: n.landlord_email,
+      message: guaranteesCancelledEmail({ propertyAddr: n.property, tenants, audience: "landlord" }),
+    });
+    (res.ok ? sent : failed).push(n.landlord_email);
+  }
+
+  await service.from("activity_log").insert({
+    application_id: appId,
+    kind: failed.length ? "cancellation_notice_failed" : "cancellation_notice_sent",
+    message: failed.length
+      ? `Cancellation notice could not be sent to ${failed.join(", ")}.`
+      /* "BOTH TENANTS", NOT "ALL 2 TENANTS". Matt (az). The countOf idiom
+         this estate uses elsewhere has a case for two and this sentence was
+         built by hand without it. "All 2" is the kind of phrasing that
+         tells a reader a machine wrote the line. */
+      : `Cancellation notice sent to ${sent.join(", ")}, listing ${
+          tenants.length === 1 ? "1 tenant"
+          : tenants.length === 2 ? "both tenants"
+          : `all ${tenants.length} tenants`} on the tenancy.`,
+    actor: "System",
+    visibility: failed.length ? "internal" : "business",
+  });
 }

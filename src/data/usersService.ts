@@ -9,34 +9,48 @@
    reset password, reset 2FA, resend invite and deactivate -> the matching
    mutations. Every rule here must also be enforced server-side.
    ===================================================================== */
-import type { Role, User, UserStatus } from './types';
-import { ALL_PARTNERS } from './types';
+import type { AgencyLevel, Role, User, UserStatus } from './types';
+import { AGENCY_LEVELS, ALL_PARTNERS, agencyLevelOf } from './types';
 import { getSelectedPartner, homePartner, partnerName } from './partnersService';
 import { functionErrorMessage } from './paymentService';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { formatDate } from '@/lib/format';
 
 // [name, role, lastActive, status, partner] — ported from user-management.html
 const SEED: [string, Role, string, UserStatus, string][] = [
   ['Maya Holloway', 'superadmin', '2 minutes ago', 'active', 'opndoor'],
-  ['Tom Sefton', 'management', '1 hour ago', 'active', 'rightmove'],
-  ['Priya Nair', 'referrer', '12 minutes ago', 'active', 'rightmove'],
-  ['James Okafor', 'referrer', 'Yesterday', 'active', 'rightmove'],
-  ['Sophie Bennett', 'referrer', '3 hours ago', 'active', 'rightmove'],
-  ['Rachel Adeyemi', 'management', 'Yesterday', 'active', 'rightmove'],
-  ['Daniel Wright', 'referrer', '2 days ago', 'active', 'rightmove'],
-  ['Aisha Khan', 'referrer', '5 hours ago', 'active', 'rightmove'],
-  ['Marcus Lin', 'referrer', '1 day ago', 'active', 'rightmove'],
-  ['Eleanor Voss', 'management', '4 days ago', 'active', 'rightmove'],
-  ['Oliver Grant', 'referrer', '6 hours ago', 'active', 'rightmove'],
-  ['Naomi Clarke', 'referrer', 'Pending invite', 'pending', 'rightmove'],
-  ['Greg Mason', 'management', 'Yesterday', 'active', 'zoopla'],
-  ['Hannah Pryce', 'referrer', '2 days ago', 'active', 'zoopla'],
-  ['Owen Black', 'management', '3 days ago', 'active', 'onthemarket'],
-  ['Ruth Findlay', 'referrer', '1 week ago', 'active', 'onthemarket'],
+  ['Tom Sefton', 'management', '1 hour ago', 'active', 'northwind'],
+  ['Priya Nair', 'referrer', '12 minutes ago', 'active', 'northwind'],
+  ['James Okafor', 'referrer', 'Yesterday', 'active', 'northwind'],
+  ['Sophie Bennett', 'referrer', '3 hours ago', 'active', 'northwind'],
+  ['Rachel Adeyemi', 'management', 'Yesterday', 'active', 'northwind'],
+  ['Daniel Wright', 'referrer', '2 days ago', 'active', 'northwind'],
+  ['Aisha Khan', 'referrer', '5 hours ago', 'active', 'northwind'],
+  ['Marcus Lin', 'referrer', '1 day ago', 'active', 'northwind'],
+  ['Eleanor Voss', 'management', '4 days ago', 'active', 'northwind'],
+  ['Oliver Grant', 'referrer', '6 hours ago', 'active', 'northwind'],
+  // Seeded invitations carry no date, so the mock list says what the
+  // real one says when invited_at is missing. See relTime in hydrate.ts.
+  ['Naomi Clarke', 'referrer', 'Pending invite', 'pending', 'northwind'],
+  ['Greg Mason', 'management', 'Yesterday', 'active', 'harbourside'],
+  ['Hannah Pryce', 'referrer', '2 days ago', 'active', 'harbourside'],
+  ['Owen Black', 'management', '3 days ago', 'active', 'meridian'],
+  ['Ruth Findlay', 'referrer', '1 week ago', 'active', 'meridian'],
 ];
 
 export interface ManagedUser extends User {
   id: string;
+  /** Director if true, Manager if false, on a management user. Meaningless on
+      a Negotiator, whose role already withholds commission, and on Opndoor's
+      own roles. See agencyLevelOf in types.ts. */
+  seesCommission?: boolean;
+}
+
+/* AN INVITATION SENT JUST NOW. The row a screen shows until the next
+   hydration, worded exactly as hydrate.ts will word it once the real
+   invited_at comes back, so the cell does not change under the reader. */
+function invitedToday(): string {
+  return `Invited ${formatDate(new Date())}`;
 }
 
 export function emailOf(name: string): string {
@@ -66,12 +80,22 @@ export interface GetUsersOpts {
 /** Users visible to the viewer, following the partner-isolation and team rules. */
 export function getUsers(opts: GetUsersOpts): ManagedUser[] {
   const scope = opts.viewer === 'superadmin' ? opts.scope ?? getSelectedPartner() : homePartner();
+  const isOpndoorStaff = (r: ManagedUser['role']) => r === 'superadmin' || r === 'opndoor_manager';
   return USERS.filter((u) => {
-    if (opts.team) return u.role === 'superadmin'; // opndoor team: opndoor's own staff only
-    if (u.role === 'superadmin') return false; // partner lists never include opndoor staff
-    if (opts.viewer === 'management' && u.partner !== homePartner()) return false;
-    if (opts.viewer === 'superadmin' && scope !== ALL_PARTNERS && u.partner !== scope) return false;
-    return true;
+    /* A DELETED PERSON IS ON NO PEOPLE LIST. Matt, 2026-10-03: "The person is
+       removed from People lists". In live mode `list_managed_users` answers
+       this, in one clause, for all four screens (20261007810000); this is the
+       mock path's copy of the same rule, so the demo and dev estates behave
+       the same way rather than the state existing on only one of them. */
+    if (u.status === 'deleted') return false;
+    if (opts.team) return isOpndoorStaff(u.role); // opndoor team: opndoor's own staff (admin + manager)
+    if (isOpndoorStaff(u.role)) return false; // partner lists never include opndoor staff
+    if (opts.viewer === 'superadmin') return scope === ALL_PARTNERS || u.partner === scope;
+    // Default deny. Every non-superadmin viewer is confined to their own partner,
+    // including any role added later. The previous `return true` fallthrough meant
+    // a viewer matching none of the branches above skipped partner isolation
+    // entirely and saw every partner's users.
+    return u.partner === homePartner();
   });
 }
 
@@ -79,7 +103,7 @@ export function getUsers(opts: GetUsersOpts): ManagedUser[] {
    in mock mode). Every rule (role wall, self/last-admin guard) is enforced
    server-side in the RPC; the client mirrors it for a clean UX. ---- */
 
-export type UserAction = 'status' | 'role' | 'reset_mfa';
+export type UserAction = 'status' | 'role' | 'reset_mfa' | 'name' | 'agency level changed' | 'password_reset_sent';
 export interface UserAuditEntry {
   action: UserAction | string;
   oldValue: string;
@@ -108,6 +132,33 @@ export async function updateUserRole(id: string, role: Role): Promise<void> {
   u.role = role;
 }
 
+/**
+ * Set a user's display name.
+ *
+ * Exists mainly for users the partner API auto-provisions: a partner is not asked
+ * to send a referrer name, so an unmatched referrer email creates a user whose
+ * full_name is that email. Naming them matters early, because
+ * applications.referrer_name is snapshotted at creation and never backfilled, so
+ * every application referred before the rename keeps the email for good.
+ *
+ * Same permission model as updateUserRole: management within their own partner,
+ * opndoor admin anywhere. Enforced in admin_update_user_name, not here.
+ */
+export async function updateUserName(id: string, fullName: string): Promise<void> {
+  const u = USERS.find((x) => x.id === id);
+  if (!u) throw new Error('User not found.');
+  const name = fullName.trim();
+  if (!name) throw new Error('A name is required.');
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('admin_update_user_name', { p_user: id, p_full_name: name });
+    if (error) throw new Error(error.message);
+    return; // caller re-hydrates
+  }
+  const old = u.name;
+  if (old !== name) recordUserAudit(id, 'name', old, name);
+  u.name = name;
+}
+
 /** Deactivate or reactivate a user (ban/unban + revoke sessions in live mode). */
 export async function setUserStatus(id: string, status: 'active' | 'deactivated'): Promise<void> {
   const u = USERS.find((x) => x.id === id);
@@ -122,16 +173,84 @@ export async function setUserStatus(id: string, status: 'active' | 'deactivated'
   u.status = status;
 }
 
+/**
+ * Take somebody off the People lists for good, after their access has gone.
+ *
+ * Matt, 2026-10-03: "After access is removed, offer 'Delete' ... The person is
+ * removed from People lists and can never sign in, but their name stays
+ * wherever they appear on past records."
+ *
+ * NOTHING IS DELETED, which is the point. The status becomes 'deleted' and
+ * `list_managed_users` stops returning them, so they are gone from all four
+ * People screens in one clause; the row stays because
+ * `applications.referrer_id` and `user_audit.target_user` point at it, and
+ * their name is snapshotted on the application anyway. See 20261007810000.
+ *
+ * THE RPC REFUSES AN ACTIVE PERSON, so the two steps stay two steps even for
+ * a caller that reaches past the screens.
+ */
+export async function deleteUser(id: string): Promise<void> {
+  const u = USERS.find((x) => x.id === id);
+  if (!u) throw new Error('User not found.');
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('admin_delete_user', { p_user: id });
+    if (error) throw new Error(error.message);
+    return;
+  }
+  if (u.status !== 'deactivated') throw new Error('Remove their access first, then delete them.');
+  recordUserAudit(id, 'status', u.status, 'deleted');
+  u.status = 'deleted';
+}
+
+/** Cancel a pending invite: removes the pending user, invalidates their invite
+    link and frees the email to be invited again. Same authority as inviting
+    (the RPC re-checks). No-op-safe in mock mode. */
+export async function cancelInvite(id: string): Promise<void> {
+  const u = USERS.find((x) => x.id === id);
+  if (!u) throw new Error('User not found.');
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('admin_cancel_invite', { p_user: id });
+    if (error) throw new Error(error.message || 'Could not cancel the invitation.');
+    return;
+  }
+  const idx = USERS.findIndex((x) => x.id === id);
+  if (idx >= 0) USERS.splice(idx, 1);
+}
+
 /** Reset a user's 2FA: they re-enrol at next sign in. */
-export async function resetUserMfa(id: string): Promise<void> {
+/** Reset somebody's two-factor, and tell them.
+
+    THE EMAIL IS SENT AFTER, AND ITS FAILURE IS NOT THE RESET'S. The reset
+    is the thing that had to happen and it is irreversible by the time the
+    send is attempted; reporting "could not reset" because an email bounced
+    would be a lie that sends an administrator round again. The caller gets
+    `emailed: false` and says so. */
+export async function resetUserMfa(id: string): Promise<{ emailed: boolean; emailError?: string }> {
   const u = USERS.find((x) => x.id === id);
   if (!u) throw new Error('User not found.');
   if (SUPABASE_ENABLED) {
     const { error } = await sb().rpc('admin_reset_user_mfa', { p_user: id });
     if (error) throw new Error(error.message);
-    return;
+    /* AND NOW TELL THEM. Matt, 2026-10-01, asked for a sentence in "the
+       two-factor reset email"; there was no such email at all. A reset
+       destroys every factor and every session, and said nothing -- which
+       from the person's side is indistinguishable from being attacked.
+
+       THE USER ID, NOT THE ADDRESS. `authorise_mfa_reset_notice` judges
+       the caller and hands the address to the edge function, so the
+       browser cannot make us email somewhere else. */
+    try {
+      const { data, error: mailErr } = await sb().functions.invoke('send-mfa-reset-notice', { body: { user: id } });
+      if (mailErr || !data?.ok) {
+        return { emailed: false, emailError: data?.error ?? mailErr?.message ?? 'Could not send the email.' };
+      }
+    } catch (e) {
+      return { emailed: false, emailError: e instanceof Error ? e.message : 'Could not send the email.' };
+    }
+    return { emailed: true };
   }
   recordUserAudit(id, 'reset_mfa', 'enrolled', 'reset');
+  return { emailed: false };
 }
 
 /** Send a password-reset link to a user's email (live mode). No-op in mock mode.
@@ -143,10 +262,49 @@ export async function resetUserPassword(id: string): Promise<void> {
   const u = USERS.find((x) => x.id === id);
   if (!u) throw new Error('User not found.');
   if (SUPABASE_ENABLED) {
+    /* AUTHORISED IN SQL FIRST, and this is the whole reason it is two calls.
+       send-password-reset is the anonymous Forgot-password endpoint: it takes an
+       email address, reads no Authorization header and is verify_jwt false, by
+       design. So an admin-initiated reset used to be a byte-identical anonymous
+       request, which meant there was nothing to apply the level rule to and no
+       record that a member of staff had triggered it.
+
+       authorise_password_reset takes a USER ID, judges the caller against the
+       ladder, writes the password_reset_sent audit row and hands back the address.
+       The address is not new knowledge for the client (it is already on the
+       hydrated row); what is new is that SQL has agreed, and said so in the audit
+       trail, before any email is minted. */
+    const { data: email, error: authErr } = await sb().rpc('authorise_password_reset', { p_user: id });
+    if (authErr) throw new Error(authErr.message);
+    if (!email) throw new Error('Could not authorise that reset.');
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const { error } = await sb().functions.invoke('send-password-reset', { body: { email: userEmail(u), origin } });
-    if (error) throw new Error(error.message);
+    const { error } = await sb().functions.invoke('send-password-reset', { body: { email, origin } });
+    // The function now answers 503 when the send itself failed, where it used
+    // to answer ok. supabase-js turns that into "non-2xx status code", which
+    // tells an admin nothing, so say the useful thing instead.
+    if (error) throw new Error('We could not send that just now. Try again in a moment.');
   }
+}
+
+/* THE LEVEL, WHICH MOVES role AND sees_commission TOGETHER.
+   updateUserRole moves only `role`, so using it to demote a Director would leave
+   the commission bit behind and produce a Negotiator who still reads as entitled
+   to the money. set_agency_level is the one that cannot do that, and it is what
+   the Change level control calls. */
+export async function setAgencyLevel(id: string, level: AgencyLevel): Promise<void> {
+  const u = USERS.find((x) => x.id === id);
+  if (!u) throw new Error('User not found.');
+  if (SUPABASE_ENABLED) {
+    const { error } = await sb().rpc('set_agency_level', { p_user: id, p_level: level });
+    if (error) throw new Error(error.message);
+    return; // caller re-hydrates
+  }
+  const spec = AGENCY_LEVELS.find((l) => l.level === level);
+  if (!spec) throw new Error('An agency level is Director, Manager or Negotiator.');
+  const old = agencyLevelOf(u.role, u.seesCommission === true);
+  if (old !== level) recordUserAudit(id, 'agency level changed', old ?? u.role, level);
+  u.role = spec.role;
+  u.seesCommission = spec.seesCommission;
 }
 
 /** Recent lifecycle changes for a user (most recent first). Admin/management scoped. */
@@ -176,13 +334,28 @@ export interface AddUserInput {
   lastName: string;
   email: string;
   role: Role;
+  /** The commission half of the LEVEL. role says what they reach, this says
+      whether they are shown what it earned; together they are Director,
+      Manager or Negotiator. Always sent, so the two cannot drift apart. */
+  seesCommission?: boolean;
   partner: string;
+  /** For a negotiator invite: the branch they will work at, recorded as their home
+      branch so the inviting manager sees them from day one. Ignored for other roles. */
+  branch?: string;
+  /** Invite-from-level: grant this org position on creation, so a brand/group
+      manager (or a branch manager) is placed immediately rather than in a second
+      step on Users. Omitted for a plain negotiator (placed by their home branch). */
+  scopeKind?: 'group' | 'agency' | 'branch';
+  scopeTarget?: string;
 }
 
 export function addUser(input: AddUserInput): ManagedUser {
   const name = `${input.firstName || 'New'} ${input.lastName || 'User'}`;
   const partner = input.role === 'superadmin' ? 'opndoor' : input.partner || homePartner();
-  const rec: ManagedUser = { id: `u${USERS.length}_${Math.round(performance.now())}`, name, email: input.email.trim() || emailOf(name), role: input.role, lastActive: 'Pending invite', status: 'pending', partner };
+  // A negotiator (referrer) invited to a branch carries it as their home branch, so
+  // mock mode shows them on that branch node just as live mode does.
+  const homeBranchId = input.role === 'referrer' ? (input.branch ?? null) : null;
+  const rec: ManagedUser = { id: `u${USERS.length}_${Math.round(performance.now())}`, name, email: input.email.trim() || emailOf(name), role: input.role, lastActive: invitedToday(), status: 'pending', partner, homeBranchId };
   USERS.push(rec);
   return rec;
 }
@@ -195,13 +368,17 @@ export async function inviteUser(input: AddUserInput): Promise<ManagedUser> {
   if (SUPABASE_ENABLED) {
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
     const { data, error } = await sb().functions.invoke('invite-user', {
-      body: { firstName: input.firstName.trim(), lastName: input.lastName.trim(), email: input.email.trim(), role: input.role, partner: input.partner, origin },
+      body: { firstName: input.firstName.trim(), lastName: input.lastName.trim(), email: input.email.trim(), role: input.role, seesCommission: input.seesCommission === true, partner: input.partner, branch: input.role === 'referrer' ? (input.branch ?? '') : '', scopeKind: input.scopeKind ?? '', scopeTarget: input.scopeTarget ?? '', origin },
     });
     if (error) throw new Error(await functionErrorMessage(error, 'Could not send the invitation.'));
     if (!data?.ok) throw new Error(data?.error || 'Could not send the invitation.');
     const partner = input.role === 'superadmin' ? 'opndoor' : input.partner || homePartner();
-    const name = `${input.firstName} ${input.lastName}`.trim() || input.email.trim();
-    return { id: `pending_${input.email.trim()}`, name, email: input.email.trim(), role: input.role, lastActive: 'Pending invite', status: 'pending', partner };
+    /* AND NOT THE EMAIL HERE EITHER. This row is what the list shows
+       until the next hydration, so a fallback here would put the address
+       in the name column for as long as the page is open, which is
+       exactly what it looks like when it is stored. */
+    const name = `${input.firstName} ${input.lastName}`.trim();
+    return { id: `pending_${input.email.trim()}`, name, email: input.email.trim(), role: input.role, lastActive: invitedToday(), status: 'pending', partner };
   }
   return addUser(input);
 }

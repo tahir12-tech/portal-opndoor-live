@@ -19,25 +19,11 @@
 // ids get a neutral { found: false } (no existence oracle).
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-
-// Minimal, self-contained PandaDoc signing-session minting (mirrors the shared
-// helper) so this public function bundles as a single file.
-const PANDADOC_API = "https://api.pandadoc.com/public/v1";
-async function signingLink(documentId: string, recipientEmail: string): Promise<string | null> {
-  const KEY = (Deno.env.get("PANDADOC_API_KEY") ?? "").trim();
-  try {
-    const res = await fetch(`${PANDADOC_API}/documents/${documentId}/session`, {
-      method: "POST",
-      headers: { Authorization: `API-Key ${KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ recipient: recipientEmail, lifetime: 60 * 60 * 24 * 7 }),
-    });
-    if (!res.ok) return null;
-    const j = await res.json();
-    return j.id ? `https://app.pandadoc.com/s/${j.id}` : null;
-  } catch {
-    return null;
-  }
-}
+// The signing-session minting lives in _shared/pandadoc.ts (getSigningLink):
+// one implementation resolves both the key (with the sandbox _TEST fallback) and
+// the recipient (redirected to match the document), so this path and the tenant
+// status screen cannot drift apart again.
+import { getSigningLink } from "../_shared/pandadoc.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -52,6 +38,7 @@ Deno.serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const APP_URL = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
     const service = createClient(SUPABASE_URL, SERVICE);
 
     const body = await req.json().catch(() => ({}));
@@ -76,11 +63,12 @@ Deno.serve(async (req) => {
 
     const { data: app } = await service
       .from("applications")
-      .select("tenant_first_name, tenant_email, guarantee_ref, monthly_rent, paid_amount, payment_state, status, deed_state, pandadoc_document_id, payment_url")
+      .select("tenant_first_name, tenant_email, guarantee_ref, monthly_rent, fee_amount, paid_amount, payment_state, status, deed_state, pandadoc_document_id, payment_url, livemode")
       .eq("stripe_checkout_session_id", sessionId)
       .maybeSingle();
     if (!app) return json({ found: false });
 
+<<<<<<< HEAD
     // A refund does not un-pay the fee. Reporting paid:false on a refunded
     // application left the confirmation page polling forever for a payment that
     // had already happened, so "paid" keeps its literal meaning and "refunded"
@@ -90,6 +78,52 @@ Deno.serve(async (req) => {
     const amount = app.paid_amount != null ? Number(app.paid_amount) : Number(app.monthly_rent ?? 0);
     // Still gated on the refund: a refunded application must never mint a signing link.
     const deedReady = !refunded && app.deed_state === "awaiting_tenant" && !!app.pandadoc_document_id;
+=======
+    // WAS: app.payment_state === "paid" || (app.status && app.status !== "sent")
+    //
+    // The second arm is what made this wrong. It reads "any status other than
+    // sent means paid", which is true of 'paid' and 'deed' and false of the two
+    // that matter: a staff-WITHDRAWN application whose payment landed anyway
+    // reported as paid, and so did an EXPIRED one. So the tenant was shown
+    // "Payment received", the full fee, and a promise that their Deed of
+    // Guarantee was on its way, for an application that will never produce one.
+    //
+    // payment_state is the column that actually records payment.
+    // apply_stripe_payment deliberately does NOT set it on the withdrawn branch,
+    // which is the whole point of that branch, so keying on it alone tells the
+    // truth in every case.
+    const paid = app.payment_state === "paid";
+
+    // Only fall back when the application really is paid. On the withdrawn
+    // branch paid_amount is never written, so the old fallback quoted the full
+    // fee as "paid" for money that is sitting on a withdrawn row awaiting a
+    // refund.
+    //
+    // And the fallback itself was monthly_rent, which is the rent, not the
+    // price. Since three and five week bases landed, and since a joint tenant
+    // pays a share, the rent can be a long way from what actually left their
+    // card, and this figure is labelled "Amount paid" on the confirmation page.
+    // fee_amount is what was charged; the rent stays as the last resort for rows
+    // created before fee_amount existed, where it is the same number.
+    const amount = app.paid_amount != null
+      ? Number(app.paid_amount)
+      : (paid ? Number(app.fee_amount ?? app.monthly_rent ?? 0) : 0);
+    /* AND WHAT IS STILL OWED, which is a different question from what was paid.
+       `amount` above means "amount paid" and is deliberately 0 when nothing has
+       been, which is right on the confirmation page. /pay/retry renders the SAME
+       field under the label "Amount due", and it is reached only when the tenant
+       abandoned or cancelled checkout, so paid is false by definition there: a
+       tenant who owes £692.31 was shown "Amount due £0" beside a Return to
+       payment button. Two labels over one number, so now there are two numbers.
+
+       null rather than 0 when we have neither figure, so the page can omit the
+       row instead of asserting that nothing is due. The monthly_rent fall back is
+       kept for rows created before fee_amount existed, where the two are equal. */
+    const amountDue = app.fee_amount != null
+      ? Number(app.fee_amount)
+      : (app.monthly_rent != null ? Number(app.monthly_rent) : null);
+    const deedReady = app.deed_state === "awaiting_tenant" && !!app.pandadoc_document_id;
+>>>>>>> partner-api
     const deedSigned = app.deed_state === "executed";
     const deedError = app.deed_state === "error";
 
@@ -103,8 +137,19 @@ Deno.serve(async (req) => {
       if (!deedReady) return json({ found: true, deedReady: false });
       const { data: mintOk } = await service.rpc("bump_rate_limit", { p_key: `paysign:${sessionId}`, p_limit: 10, p_window_secs: 3600 });
       if (mintOk === false) return json({ error: "Too many attempts, please try again later." }, 429);
-      const url = await signingLink(app.pandadoc_document_id as string, app.tenant_email as string);
-      return json({ found: true, deedReady: true, signingUrl: url });
+      const { link, detail } = await getSigningLink(app.pandadoc_document_id as string, app.tenant_email as string, app.livemode === true);
+      if (!link) console.log(JSON.stringify({ event: "paysign_session_failed", ref: app.guarantee_ref, detail: detail ?? null }));
+      return json({ found: true, deedReady: true, signingUrl: link });
+    }
+
+    // "Return to payment" points at the durable /pay?token page, whose Pay button
+    // mints a FRESH Stripe session on click, never the stored raw Stripe URL that
+    // expires after 30 minutes. Null if the token cannot be minted, which the
+    // retry page renders as "use the link in your email".
+    let retryUrl: string | null = null;
+    if (!paid && APP_URL) {
+      const { data: token } = await service.rpc("mint_payment_page_token", { p_ref: app.guarantee_ref });
+      retryUrl = token ? `${APP_URL}/pay?token=${token}&utm_source=retry` : null;
     }
 
     return json({
@@ -112,14 +157,15 @@ Deno.serve(async (req) => {
       firstName: app.tenant_first_name ?? "",
       reference: app.guarantee_ref,
       amount,
+      // Only when there is something to owe: the retry page reads this and omits
+      // the row entirely rather than printing £0 at somebody who owes money.
+      ...(paid || amountDue == null ? {} : { amountDue }),
       paid,
       refunded,
       deedReady,
       deedSigned,
       deedError,
-      // The tenant's own Stripe checkout link (not PII), returned only while the
-      // fee is unpaid so the cancel/retry page can offer "Return to payment".
-      ...(paid ? {} : { payUrl: app.payment_url ?? null }),
+      ...(paid ? {} : { payUrl: retryUrl }),
     });
   } catch (e) {
     return json({ error: "The payment confirmation could not be completed." }, 500);

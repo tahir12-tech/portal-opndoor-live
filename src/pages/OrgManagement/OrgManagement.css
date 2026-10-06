@@ -55,6 +55,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* The name is a link into the agency's own home; it still reads as the name. */
+.agency__namelink {
+  display: block;
+  color: var(--ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+.agency__namelink:hover { color: var(--heliotrope-deep); }
 .agency__meta {
   font-size: 12.5px;
   color: var(--ink-mute);
@@ -458,4 +466,76 @@ mark.hl {
 .word_wrap {
   word-wrap: break-word;
   overflow-wrap: break-word;
+}
+/* DEFECTS.md 6: branches that cannot issue a deed. Red, at the top, and counted,
+   because the condition used to be discoverable only by opening each branch in
+   turn or by a tenant paying for a deed that could not be issued. */
+.org-blocked { display: flex; gap: 11px; align-items: flex-start; margin-bottom: 18px;
+               padding: 13px 15px; border-radius: 10px; background: #fef2f2;
+               border: 1px solid #fecaca; color: #7f1d1d; font-size: 13px; line-height: 1.55; }
+.org-blocked strong { display: block; margin-bottom: 3px; }
+.org-blocked p { margin: 0; }
+.org-blocked__list { margin-top: 6px !important; opacity: .8; font-size: 12.5px; }
+.org-blocked svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
+
+/* The per-row line, now a warning rather than a neutral "not filled in". */
+.contact-line--none { color: #b91c1c; }
+/* An agency whose branches each hold their own contact. Not a warning and
+   not a reading of the agency's own row: a statement that the question is
+   answered one level down, where the addresses are printed. */
+.contact-line--perbranch { color: var(--ink-mute); font-style: italic; }
+.contact-line--none .cl-none { color: inherit; }
+
+/* ---- group tree node (group → brand → branch) ---- */
+.orggroup { margin-bottom: 10px; }
+.orggroup__head { display: flex; align-items: center; gap: 10px; padding: 10px 6px 8px; }
+.orggroup__tick {
+  width: 20px; height: 20px; border-radius: 6px; flex: none;
+  background: var(--ink); color: #fff; display: grid; place-items: center;
+  font-family: var(--display); font-weight: 800; font-size: 11px;
+}
+.orggroup__txt { min-width: 0; }
+.orggroup__name {
+  font-family: var(--display); font-weight: 800; font-size: 15px; letter-spacing: -.01em;
+  color: var(--ink); text-decoration: none;
+}
+.orggroup__name:hover { color: var(--heliotrope-deep); }
+.orggroup__meta { font-size: 11.5px; color: var(--ink-mute); margin-top: 1px; }
+/* A group is a COLLAPSED one-line row until opened, so a long list is a list of
+   groups rather than the whole tree. Same mechanism as .agency/.branches. */
+.orggroup__head { cursor: pointer; }
+.orggroup__chev {
+  color: var(--ink-mute);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.orggroup.is-open .orggroup__chev { transform: rotate(90deg); }
+.orggroup__stats { margin-left: auto; display: flex; align-items: center; gap: 18px; padding-right: 6px; }
+/* brands sit indented under their group node */
+.orggroup__brands {
+  margin-left: 18px; border-left: 2px solid var(--line); padding-left: 12px;
+  display: none;
+}
+.orggroup.is-open .orggroup__brands { display: block; }
+
+/* list toolbar: how much is drawn, and expand/collapse everything listed */
+.org-tools {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  flex-wrap: wrap; margin-bottom: 10px;
+}
+.org-tools__count { font-size: 12.5px; color: var(--ink-mute); }
+.org-tools__actions { display: flex; gap: 8px; }
+.org-tools__btn {
+  font-family: var(--display); font-size: 12px; font-weight: 700; letter-spacing: .02em;
+  color: var(--ink); background: none; border: 1px solid var(--line);
+  border-radius: 8px; padding: 5px 10px; cursor: pointer;
+}
+.org-tools__btn:hover { border-color: var(--ink); }
+.org-more { display: flex; justify-content: center; margin-top: 12px; }
+
+@media (max-width: 720px) {
+  .orggroup__stats { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orggroup__chev, .agency__chev { transition: none; }
 }

@@ -65,9 +65,11 @@ describe('getApplicationDetail shows real values, never synthesised ones', () =>
     expect(d.tenancyStart).toBe('10 November 2026');
   });
 
+  /* "3 Jul", not "03 Jul": one shared date format since 2026-10-01, and
+     it drops the leading zero -- a padded day reads as a code. */
   it('shows the real date and time each event happened', () => {
-    expect(d.sentStr).toBe('03 Jul 2026 · 10:04');
-    expect(d.paidStr).toBe('03 Jul 2026 · 10:07');
+    expect(d.sentStr).toBe('3 Jul 2026 · 10:04');
+    expect(d.paidStr).toBe('3 Jul 2026 · 10:07');
     // not the seed-generator fixed times
     expect(d.sentStr?.endsWith('10:24')).toBe(false);
     expect(d.paidStr?.endsWith('16:09')).toBe(false);

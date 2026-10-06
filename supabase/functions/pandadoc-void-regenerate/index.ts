@@ -12,6 +12,7 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { voidDocument, generateDeed } from "../_shared/pandadoc.ts";
+import { deliverSigningInvite } from "../_shared/signingInvite.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -50,7 +51,11 @@ Deno.serve(async (req) => {
     // RLS-scoped read: the caller must be able to see the application.
     const { data: app, error } = await userClient
       .from("applications")
+<<<<<<< HEAD
       .select("id, status, payment_state, deed_state, pandadoc_document_id")
+=======
+      .select("id, status, deed_state, pandadoc_document_id, livemode")
+>>>>>>> partner-api
       .eq("guarantee_ref", ref)
       .maybeSingle();
     if (error) {
@@ -63,7 +68,7 @@ Deno.serve(async (req) => {
 
     // Step 1: void the outstanding document (if any) and log it.
     if (app.pandadoc_document_id) {
-      const voided = await voidDocument(app.pandadoc_document_id);
+      const voided = await voidDocument(app.pandadoc_document_id, app.livemode === true);
       if (!voided.ok) return json({ ok: false, error: `Could not void the outstanding deed: ${voided.error}` }, 200);
       const note = voided.alreadyGone ? "was already closed in PandaDoc" : "voided in PandaDoc";
       await service.from("activity_log").insert({
@@ -85,6 +90,14 @@ Deno.serve(async (req) => {
       message: `Fresh deed generated from the current template and sent to the tenant by ${actor}.`,
       actor,
     });
+    /* AND THE EMAIL. Matt (ai): PandaDoc sends nothing now, so the sentence
+       below -- "sent to the tenant to sign" -- is only true because of this
+       line. A reply that claims a send nobody made is the failure mode this
+       whole change was meant to end, not create. */
+    const invite = await deliverSigningInvite(service, app.id, { by: actor });
+    if (!invite.ok) {
+      return json({ ok: false, error: "The old deed was voided and a fresh one issued, but the email to the tenant could not be sent. opndoor has been notified." }, 200);
+    }
     return json({ ok: true, message: "Old deed voided and a fresh deed sent to the tenant to sign." });
   } catch (e) {
     return json({ ok: false, error: "Could not replace the deed." }, 500);

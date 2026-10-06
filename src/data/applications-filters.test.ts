@@ -9,7 +9,7 @@ import type { ApplicationSummary } from '@/data';
 import type { AppRecord } from '@/data/mock/applications';
 
 function sum(ref: string, status: ApplicationSummary['status'], refunded = false): ApplicationSummary {
-  return { ref, tenant: `T ${ref}`, prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status, date: '2026-06-01', owner: 1, partner: 'rightmove', refunded };
+  return { ref, tenant: `T ${ref}`, prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status, date: '2026-06-01', owner: 1, partner: 'northwind', refunded };
 }
 function rec(ref: string): AppRecord {
   return { ref, name: `T ${ref}`, title: 'Mr', role: '', addr1: '1 St', postcode: 'SW1', branch: 'B', agency: 'A', rent: 1000, status: 'paid', date: '2026-06-01', referrer: 'R', owner: 1 };
@@ -26,14 +26,30 @@ describe('countByStatus + refunded chip (item 9)', () => {
 
   it('counts respect partner, agency, branch and referrer filters', () => {
     const rows: ApplicationSummary[] = [
+<<<<<<< HEAD
       { ref: 'GR-10', tenant: 'T GR-10', prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status: 'sent', date: '2026-06-01', owner: 1, partner: 'rightmove', referrer: 'Alice' },
       { ref: 'GR-11', tenant: 'T GR-11', prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status: 'paid', date: '2026-06-01', owner: 1, partner: 'rightmove', referrer: null },
       { ref: 'GR-12', tenant: 'T GR-12', prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status: 'deed', date: '2026-06-01', owner: 1, partner: 'rightmove', referrer: 'Alice' },
+=======
+      { ref: 'GR-10', tenant: 'T GR-10', prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status: 'sent', date: '2026-06-01', owner: 1, partner: 'northwind', referrer: 'Alice' },
+      { ref: 'GR-11', tenant: 'T GR-11', prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status: 'paid', date: '2026-06-01', owner: 1, partner: 'northwind', referrer: null },
+      // Bob, not Alice. DEFECTS.md 16: this row carried 'Alice' and therefore
+      // matched all four filters, so the assertion below, which expects one
+      // match, asserted that a matching row is NOT counted. The fixture was
+      // wrong rather than countByStatus: a row differing only by referrer is
+      // what gives the referrer filter something to exclude, which is the whole
+      // point of the test.
+      { ref: 'GR-12', tenant: 'T GR-12', prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status: 'deed', date: '2026-06-01', owner: 1, partner: 'northwind', referrer: 'Bob' },
+>>>>>>> partner-api
       { ref: 'GR-13', tenant: 'T GR-13', prop: '1 St', branch: 'B2', agency: 'A2', ben: '', rent: 1000, status: 'paid', date: '2026-06-01', owner: 1, partner: 'other', referrer: 'Alice' },
     ];
     hydrateApplications(rows, []);
 
+<<<<<<< HEAD
     const c = countByStatus({ ...opts, partner: 'rightmove', agency: 'A', branch: 'B', referrer: 'Alice' } as any);
+=======
+    const c = countByStatus({ ...opts, partner: 'northwind', agency: 'A', branch: 'B', referrer: 'Alice' } as any);
+>>>>>>> partner-api
     expect(c).toMatchObject({ all: 1, sent: 1, paid: 0, deed: 0, refunded: 0 });
   });
 
@@ -57,7 +73,7 @@ describe('countByStatus + refunded chip (item 9)', () => {
 describe('referrer filter + period recount (owner addition)', () => {
   const T = (y: number, m: number, d: number) => new Date(y, m - 1, d).getTime();
   function sumRP(ref: string, status: ApplicationSummary['status'], referrer: string | null, sentAtTs?: number, date = '2026-06-01'): ApplicationSummary {
-    return { ref, tenant: `T ${ref}`, prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status, date, owner: 1, partner: 'rightmove', referrer, sentAtTs };
+    return { ref, tenant: `T ${ref}`, prop: '1 St', branch: 'B', agency: 'A', ben: '', rent: 1000, status, date, owner: 1, partner: 'northwind', referrer, sentAtTs };
   }
   const ROWS: ApplicationSummary[] = [
     sumRP('GR-A', 'sent', 'Alice', T(2026, 6, 10)),

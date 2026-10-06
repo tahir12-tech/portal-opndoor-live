@@ -1,7 +1,8 @@
 # Deed of Guarantee (PandaDoc sandbox) - setup and test runbook
 
 Strictly sandbox/test. The Edge Functions only act when `PANDADOC_API_KEY` and
-`PANDADOC_TEMPLATE_ID` are set, and every recipient is redirected to
+`PANDADOC_TEMPLATE_ID` are set, and **`EMAIL_REVIEW_ADDRESS` is set on this
+environment**, which is what redirects every recipient to
 `EMAIL_REVIEW_ADDRESS`, so no real tenant is ever emailed. Do not point this at a
 production PandaDoc workspace or a live API key.
 
@@ -41,7 +42,7 @@ dashboard: Project > Edge Functions > Secrets. Add:
 | `PANDADOC_API_KEY` | sandbox `API-Key` | From the PandaDoc **sandbox** workspace (Settings > API). Sandbox key only. |
 | `PANDADOC_TEMPLATE_ID` | template uuid | The Deed of Guarantee template (step 3). Swapping templates is config-only, no code change, as long as the token names and Tenant role match. |
 | `PANDADOC_WEBHOOK_SHARED_KEY` | shared secret | The shared key you set on the PandaDoc webhook (step 4). Verifies the signature. |
-| `EMAIL_REVIEW_ADDRESS` | mdwyer@opndoor.co | TEST SAFETY: every deed recipient is redirected here. Shared with the payments runbook. |
+| `EMAIL_REVIEW_ADDRESS` | your email | **TEST SAFETY, AND IT IS THE ONLY THING PROVIDING IT.** Set this or every recipient, including the tenant who receives and signs the deed, is the real one. Production deliberately leaves it unset. Shared with the payments runbook. |
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are injected
 automatically; do not set them. Secrets take effect on the next function call, no
@@ -73,17 +74,50 @@ redeploy needed.
 5. Leave the opndoor signature as the **static facsimile image** already in the
    document at "Signed for and on behalf of the Guarantor". Do not add a second
    signer role for it.
-6. Define these six **merge tokens** (Manage > Tokens, names exact):
-   `reference_number`, `tenant_name`, `tenancy_start_date`, `rental_address`,
-   `agent_email`, `issue_date`. The names are the contract that keeps the template
-   swappable. `issue_date` is filled server-side with the generation date
-   (Europe/London, dd/mm/yyyy); it is not entered by the tenant.
+6. Define these **merge tokens** (Manage > Tokens, names exact). Six, on every
+   deed, joint or solo:
+
+   | Token | Value |
+   |---|---|
+   | `reference_number` | The guarantee reference, one per deed |
+   | `tenant_name` | Every tenant on the tenancy, comma separated. On a tenancy of one, that one person |
+   | `tenancy_start_date` | dd/mm/yyyy |
+   | `rental_address` | Title-cased, postcode raw |
+   | `agent_email` | Where the executed deed is delivered |
+   | `issue_date` | Generation date, Europe/London, dd/mm/yyyy, server-side, never recipient-editable |
+
+   **Each tenant of a joint tenancy signs their own deed**, for their own share,
+   and it names all the tenants (`tenant_name`) so the document says what tenancy
+   it belongs to. Ruling of 27 September: the **share is recorded on the
+   application and on the bordereau, not in the document**, so a joint tenant's
+   deed renders exactly as a single tenant's does and the template needs no
+   joint-specific wording.
+
+   An earlier draft sent two further tokens on joint tenancies,
+   `guaranteed_amount` and `co_tenant_names`. Both have been removed from the
+   code. They needed a template change to render at all, and an unsupplied
+   PandaDoc token renders empty without removing the sentence around it, so
+   against today's template they would have printed "in respect of  per calendar
+   month". If the share is ever to appear in the document, it is a template
+   change and a code change together, never one without the other.
 7. Save, then copy the template id from the URL (or Template > ... > Details) and
    set it as `PANDADOC_TEMPLATE_ID`.
 
 > The token names and the `Tenant` role name are the only coupling between the
 > template and the code. Keep them exact and you can restyle or re-upload the
 > deed without touching the functions.
+
+### Still one signer, and one open question
+
+Step 5 stands: opndoor's signature is a static facsimile and there is no second
+recipient role. That has one consequence worth stating plainly, because a screen
+now asks about it. PandaDoc's `document.completed` both signs and executes in
+one step, so there is no state between "the tenant signed" and "the deed is
+executed", and the portal cannot show a distinct **signed** state however the UI
+is written. If Opndoor is to countersign each counterpart for real, this template
+needs a second signer role and the webhook needs to key on recipient-level
+completion rather than document completion. That is a deliberate decision, not an
+oversight; until it is taken, signed and executed are the same event.
 
 ## 4. Point the PandaDoc webhook at the function
 
@@ -116,7 +150,8 @@ the payments and deeds env above are set.
    "Sandbox" badge, "Deed sent for signature, awaiting tenant" and the signing
    journey: **Sent** [date/time] then **Not yet viewed**. The activity feed shows
    "Deed of Guarantee sent to the tenant for signature". Your `EMAIL_REVIEW_ADDRESS`
-   inbox receives the PandaDoc signing email (redirected from the tenant).
+   inbox receives the PandaDoc signing email, redirected from the tenant
+   **because `EMAIL_REVIEW_ADDRESS` is set**. With it unset the tenant receives it.
 3. **View (not yet signing).** Open the signing link so the document reaches
    `document.viewed`, but do not sign yet. The journey row flips to **Viewed by
    tenant** [date/time], the activity feed gains "Deed viewed by the tenant", and

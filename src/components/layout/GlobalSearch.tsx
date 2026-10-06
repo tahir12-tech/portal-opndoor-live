@@ -24,17 +24,26 @@ export function GlobalSearch() {
   const results = useMemo<Result[]>(() => {
     const term = q.trim().toLowerCase();
     if (term.length < 2) return [];
+    /* READ THROUGH A GUARD, EVEN THOUGH THE TYPES SAY STRING.
+       (bw): propStr handed back a null `prop` and this was the one
+       reader that called a string method on it, so one bad row among
+       49 took the entire application down from the header. The
+       boundary is fixed in hydrate, which is the real repair; this
+       stays because allSummaries() is the WHOLE BOOK, unscoped and
+       unfiltered, so any row anywhere that ever arrives malformed
+       lands here first, during render, with nothing to catch it. A
+       search box is not worth a white screen. */
+    const has = (v: string | null | undefined) => (v ?? '').toLowerCase().includes(term);
     const apps: Result[] = allSummaries()
-      .filter((a) =>
-        a.tenant.toLowerCase().includes(term) ||
-        a.ref.toLowerCase().includes(term) ||
-        a.prop.toLowerCase().includes(term))
+      .filter((a) => has(a.tenant) || has(a.ref) || has(a.prop))
       .slice(0, 6)
       .map((a) => ({ kind: 'app', label: a.tenant, sub: `${a.ref} · ${a.prop}`, to: `/applications/${encodeURIComponent(a.ref)}` }));
     const branches: Result[] = [];
     for (const ag of getAgencies(partnerScope)) {
-      for (const b of ag.branches) {
-        if (b.name.toLowerCase().includes(term) || ag.name.toLowerCase().includes(term)) {
+      // Same reason: an agency that arrives without a branches array
+      // would throw in the for-of, in render, from the header.
+      for (const b of ag.branches ?? []) {
+        if (has(b.name) || has(ag.name)) {
           branches.push({ kind: 'branch', label: b.name, sub: ag.name, to: '/agencies' });
         }
         if (branches.length >= 4) break;

@@ -6,21 +6,46 @@
 
    Every figure comes from analyticsService/exportsService (the parametric
    model). INTEGRATION points live in those services, not here.
+
+   COMMISSION IS A SECOND QUESTION ON THIS PAGE, not the same one as role.
+   An agency has three levels and two of them are role 'management': a Director
+   sees what the agency earns, a Manager sees everything else. Every gate here
+   said roles={['superadmin', 'management']}, which a Manager satisfies, so this
+   page read the agency's earnings out to them: the commission tile, Commission
+   by partner, the commission statement, both settlement blocks, the settlements
+   needs-attention line, and the 12-month trend, which OPENED on Commission
+   earned. The surfaces that state earnings now carry `commission` (RoleOnly
+   consults maySeeCommission for those, and only those); the trend keeps its card
+   and loses the one measure. Fees the TENANT was charged, guaranteed rent,
+   volumes, conversion and expiries stay: they are the Manager's own referrals
+   and gating them would take away the level rather than protect it.
    ===================================================================== */
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
-  ALL_PARTNERS, buildApplicationDoc, exportBordereauFile, buildExpiriesCsv, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, downloadCsv, exportBranded,
-  fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPartners, getPeriods, getTrend, partnerName,
-  getBordereauRate, getBordereauRateMeta, setBordereauRate, pendingTenancyCorrections,
+  ALL_PARTNERS, READS_THE_WHOLE_BOOK, isOpndoorStaff, readsTheWholeBook, buildApplicationDoc, buildExpiriesDoc, buildPerformanceDoc, buildPartnerStatementDoc, buildAgentStatementDoc, exportBranded, type BrandedExport, type ExportKind,
+  fmtBig, getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown, getDashboardData, getPeriods, getTrend, maySeeCommission, partnerName,
+  statementMonths, leagueLink,
   type LeagueRow, type Period, type TrendRow,
 } from '@/data';
-import { formatLondonDate } from '@/lib/format';
+import { formatLondonDate, formatMonth, gbpPence, possessive, formatDate } from '@/lib/format';
 import { BASIS_META, type ExportBasis } from '@/data';
+import { nextExpiryMonth } from '@/data/exportsService';
+import { getAgentRailFunnel, viewerRunsEligibilityJourney, type AgentRailFunnel } from '@/data/agentFunnel';
+import { isAgencyUser, partyIsSupplier, whoSeesEverything } from '@/data/capabilities';
+import { ORIGIN_ALL, originFromParams, originLabel, selectionIsAgency } from '@/data/origin';
+import { scopedSummaries } from '@/data/applicationsService';
+import type { Role } from '@/data';
+import { liveByCustomer, liveScopeShape } from '@/data/liveAnalytics';
+import { CommissionStatement } from '@/components/CommissionStatement';
+import { SupplierStatements } from '@/components/SupplierStatements';
+// Walk fixes 15 and 20: every customer, side by side.
+import { CustomersTable } from '@/components/CustomersTable';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { useToast } from '@/components/ui/Toast';
 import { Card, CardBody, CardFoot, CardHead } from '@/components/ui/Card';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { Pill } from '@/components/ui/Pill';
@@ -29,18 +54,22 @@ import { RoleOnly } from '@/components/ui/RoleOnly';
 import { RoleNote } from '@/components/ui/RoleNote';
 import { BarChart, type BarRow } from '@/components/ui/BarChart';
 import { MeasureSelect, PeriodSelect, TrendSelect } from '@/components/ui/Select';
-import { useToast } from '@/components/ui/Toast';
+import { FinanceSurfaces } from '@/pages/Home/FinanceSurfaces';
+import { SettlementBlocks } from '@/components/SettlementBlocks';
 import './Dashboard.css';
 
-type ChartKey = 'branch' | 'agency' | 'referrer';
+type ChartKey = 'branch' | 'agency' | 'referrer' | 'supplier';
 type Measure = 'value' | 'count' | 'conv';
-type TrendMeasure = 'commission' | 'value' | 'count';
+/* WALK FIX 17: the type lives with the option list in liveAnalytics, so the
+   measures on offer and the measures the data carries cannot drift. */
+import { trendMeasuresFor, type TrendMeasure } from '@/data/liveAnalytics';
+import { plural, countOf } from '@/lib/plural';
 type TrendView = 'month' | 'branch' | 'agency' | 'referrer';
 
 const TOP_N = 10;
 
 function measureLabel(m: string): string {
-  return m === 'commission' ? 'Commission earned' : m === 'conv' ? 'Conversion, Sent to Deed' : m === 'value' ? 'Fees collected' : 'Referrals sent';
+  return m === 'commission' ? 'Commission earned' : m === 'payable' ? 'Commission payable' : m === 'deeds' ? 'Deeds issued' : m === 'conv' ? 'Conversion, Sent to Deed' : m === 'value' ? 'Fees collected' : 'Referrals sent';
 }
 
 /**
@@ -73,9 +102,64 @@ function buildChartRows(key: ChartKey, rows: LeagueRow[], m: Measure): { bars: B
 }
 
 export function Dashboard() {
-  usePageMeta('dashboard', 'Dashboard', ['Home', 'Dashboard']);
-  const { role, partnerScope, selectedPartner, setSelectedPartner, period, setPeriod } = useSession();
-  const toast = useToast();
+  usePageMeta('dashboard', 'Reporting', ['Home', 'Reporting']);
+  /* `setScopeSel` WITHOUT `scopeSel`, now that the picker is gone. This page
+     no longer reads the raw selection -- `viewingAs` is the derived answer
+     it actually wants, and it is null for everything and for both rails --
+     but it still needs the setter, because the banner's "Stop viewing as"
+     is the only remaining way to clear a selection that Applications shares. */
+  const { role, partnerScope, viewingAs, scopeSel, setScopeSel, period, setPeriod } = useSession();
+
+  /* AND THIS PAGE OPENS ON ITS OWN DEFAULT TOO. Matt, 2026-10-02:
+     "League, Applications and Reporting each open with their own
+     defaults (Origin: Everything) unless a link sets a filter."
+
+     Reporting had no arrival rule at all: it read whatever `scopeSel`
+     was left holding, so an Origin chosen on Applications was still in
+     force here. The same effect the other two now run -- a link decides,
+     and a link that names nothing clears it.
+
+     VIEW AS IS THE LINK. `ViewAsButton` navigates here with
+     ?origin=<selection>, which is what keeps it working now that
+     arriving bare clears the selection; and the banner's "Stop viewing
+     as" below writes ORIGIN_ALL, which is the same thing by hand. */
+  const [params] = useSearchParams();
+  useEffect(() => {
+    const fromLink = originFromParams({
+      origin: params.get('origin'),
+      partner: params.get('partner'),
+      route: params.get('route'),
+    });
+    if (fromLink !== scopeSel) setScopeSel(fromLink);
+    // Arrival only, as on Applications and League.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* IS THIS ONE OF OUR OWN AGENCIES READING THEIR OWN SCREEN?
+     The same question Reporting, League, Applications and the nav already ask,
+     and the same answer: not the role, which an agency director and a supplier's
+     manager both wear as 'management', but the party in scope. */
+  const agencyFacing = isAgencyUser(role, partnerScope) || (viewingAs !== null && selectionIsAgency(viewingAs));
+
+  /* UNDER VIEW AS, THIS PAGE IS THAT PARTY'S PAGE.
+     Matt: "under View as, Reporting shows exactly what that party's
+     management sees: no bordereau, no Opndoor settlements, 'Your commission'
+     reads as the party's own statement."
+
+     So the gates below are drawn for 'management' while an admin is narrowed
+     to somebody, and the admin-only money-ops stack is not drawn at all. The
+     COMMISSION half of each gate is untouched and still tests the real
+     reader: an admin viewing as an agency is shown that agency's page, not
+     given a capability they lack. */
+  const drawAs: Role | undefined = viewingAs !== null ? 'management' : undefined;
+
+  /* MAY THIS READER BE SHOWN WHAT THE AGENCY EARNS? A third question again, and
+     not answerable from the role: Director and Manager are both 'management'.
+     RoleOnly asks it for everything wrapped in `commission`, so this local copy
+     is only for the figures that are not inside a RoleOnly at all (the
+     settlements needs-attention line) and for the trend's measure list, where
+     the card stays and one option goes. */
+  const seesCommission = maySeeCommission(role);
 
   // Every figure comes from getDashboardData: live records in Supabase mode
   // (d.live), the deterministic synthetic model in mock/test mode.
@@ -88,12 +172,65 @@ export function Dashboard() {
   // breakdown for the selected period. Live mode, non-referrers.
   const agentSettlement = useMemo(() => getAgentCommissionSettlement(role, partnerScope), [role, partnerScope]);
   const partnerBreakdown = useMemo(() => livePartnerBreakdown(role, partnerScope, period), [role, partnerScope, period]);
+  /* WALK FIXES 15 AND 20. Every customer, side by side. Opndoor staff only:
+     Matt's NM-F answer is "the per-customer Reporting tab is Opndoor-only;
+     agencies and suppliers keep their own Reporting page as it is", and a
+     customer has exactly one customer to look at anyway.
+
+     ALL_PARTNERS and not partnerScope, because the whole point is to see
+     every customer at once -- narrowing it to one would make it the table
+     the picker already gives. */
+  /* THE NAMED PREDICATE, NOT A LOCAL COPY OF IT. `isOpndoorStaff` already
+     exists in types.ts as "the twin of public.is_opndoor_staff", and this
+     file had its own boolean of the same name -- which shadowed the import
+     the moment one was added, and would have gone stale on its own the day
+     a third Opndoor role appeared, exactly as the four Reporting
+     allowlists did. Fifteen other sites still hand-roll this; noted in
+     QUEUE.md rather than swept here. */
+  /* AND NOT WHILE THE PAGE IS SOMEBODY ELSE'S. Matt, 2026-10-01: "Reporting
+     under View as Kestrel Lettings shows the 'Every customer' table (other
+     agencies' referrals, fees and commission) ... none of which a supplier
+     may see."
+
+     The table is gated on the READER, and View as does not change the reader:
+     an admin previewing Kestrel's page is still a superadmin, so the gate
+     stayed open and the rows below are built with a hardcoded ALL_PARTNERS,
+     which no scope selection can narrow. The result named every other
+     customer on a page captioned "This is the page their management sees".
+
+     It is the preview that was false, not the isolation: the admin may
+     lawfully read all of it, and a real supplier login never could -- their
+     book is one partner wide on the server, and `isOpndoorStaff` is false for
+     them besides. But a View as that shows what the viewer may see rather than
+     what the viewed party may see is not a preview of anything. */
+  const opndoorStaff = isOpndoorStaff(role) && viewingAs === null;
+  /* A SUPPLIER'S PAGE, whoever is reading it. The settlement blocks and the
+     payable split are Opndoor's own money surfaces; a supplier gets a
+     statement instead. Asked of the PARTY so the answer is the same for their
+     director and for an admin under View as. */
+  const supplierFacing = partyIsSupplier(partnerScope);
+  /* THE SUPPLIER'S OWN PAGE, as opposed to one of its agencies'. Matt,
+     2026-10-02: "'Kestrel Lettings' commission': show Kestrel's own
+     statement first (its total, reference and downloads), with its
+     agencies' schedules beneath it, not a single agency's statement as
+     the headline."
+
+     `supplierFacing` alone is not the test. Under View as an AGENCY in
+     Kestrel's estate the scope is still Kestrel, so the page would
+     headline the supplier's own statement while the reader is looking at
+     one agency. That clause was already on the statements card below;
+     naming the condition once is what stops the two mounts disagreeing
+     about whose page this is. */
+  const supplierOwnPage = supplierFacing && (viewingAs === null || !selectionIsAgency(viewingAs));
+  const customers = useMemo(
+    () => (opndoorStaff ? liveByCustomer(role, ALL_PARTNERS, period) : []),
+    [opndoorStaff, role, period],
+  );
   // Settlement is a money-reconciliation surface: show pence on every row and the
   // total so the rows always sum to the stated total (commission is rent x rate,
   // which is frequently a half-pound).
-  const gbpPence = (n: number) => `£${n.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  const settleDate = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${settlement.settlementDate.getFullYear()}`;
-  const agentSettleDate = `${agentSettlement.settlementDate.getDate()} ${agentSettlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })} ${agentSettlement.settlementDate.getFullYear()}`;
+  const settleDate = formatDate(settlement.settlementDate);
+  const agentSettleDate = formatDate(agentSettlement.settlementDate);
  const dmyShort = (x: Date) => formatLondonDate(x);
 
   // #6 Per-payee commission statements: a branded, self-footing statement for one
@@ -101,39 +238,107 @@ export function Dashboard() {
   // the SAME settlement data rendered below (getCommissionSettlement /
   // getAgentCommissionSettlement, same role + scope), so a downloaded statement foots
   // exactly to the on-screen settlement figure. Gated with the sections below (canSeeSettlements).
-  const downloadPartnerStatement = (partnerId: string) => void exportBranded(buildPartnerStatementDoc(role, partnerScope, partnerId));
-  const downloadAgentStatement = (partner: string, agency: string) => void exportBranded(buildAgentStatementDoc(role, partnerScope, partner, agency));
+  /* THROUGH `run` LIKE THE OTHERS, so a supplier statement that cannot be
+     built says so instead of being a dead menu item. */
+  const downloadPartnerStatement = (partnerId: string) =>
+    void buildPartnerStatementDoc(role, partnerScope, partnerId).then((d) => run(d, 'statement'));
+  const downloadAgentStatement = (partner: string, agency: string) => void buildAgentStatementDoc(role, partnerScope, partner, agency).then(exportBranded);
 
   // ---- Needs-attention row (compact stat-lines promoted from existing data) ----
   // Same scoped figures shown everywhere; each line renders only when non-zero.
-  const canSeeSettlements = role === 'superadmin' || role === 'management';
+  const canSeeSettlements = (role === 'superadmin' || role === 'management') && !supplierFacing;
   const partnerDue = settlement.partners.reduce((s, p) => s + p.commission, 0);
-  const agentDue = agentSettlement.agencies.reduce((s, a) => s + a.commission, 0);
-  const settleDayMonth = `${settlement.settlementDate.getDate()} ${settlement.settlementDate.toLocaleDateString('en-GB', { month: 'long' })}`;
-  // #81 Agent-reported tenancy-start corrections awaiting opndoor review.
-  const [corrections, setCorrections] = useState(0);
+  // AUTHORITATIVE total: the sum of every payee line. The agencies rollup holds
+  // agency-level lines only, so summing it would miss group and branch payees.
+  const agentDue = agentSettlement.total;
+  /* THE SAME SHAPE AS EVERY OTHER DATE, year included. It used to drop
+     the year to keep a needs-attention line short; a settlement date with
+     no year is the one date on the page a reader has to be sure about. */
+  const settleDayMonth = formatDate(settlement.settlementDate);
+  // #81 Tenancy-start corrections now apply automatically from the agent's link
+  // (no opndoor review), so the "corrections to review" needs-attention line and
+  // its count are gone.
+
+  // Agent-rail partner: the funnel runs Invited to Deed and gains early stuck
+  // alerts. Per-partner decision (a supplier partner keeps the three-stage funnel);
+  // only meaningful when scoped to a single partner, and only for staff who see the
+  // funnel at all (canSeeSettlements). progress only, never content.
+  /* THE JOURNEY, not the estate. This asked the PARTNER whether to draw nine
+     stages, which is the estate question: Regent's partner is opndoor-agents, so
+     it said yes, and a Regent manager would have opened the dashboard to nine
+     stages with seven permanently zero. Their tenants arrive pre-referenced, so
+     their journey is Sent, Paid, Deed.
+
+     Resolved server-side and scoped: a manager sees their own agencies, an admin
+     sees the partner they are viewing. A partner running BOTH journeys answers
+     yes for an admin viewing all of it and no for a manager scoped to the
+     pre-referenced agency alone. */
+  const [runsEligibility, setRunsEligibility] = useState(false);
   useEffect(() => {
-    if (role === 'referrer') { setCorrections(0); return; }
     let alive = true;
-    pendingTenancyCorrections().then((n) => { if (alive) setCorrections(n); }).catch(() => { if (alive) setCorrections(0); });
+    viewerRunsEligibilityJourney(role === 'superadmin' && partnerScope !== ALL_PARTNERS ? partnerScope : undefined)
+      .then((v) => { if (alive) setRunsEligibility(v); })
+      .catch(() => { if (alive) setRunsEligibility(false); });
     return () => { alive = false; };
-  }, [role]);
+  }, [partnerScope, role]);
+
+  const agentRailPartner = runsEligibility;
+  const [agentFunnel, setAgentFunnel] = useState<AgentRailFunnel | null>(null);
+  useEffect(() => {
+    if (!agentRailPartner || !canSeeSettlements) { setAgentFunnel(null); return; }
+    let alive = true;
+    getAgentRailFunnel(role === 'superadmin' && partnerScope !== ALL_PARTNERS ? partnerScope : undefined)
+      .then((f) => { if (alive) setAgentFunnel(f); })
+      .catch(() => { if (alive) setAgentFunnel(null); });
+    return () => { alive = false; };
+  }, [agentRailPartner, canSeeSettlements, partnerScope, role]);
 
   const naAwaiting = d.live && d.awaiting > 0;
   const naStuckSent = d.stuckSent !== '0';
-  const naSettlements = d.live && canSeeSettlements && (partnerDue > 0 || agentDue > 0);
+  // Settlement moved to the ops Home for opndoor admin; on Reporting the settlement
+  // needs-attention line (and the #settlements anchor it jumps to) is a partner's
+  // own payable, so it is management-only here.
+  /* THE LOUDEST LEAK ON THE PAGE, and the only commission figure here that was
+     never inside a RoleOnly to begin with: this line reads "Settlements due 15
+     October: £X partner / £Y agent" at the top of the screen, above the funnel.
+     `role === 'management'` is exactly what a Manager is, so a Manager opened
+     Reporting to the agency's payable in bold before anything else loaded. It
+     also anchors to #settlements, which is now gated, so leaving the line would
+     have pointed at nothing. Both halves answer to the predicate now. */
+  /* AND NOT FOR AN AGENCY. Matt, 2026-10-01: "Remove the top banner
+     ('Settlements due... £0.00 partner / £1,601.54 agent') and the
+     'Payable now' and 'Agent commission settlement' blocks for agency
+     users."
+
+     The banner totals Opndoor's settlement run across both rails, which
+     is why it names a partner figure and an agent figure. To Regent that
+     read as "you are owed £0.00 partner", about money that is not theirs
+     and a rail they are not on. What they are owed is the statement
+     below, which says so in one line. */
+  /* AND NOT FOR A SUPPLIER EITHER, 2026-10-03. The comment above says
+     "`agencyFacing` already removed it from our own agencies"; it did not
+     remove it from a supplier, and this banner totals OPNDOOR'S SETTLEMENT
+     RUN across both rails -- the process Matt asked to keep off a
+     supplier's Reporting entirely. `canSeeSettlements` beside it has
+     excluded `supplierFacing` since the Reporting fix on 2026-10-01; this
+     line was the one that did not. */
+  const naSettlements = d.live && role === 'management' && seesCommission
+    && !agencyFacing && !supplierFacing && (partnerDue > 0 || agentDue > 0);
   // #93 Deed-delivery failure is ops furniture: management + opndoor admin only.
   const naNoContact = d.live && canSeeSettlements && d.deedsNoContact > 0;
-  const naCorrections = canSeeSettlements && corrections > 0;
   const naLapsing = d.live && canSeeSettlements && d.lapsing14 > 0;
-  const hasNeedsAttention = naAwaiting || naStuckSent || naSettlements || naNoContact || naCorrections || naLapsing;
+  // Agent-rail early-stage stuck alerts (only when this partner is on that rail).
+  const naStuckInvited = !!agentFunnel && agentFunnel.stuck_invited > 0;
+  const naStuckFee = !!agentFunnel && agentFunnel.stuck_fee > 0;
+  const naStuckRef = !!agentFunnel && agentFunnel.stuck_referencing > 0;
+  const hasNeedsAttention = naAwaiting || naStuckSent || naSettlements || naNoContact || naLapsing || naStuckInvited || naStuckFee || naStuckRef;
 
   // #25: the agent settlement can span many agencies, so show the top 5 inline and
   // collapse the rest behind a "View all" expander. The Performance export always
   // carries the full list. (The partner settlement is a bounded set and stays full.)
-  const agentTop = agentSettlement.agencies.slice(0, 5);
-  const agentRest = agentSettlement.agencies.slice(5);
-  const agentAgencyRow = (a: (typeof agentSettlement.agencies)[number]) => (
+  const agentTop = agentSettlement.payees.slice(0, 5);
+  const agentRest = agentSettlement.payees.slice(5);
+  const agentAgencyRow = (a: (typeof agentSettlement.payees)[number]) => (
     <div key={`${a.partner}-${a.agency}`} className="settle__partner">
       <div className="settle__row">
         <span>Agent commission payable to <b>{a.agency}</b></span>
@@ -168,69 +373,177 @@ export function Dashboard() {
     </div>
   );
 
-  const [measure, setMeasure] = useState<Record<ChartKey, Measure>>({ branch: 'value', agency: 'value', referrer: 'value' });
+  const [measure, setMeasure] = useState<Record<ChartKey, Measure>>({ branch: 'value', agency: 'value', referrer: 'value', supplier: 'value' });
   const [trendView, setTrendView] = useState<TrendView>('month');
-  const [trendMeasure, setTrendMeasure] = useState<TrendMeasure>('commission');
+  /* THE CARD IS VOLUME, THE DEFAULT MEASURE WAS NOT. "Monthly volume trend" is a
+     Manager's screen by every part of the line (referral counts, fees collected,
+     twelve months of their own branches), so it is not gated. But its measure
+     dropdown offered Commission earned, which is TrendRow.comm, fees times the
+     agency or partner rate, and it OPENED ON IT: a Manager's first sight of this
+     page was twelve bars of agency earnings with the latest month highlighted.
+     So the option goes for them and the card opens on fees collected instead,
+     which is what the title says it measures anyway. */
+  /* WALK FIX 17. The options are the reader's, and the FIRST is the default:
+     for an admin that is fees collected, because "Opndoor doesn't earn
+     commission, it pays it" and the old default was a series that is
+     structurally zero for them. */
+  const trendMeasures = useMemo(() => trendMeasuresFor(role, seesCommission), [role, seesCommission]);
+  const [trendMeasure, setTrendMeasure] = useState<TrendMeasure>(() => trendMeasuresFor(role, seesCommission)[0].value);
+  /* Resolved on every read rather than trusted because the option was missing
+     when it was set. The initialiser above is correct on a normal sign-in
+     (hydrateCommissionVisibility runs before the first Reporting paint), but it
+     runs once, and component state outlives the reader: a different user
+     resolving inside the same runtime is a case the session already handles
+     explicitly (#100 in SessionContext), and 'commission' left in this state
+     would survive it. */
+  /* Resolved on every read rather than trusted, because the option may not
+     be on offer any more. Widened with walk fix 17: the reader can change
+     inside one runtime (#100), and an admin left holding 'commission' would
+     see the zero series this item is about. Anything not offered falls back
+     to the reader's own first option. */
+  const shownMeasure: TrendMeasure = trendMeasures.some((o) => o.value === trendMeasure)
+    ? trendMeasure : trendMeasures[0].value;
 
-  const partners = getPartners();
+  /* THE BOOK THE PICKER DERIVES ITS CHOICES FROM, same source as Applications
+     so the two controls cannot offer different parties. Scoped by the
+     reader's own isolation, so the list is only ever parties they may
+     already see; ALL_PARTNERS here because narrowing is what the picker is
+     for and narrowing it first would leave it unable to offer the way back. */
+  const scopeBook = useMemo(
+    () => scopedSummaries({ role, scope: ALL_PARTNERS }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [role],
+  );
   const periods = getPeriods();
 
-  // The scope label shows only for opndoor admin; Management only ever sees its own partner.
-  const scopeName = partnerScope === ALL_PARTNERS ? 'All partners' : partnerName(partnerScope);
-  const eyebrowText = `${role === 'superadmin' ? `${scopeName} · ` : ''}Performance · ${period.label}`;
+  /* THE HEADER NAMES A NARROWING OR SAYS NOTHING. Matt, 2026-09-30:
+     "remove 'All partners' from the page header". It was there to say
+     what the figures covered, and "All partners" says only that nothing
+     is filtered, which the reader can see: an unnarrowed page needs no
+     label, and the label earns its place when it names the one party the
+     page has been narrowed to. */
+  const scopeName = partnerScope === ALL_PARTNERS ? '' : partnerName(partnerScope);
+  const eyebrowText = `${role === 'superadmin' && scopeName ? `${scopeName} · ` : ''}Performance · ${period.label}`;
 
   // ---- volume charts ----
+  // A panel that ranks a population of one is not a ranking. An agency with a
+  // single branch got "Volume by branch" and "Volume by agency" as two charts of
+  // the same single bar, under a header already naming it. Both drop out and the
+  // people chart stays, which is the only one with more than one thing in it.
+  // Applies to an admin too, the moment they filter to one agency.
+  const shape = liveScopeShape(role, partnerScope);
   const chartMeta: { key: ChartKey; rows: LeagueRow[]; scope: string }[] = [
-    { key: 'branch', rows: d.branches, scope: d.branchScope },
-    { key: 'agency', rows: d.agencies, scope: d.agencyScope },
+    ...(shape.branches > 1 ? [{ key: 'branch' as ChartKey, rows: d.branches, scope: d.branchScope }] : []),
+    /* VOLUME BY SUPPLIER, alongside Volume by agency and in the same
+       style. Matt, 2026-09-30. Drawn only when there is more than one
+       supplier with business in the period, which is the same rule the
+       branch and agency cards already follow: a ranking of one is not a
+       ranking. */
+    ...((d.suppliers?.length ?? 0) > 1 ? [{ key: 'supplier' as ChartKey, rows: d.suppliers, scope: 'every supplier' }] : []),
+    ...(shape.agencies > 1 ? [{ key: 'agency' as ChartKey, rows: d.agencies, scope: d.agencyScope }] : []),
     { key: 'referrer', rows: d.referrers, scope: d.referrerScope },
   ];
 
   // ---- monthly trend ----
-  const trendVal = (r: TrendRow): number => (trendMeasure === 'count' ? r.count : trendMeasure === 'commission' ? r.comm : r.fees);
+  // Every read of the measure below goes through shownMeasure, so r.comm is
+  // unreachable for a reader the predicate refuses even if the state says otherwise.
+  const trendVal = (r: TrendRow): number => (
+    shownMeasure === 'count' ? r.count
+      : shownMeasure === 'deeds' ? r.deeds
+      : shownMeasure === 'commission' ? r.comm
+      : shownMeasure === 'payable' ? r.payable
+      : r.fees);
+  /** The two counting measures print as counts; the two money ones as money. */
+  const trendIsCount = shownMeasure === 'count' || shownMeasure === 'deeds';
   const rawTrend = getTrend(trendView, role, partnerScope);
   const trendRows: BarRow[] = useMemo(() => {
     const rows = rawTrend.slice();
     // "By month" keeps chronological order (latest highlighted); breakdowns sort by value.
     if (trendView !== 'month') rows.sort((a, b) => trendVal(b) - trendVal(a));
-    return rows.map((r) => ({ label: r.label, sub: r.sub, value: trendVal(r), display: trendMeasure === 'count' ? String(r.count) : fmtBig(trendVal(r)) }));
+    return rows.map((r) => ({ label: r.label, sub: r.sub, value: trendVal(r), display: trendIsCount ? String(trendVal(r)) : fmtBig(trendVal(r)) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawTrend, trendView, trendMeasure]);
+  }, [rawTrend, trendView, shownMeasure]);
   const trendTopIndex = trendView === 'month' ? trendRows.length - 1 : 0;
   // Entity views (branch/agency/referrer) are 12-month TOTALS, not a monthly
   // series, so the caption states that explicitly (the bars have no time axis by design).
-  const trendSub = `${measureLabel(trendMeasure)} · ${trendView === 'month' ? 'last 12 months' : `by ${trendView} · total over the last 12 months`}`;
+  /* BY BRANCH AND BY AGENCY FOLLOW THE SCOPE RULE, the same one the three volume
+     charts above already follow. A one-office agency was offered "By branch", and
+     choosing it drew a single bar labelled with the office they are already
+     looking at: a control that can only ever restate the page. By referrer stays
+     for everyone, because every agency has more than one person to compare even
+     when it has one office. */
+  const trendOptions = useMemo(() => [
+    { value: 'month', label: 'By month' },
+    ...(shape.branches > 1 ? [{ value: 'branch', label: 'By branch' }] : []),
+    ...(shape.agencies > 1 ? [{ value: 'agency', label: 'By agency' }] : []),
+    { value: 'referrer', label: 'By referrer' },
+  ], [shape.branches, shape.agencies]);
+
+  /* And fall back if the choice stops being offered, which League already does
+     for its tabs and this did not: a reader who picked By branch on a group and
+     then narrowed to one agency would have been left on a hidden option showing
+     one bar. */
+  useEffect(() => {
+    if (!trendOptions.some((o) => o.value === trendView)) setTrendView('month');
+  }, [trendOptions, trendView]);
+
+  const trendSub = `${measureLabel(shownMeasure)} · ${trendView === 'month' ? 'last 12 months' : `by ${trendView} · total over the last 12 months`}`;
 
   // ---- exports ----
-  const [bdxOpen, setBdxOpen] = useState(false);
-  const [bdxMonth, setBdxMonth] = useState('2026-06');
-  const [bdxRate, setBdxRate] = useState(String(getBordereauRate()));
-  const [bdxBusy, setBdxBusy] = useState(false);
   const [appsOpen, setAppsOpen] = useState(false);
   const [appsBasis, setAppsBasis] = useState<ExportBasis>('referred');
   // #86 Expiries export, defaulting to the month ~6 weeks out (the cron cohort).
   const [expOpen, setExpOpen] = useState(false);
-  const [expMonth, setExpMonth] = useState(() => { const d = new Date(); d.setDate(d.getDate() + 42); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
+  /* THE MONTH THAT HAS SOMETHING IN IT. Matt, 2026-10-03: "Open on the next
+     month that has any guarantees expiring; if none, next month, with a note
+     'Nothing expiring yet; your earliest is [month]'."
+
+     IT USED TO OPEN ON TODAY PLUS 42 DAYS, which is the six weeks the
+     reminder email goes out at, and for a new agency that is a month with
+     nothing in it: the reader pressed Download and got an empty file, which
+     reads as a broken export rather than as an empty cohort.
+
+     RESOLVED WHEN THE DIALOG OPENS, not once at mount: the book is hydrated
+     after the first render, so a value computed here would be the fallback
+     for every reader. See the effect below. */
+  const [expMonth, setExpMonth] = useState(() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; });
+  const [expEarliest, setExpEarliest] = useState<string | null>(null);
+  const [expHasAny, setExpHasAny] = useState(true);
+  const toast = useToast();
+
+  /* EVERY EXPORT SAYS WHAT HAPPENED. Matt, 2026-10-04: "make any export that
+     fails show a clear message instead of doing nothing."
+
+     These were `void exportBranded(...)`, which discards the promise, so a
+     refusal and a thrown builder both arrived as a button that did nothing.
+     `exportBranded` now returns an outcome and never rejects, and this is the
+     one place that turns it into a sentence. */
+  async function run(built: BrandedExport | null, kind: ExportKind) {
+    const out = await exportBranded(built, kind);
+    if (!out.ok) toast(out.message, 'error');
+  }
 
   function exportSummary() {
-    void exportBranded(buildPerformanceDoc(role, period as Period));
+    void run(buildPerformanceDoc(role, period as Period), 'performance');
   }
   function runAppsExport() {
-    const built = buildApplicationDoc(role, period as Period, appsBasis);
-    if (built) void exportBranded(built);
+    /* THE NULL IS A REFUSAL AND IS REPORTED AS ONE. `buildApplicationDoc`
+       returns null for a reader who may not have this document, and
+       `if (built)` silently dropped that on the floor along with everything
+       else. */
+    void run(buildApplicationDoc(role, period as Period, appsBasis), 'application');
     setAppsOpen(false);
-  }
-  function openBordereau() {
-    // Default to the stored rate (not a hard-coded value), so it no longer reverts.
-    setBdxRate(String(getBordereauRate()));
-    setBdxOpen(true);
   }
   function runExpiries() {
     const mv = (expMonth || '2026-06').split('-');
-    const out = buildExpiriesCsv(role, +mv[0], +mv[1] - 1);
-    if (out) downloadCsv(out.csv, out.filename);
+    /* A BRANDED WORKBOOK, LIKE THE OTHER THREE. Matt, 2026-10-03:
+       "produce the Expiries export as a branded Excel file using the
+       existing branded template (BrandedDoc, as the commission statements
+       use), not a plain CSV ... so all admin downloads look alike." */
+    void run(buildExpiriesDoc(role, +mv[0], +mv[1] - 1), 'expiries');
     setExpOpen(false);
   }
+<<<<<<< HEAD
   async function exportBordereau() {
     if (bdxBusy) return;
     const mv = (bdxMonth || '2026-06').split('-');
@@ -250,6 +563,8 @@ export function Dashboard() {
     }
   }
 
+=======
+>>>>>>> partner-api
   return (
     <>
       <div className="page-head">
@@ -259,40 +574,109 @@ export function Dashboard() {
           <p className="page-head__sub">{d.sub}</p>
         </div>
         <div className="page-head__actions">
-          <RoleOnly roles={['superadmin']}>
-            <PeriodSelect
-              ariaLabel="Partner"
-              title="View all partners combined, or drill into one partner"
-              value={selectedPartner}
-              onChange={setSelectedPartner}
-              options={[{ value: ALL_PARTNERS, label: 'All partners' }, ...partners.map((p) => ({ value: p.id, label: p.name }))]}
-            />
-          </RoleOnly>
+          {/* NM-M: THE SCOPE PICKER IS GONE FROM THIS PAGE. Matt,
+              2026-09-30: "delete the Reporting scope picker." The control
+              it replaces is the "View as" button on each agency and
+              supplier page, which asks the question from the party's own
+              page instead of from a list of every party.
+
+              APPLICATIONS KEEPS ITS OWN, and that is not an inconsistency:
+              there the control narrows a LIST, which is a filter, and walk
+              fix 7 is what made it work across both rails. Here it chose
+              whose report you were reading, which is a different act and
+              now has a different control. Both still write the one shared
+              `scopeSel`, so the two screens cannot disagree about who you
+              are looking at.
+
+              WHAT REPLACES IT AS THE WAY OUT is the banner below. The
+              picker was the only control that could set the selection back
+              to everything, and the selection is shared with Applications,
+              so deleting it without the banner would strand an admin
+              narrowed to one party on both screens with no way back. */}
           <PeriodSelect ariaLabel="Dashboard time period" value={period.id} onChange={setPeriod} options={periods.map((p) => ({ value: p.id, label: p.label }))} />
-          <Button variant="dark" size="sm" onClick={exportSummary} title="Downloads a structured CSV of the dashboard analytics for the selected time period">
-            <Icon name="download" /> Export summary
-          </Button>
-          <RoleOnly roles={['superadmin', 'management']}>
+          {/* This was the only one of the four export controls with no RoleOnly.
+              The document it builds carries commission for every role entitled to
+              it, so the button has to be gated like its three siblings. The
+              builder now refuses for itself as well. */}
+          {/* None of these three buttons takes `commission`, and that is the
+              verdict rather than an oversight: what the reader ends up holding is
+              decided inside the builders, which each ask maySeeCommission and drop
+              the commission lines and columns for a Manager. The rest of each
+              document (referrals, fees, conversion, expiring guarantees) is theirs.
+              Gating the buttons would take the whole document to remove a block. */}
+          {/* NOT `READS_THE_WHOLE_BOOK`, and the difference is the point.
+              'referrer' belongs on this one: the builder drops what a
+              Negotiator may not see rather than withholding the document,
+              which is what the paragraph above says. So this is that
+              allowlist PLUS the Negotiator, and swapping it for the
+              constant would quietly take the export from every Negotiator
+              in the estate. opndoor_manager was simply never added. */}
+          <RoleOnly roles={[...READS_THE_WHOLE_BOOK, 'referrer']}>
+            <Button variant="dark" size="sm" onClick={exportSummary} title="Downloads a structured CSV of the dashboard analytics for the selected time period">
+              <Icon name="download" /> Export summary
+            </Button>
+          </RoleOnly>
+          <RoleOnly roles={READS_THE_WHOLE_BOOK}>
             <Button variant="ghost" size="sm" onClick={() => setAppsOpen(true)} title="Downloads one row per application, pseudonymised by guarantee reference">
               <Icon name="apps" /> Application export
             </Button>
           </RoleOnly>
-          <RoleOnly roles={['superadmin', 'management']}>
-            <Button variant="ghost" size="sm" onClick={() => setExpOpen(true)} title="Guarantees expiring in a chosen month, soonest first, for renewal outreach">
+          <RoleOnly roles={READS_THE_WHOLE_BOOK}>
+            <Button variant="ghost" size="sm" onClick={() => {
+              /* RESOLVED ON OPEN, not at mount: the book is hydrated after
+                 the first render, so a month computed in a useState
+                 initialiser is the fallback for every reader. */
+              const n = nextExpiryMonth(role);
+              setExpMonth(n.month);
+              setExpHasAny(n.hasAny);
+              setExpEarliest(n.earliest);
+              setExpOpen(true);
+            }} title="Guarantees expiring in a chosen month, soonest first, for renewal outreach">
               <Icon name="calendar" /> Expiries
             </Button>
           </RoleOnly>
-          <RoleOnly roles={['superadmin']}>
-            <Button variant="primary" size="sm" onClick={openBordereau} title="Monthly underwriter bordereau (C&C format) with full tenant details. opndoor admin only.">
-              <Icon name="shield" /> Bordereau
-            </Button>
-          </RoleOnly>
+          {/* #Ops: the underwriter bordereau moved to the ops Home (Operations),
+              alongside commission settlement. opndoor admin runs it there. */}
         </div>
       </div>
 
+      {/* WHOSE PAGE THIS IS, AND HOW TO STOP READING IT.
+          NM-M deleted the picker, and the picker was the only control that
+          could clear the selection. That matters more than it sounds: the
+          selection is shared with Applications, so an admin who pressed
+          "View as" on Regent and could not undo it would find their
+          applications list narrowed to Regent on a screen that never
+          mentioned Regent.
+
+          It says nothing when there is nothing to say. `viewingAs` is null
+          for everything and for both rails -- an admin looking at all
+          suppliers is not viewing as anybody -- so this is furniture only
+          on the pages where it is the truth. */}
+      {viewingAs !== null && (
+        <div className="viewas-bar">
+          <span className="viewas-bar__t">
+            <Icon name="eye" size={14} /> Viewing as <b>{originLabel(viewingAs, scopeBook)}</b>. This is the page their management sees.
+          </span>
+          <Button variant="quiet" size="sm" onClick={() => setScopeSel(ORIGIN_ALL)}>Stop viewing as</Button>
+        </div>
+      )}
+
+      {/* THE LEVELS, IN THE AGENCY'S OWN WORDS. This said "Management and
+          super-admin users see the full portfolio across every agency and
+          branch", which is our vocabulary twice over: nobody at an agency holds
+          "Management" or "super-admin", and "every agency and branch" describes
+          Opndoor's estate rather than the reader's own shop. A Negotiator being
+          told what they cannot see should be told it in the names their own
+          colleagues go by, which are the three the invite dialog offers. */}
+      {/* AND NOT EVERY READER IS ON THE AGENCY LADDER. Matt, 2026-10-04:
+          for supplier referrers say "Management sees all of [supplier]'s
+          referrals", because "Directors and Managers" is agency wording and
+          a supplier has neither. `whoSeesEverything` holds both ladders so
+          this sentence cannot drift from the three other places that name
+          the level above the reader. */}
       <RoleOnly roles={['referrer']}>
         <RoleNote style={{ marginBottom: 18 }}>
-          You are viewing your <b>own referrals only</b>. Management and super-admin users see the full portfolio across every agency and branch.
+          You are viewing your <b>own referrals only</b>. {whoSeesEverything(partnerScope)}.
         </RoleNote>
       </RoleOnly>
 
@@ -300,6 +684,20 @@ export function Dashboard() {
         {/* NEEDS ATTENTION — compact stat-lines, each linking to the relevant view */}
         {hasNeedsAttention && (
           <section className="needs-attn">
+            {/* AND NOTHING IN HERE IS OF THE PERIOD EITHER. Matt, same
+                instruction: "Check any other tile that ignores the
+                period and label it the same way."
+
+                These are the page's other period-blind figures, and
+                they are blind by construction: every one counts what is
+                in that state NOW -- liveAggregate's own comment calls
+                them "current-state operational metrics (not
+                period-filtered)" -- so a deed awaiting signature is
+                waiting whether or not it was sent this month. Said ONCE
+                for the section rather than appended to each of seven
+                lines, which would be the same sentence seven times over
+                a block whose rows are already one line each. */}
+            <div className="na-note">Waiting now, across the whole book. Not affected by the period.</div>
             {naAwaiting && (
               <Link className="na-stat na-stat--sign" to="/applications?deed=awaiting" title="Applications with a deed out for the tenant's signature">
                 <span className="na-stat__n">{d.awaiting}</span>
@@ -314,24 +712,38 @@ export function Dashboard() {
                 <Icon name="arrowRight" className="na-stat__go" />
               </Link>
             )}
-            {naNoContact && (
-              <Link className="na-stat na-stat--warn" to="/applications?deed=delivery-failed" title="Deeds issued but not delivered to the agent (no reachable claim contact). Open the list to add a contact, then resend the deed.">
-                <span className="na-stat__n">{d.deedsNoContact}</span>
-                <span className="na-stat__l">deed{d.deedsNoContact === 1 ? '' : 's'} issued · delivery failed, view and resend</span>
+            {naStuckInvited && (
+              <Link className="na-stat na-stat--warn" to="/applications?status=invited" title="Agent-rail tenants invited but not registered after 7 days">
+                <span className="na-stat__n">{agentFunnel!.stuck_invited}</span>
+                <span className="na-stat__l">invited, not registered after 7 days</span>
                 <Icon name="arrowRight" className="na-stat__go" />
               </Link>
             )}
-            {naCorrections && (
-              <Link className="na-stat na-stat--warn" to="/activity" title="An agent reported that a deed's tenancy start date is incorrect. Review in the activity feed and amend the application if correct.">
-                <span className="na-stat__n">{corrections}</span>
-                <span className="na-stat__l">tenancy-start correction{corrections === 1 ? '' : 's'} reported by agents, review</span>
+            {naStuckFee && (
+              <Link className="na-stat na-stat--warn" to="/applications?status=fee-unpaid" title="Agent-rail tenants registered but the application fee is unpaid after 7 days">
+                <span className="na-stat__n">{agentFunnel!.stuck_fee}</span>
+                <span className="na-stat__l">application fee unpaid after 7 days</span>
+                <Icon name="arrowRight" className="na-stat__go" />
+              </Link>
+            )}
+            {naStuckRef && (
+              <Link className="na-stat na-stat--warn" to="/applications?status=referencing" title="Agent-rail applications awaiting the eligibility decision for over 7 days">
+                <span className="na-stat__n">{agentFunnel!.stuck_referencing}</span>
+                <span className="na-stat__l">awaiting decision over 7 days</span>
+                <Icon name="arrowRight" className="na-stat__go" />
+              </Link>
+            )}
+            {naNoContact && (
+              <Link className="na-stat na-stat--warn" to="/applications?deed=delivery-failed" title="Deeds issued but not delivered to the agent (no reachable claim contact). Open the list to add a contact, then resend the deed.">
+                <span className="na-stat__n">{d.deedsNoContact}</span>
+                <span className="na-stat__l">{plural(d.deedsNoContact, 'deed')} issued · delivery failed, view and resend</span>
                 <Icon name="arrowRight" className="na-stat__go" />
               </Link>
             )}
             {naLapsing && (
               <Link className="na-stat na-stat--warn" to="/activity" title="In-force guarantees expiring within 14 days. Arrange a renewal or a fresh referral so cover stays in place.">
                 <span className="na-stat__n">{d.lapsing14}</span>
-                <span className="na-stat__l">guarantee{d.lapsing14 === 1 ? '' : 's'} lapsing within 14 days</span>
+                <span className="na-stat__l">{plural(d.lapsing14, 'guarantee')} lapsing within 14 days</span>
                 <Icon name="arrowRight" className="na-stat__go" />
               </Link>
             )}
@@ -349,11 +761,33 @@ export function Dashboard() {
         {/* FUNNEL */}
         <Card>
           <CardHead
-            title="Live referral funnel"
-            sub={d.funnelScope}
-            actions={<Pill variant="paid" style={{ fontSize: 12 }}>Sent to Paid is the headline metric</Pill>}
+            title={agentFunnel ? 'Live application journey' : 'Live referral funnel'}
+            sub={agentFunnel ? 'Invited to Deed signed' : d.funnelScope}
+            actions={agentFunnel ? undefined : <Pill variant="paid" style={{ fontSize: 12 }}>Sent to Paid is the headline metric</Pill>}
           />
           <CardBody>
+            {agentFunnel ? (
+              <div className="afunnel">
+                {[
+                  { k: 'Invited', n: agentFunnel.invited },
+                  { k: 'Registered', n: agentFunnel.registered },
+                  { k: 'Details', n: agentFunnel.details },
+                  { k: 'Application fee', n: agentFunnel.fee },
+                  { k: 'Documents', n: agentFunnel.documents },
+                  { k: 'Submitted', n: agentFunnel.submitted },
+                  { k: 'Decision', n: agentFunnel.approved + agentFunnel.declined, sub: `${agentFunnel.approved} approved · ${agentFunnel.declined} declined` },
+                  { k: 'Guarantee fee', n: agentFunnel.guarantee },
+                  { k: 'Deed', n: agentFunnel.deed },
+                ].map((s) => (
+                  <div key={s.k} className="afunnel__tile">
+                    <div className="afunnel__n">{s.n.toLocaleString('en-GB')}</div>
+                    <div className="afunnel__l">{s.k}</div>
+                    {s.sub && <div className="afunnel__sub">{s.sub}</div>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+            <>
             <div className="funnel">
               <div className="fstage fstage--sent">
                 <div className="fstage__top"><Pill variant="sent">Sent</Pill></div>
@@ -369,7 +803,7 @@ export function Dashboard() {
               <div className="fstage fstage--paid">
                 <div className="fstage__top"><Pill variant="paid">Paid</Pill></div>
                 <div className="fstage__count">{d.paid}</div>
-                <div className="fstage__label">Guarantor fee paid</div>
+                <div className="fstage__label">Guarantee fee paid</div>
                 <div className="fstage__bar"><i /></div>
               </div>
               <div className="fconnect">
@@ -390,6 +824,8 @@ export function Dashboard() {
                 <span>Conversion is <b>period throughput</b>: each stage counts the events that occurred within the period, so a rate can exceed 100% when payments or deeds land this period for referrals sent earlier.</span>
               </div>
             )}
+            </>
+            )}
           </CardBody>
           <CardFoot>
             <span className="muted" style={{ fontSize: 12.5 }}>
@@ -404,7 +840,16 @@ export function Dashboard() {
 
         {/* HERO KPIs */}
         <section className="herorow">
-          <RoleOnly roles={['superadmin', 'management']}>
+          {/* DELIBERATELY NOT A COMMISSION SURFACE, and the one most likely to be
+              flagged as one because it is the biggest number on the page. Every
+              figure in this tile is the fee the TENANT was charged (gross, less
+              refunds, net) plus the rent those deeds guarantee. That is the price
+              of the product and a fact about referrals the Manager owns and can
+              already read one by one on Applications. No rate is stated and the
+              rate routes return nothing for them, so it does not reconstruct the
+              agency's income. Gating it would leave a Manager a dashboard with no
+              money on it at all, which is not the level. */}
+          <RoleOnly roles={READS_THE_WHOLE_BOOK}>
             {/* #85 Net fees leads the money block; Total guaranteed rent value second. */}
             <div className="card hero-kpi hero-kpi--dark">
               <div className="kpi__label">Net fees{d.live ? ' (after refunds)' : ''}</div>
@@ -412,7 +857,38 @@ export function Dashboard() {
                 <span className="hero-kpi__big">{d.live ? d.net : d.fees}</span>
               </div>
               <p style={{ position: 'relative', fontSize: 13, color: 'rgba(255,255,255,0.72)', marginTop: 8, maxWidth: '42ch' }}>
-                Guarantor fees collected across {d.deedcount} issued deeds, one month's rent each, net of any refunds.
+                {/* The basis is stated as it actually was, never asserted as a
+                    month: Regent's single-tenant fee is three weeks and their
+                    joint fee is five. Empty in a period with no fees at all. */}
+                {/* THE DENOMINATOR DID NOT PRODUCE THE NUMERATOR. Matt,
+                    2026-09-30: "fix the Net fees description: it currently
+                    says fees were collected 'across 5 issued deeds' when
+                    they came from all paid referrals."
+
+                    A referral pays BEFORE its deed is issued, and some paid
+                    referrals never get one, so issued deeds is a smaller and
+                    different set from the one that produced the money. A
+                    reader dividing the figure by the count got a fee per
+                    referral that is not one.
+
+                    The noun still agrees with the count, off paidCount (the
+                    number) rather than paid (the display string): a first
+                    referral read "across 1 paid referrals" under the old
+                    idiom, which is the bug this one was written to avoid. */}
+                {/* AND THE COUNT IS NET TOO. Matt, 2026-10-04: "count paid
+                    referrals excluding refunded ones, e.g. 'across 15 paid
+                    referrals (1 refunded)'."
+
+                    "NET" ALREADY MEANT REFUNDS WERE OUT OF THE MONEY, and
+                    the denominator still included them, so the two halves of
+                    one sentence counted different sets. A reader dividing
+                    the figure by the count got a fee per referral that no
+                    referral was ever charged.
+
+                    THE PARENTHETICAL IS CONDITIONAL, because almost every
+                    month has no refunds and "(0 refunded)" on all of them
+                    trains people to stop reading the line. */}
+                Guarantee fees collected across {d.paidNetCount.toLocaleString('en-GB')} paid {plural(d.paidNetCount, 'referral')}{d.refundCount ? ` (${d.refundCount} refunded)` : ''}{d.feeBasisCopy ? `, ${d.feeBasisCopy}` : ''}, net of any refunds.
               </p>
               {d.live && (
                 <div className="hero-kpi__split">
@@ -420,10 +896,50 @@ export function Dashboard() {
                   <div><span className="k">Less refunds{d.refundCount ? ` (${d.refundCount})` : ''}</span><span className="v v--neg">{d.refunds}</span></div>
                 </div>
               )}
+              {/* A TILE UNDER A PERIOD PICKER IS READ AS BEING OF THAT
+                  PERIOD, and this one is not. Matt, 2026-10-02: "'Total
+                  guaranteed rent value' doesn't change with the period,
+                  because it's everything currently guaranteed. Label it
+                  'Guaranteed rent in force (whole book, not affected by
+                  the period)' so it isn't read as this period's figure."
+
+                  THE FIGURE IS RIGHT AND THE READER WAS WRONG, which is
+                  what makes it a labelling fault rather than an
+                  arithmetic one. `coverHeldDuring` asks only whether
+                  cover has ended before the period STARTS -- it ignores
+                  the end deliberately, so a deed signed yesterday for a
+                  tenancy starting in six weeks still counts -- and for
+                  any period beginning in the past that admits the whole
+                  live book. Sitting under Net fees, which IS the
+                  period's, it read as a second period figure.
+
+                  HIS WORDS, NOT A PARAPHRASE OF THEM.
+
+                  AND SINCE (dm), WHAT THE FIGURE IS AS WELL AS WHICH
+                  DEEDS. Matt: "say whether the figure is the full 12
+                  months' guaranteed rent or what remains, and label it
+                  accordingly." It is the full twelve months per live
+                  guarantee -- `guaranteedInForce` adds `covered * 12`
+                  for each, so one eleven months through its year counts
+                  the same as one signed yesterday. That is the exposure
+                  WRITTEN, which is the underwriter's question and not
+                  what "in force" sounds like on its own, so the label
+                  now says which. The old wording answered which deeds
+                  and left how much of each to be guessed, and a reader
+                  guessing "what is left" was reading it as smaller than
+                  it is. */}
               <div className="hero-kpi__sub" style={{ marginTop: 14 }}>
-                <span className="lbl">Total guaranteed rent value</span>
+                <span className="lbl">Guaranteed rent in force &middot; 12 months per live guarantee (whole book, not affected by the period)</span>
                 <span className="val">{d.guaranteed}</span>
               </div>
+              {/* AND HOW MUCH OF IT HAS NOT STARTED. The figure read GBP 0
+                  for an agency holding four signed deeds, because every one
+                  of their tenancies starts next month; it now counts them
+                  and says so, rather than choosing between a nought that is
+                  wrong and a total that implies cover is running. */}
+              {d.guaranteedNote && (
+                <div className="hero-kpi__note">{d.guaranteedNote}</div>
+              )}
             </div>
           </RoleOnly>
 
@@ -434,7 +950,7 @@ export function Dashboard() {
                 <span className="hero-kpi__big">{d.live ? d.net : d.fees}</span>
               </div>
               <p style={{ position: 'relative', fontSize: 13, color: 'rgba(255,255,255,0.72)', marginTop: 8, maxWidth: '42ch' }}>
-                Guarantor fees from the referrals you sent that reached Paid, at one month's rent each.
+                Guarantee fees from the referrals you sent that reached Paid{d.feeBasisCopy ? `, at ${d.feeBasisCopy}` : ''}.
               </p>
               {d.live ? (
                 <div className="hero-kpi__split">
@@ -451,22 +967,66 @@ export function Dashboard() {
             </div>
           </RoleOnly>
 
-          <RoleOnly roles={['superadmin', 'management']}>
+          {/* THE COMMISSION TILE, AND IT IS THE WHOLE TILE THAT GOES. Every figure
+              in it is earnings: commHeadline is the net agent or partner
+              commission, commSecondVal is the other side of the same split, and
+              commExcl is the commission reversed on refunds. A Manager was shown
+              "Commission (agreed terms)" with an amount, beside the fees tile, at
+              the top of their own dashboard. There is no narrower version of this
+              tile to show them, because the amount IS the tile. */}
+          <RoleOnly roles={READS_THE_WHOLE_BOOK} commission>
             <div className="card hero-kpi">
               <div className="spread">
-                <div className="kpi__label">{d.live ? 'Commission earned' : 'Commission earned to date'}</div>
+                {/* The label is the service's, not the page's: it is the one bit
+                    of this tile's copy that has to agree with the tag beside it
+                    about who is reading (see commLbl in analyticsService). */}
+                <div className="kpi__label">{d.commLbl}</div>
                 <Tag>{d.commTag}</Tag>
               </div>
               <div className="hero-kpi__row" style={{ marginTop: 14 }}>
                 <span className="comm-headline">{d.commHeadline}</span>
+                {/* NO PERCENTAGE ANYWHERE ON AN AGENCY'S COMMISSION TILE, and
+                    that includes this one. It is a hard-coded 12.4% that only
+                    ever appears in mock/demo mode, so it is demo furniture
+                    rather than a measurement, and a figure nobody computed is
+                    the worst kind of rate to show somebody their money under. */}
                 {d.live
                   ? (d.refundCount > 0 && <span className="muted" style={{ fontSize: 12 }}>Excluded on refunds {d.commExcl}</span>)
-                  : <span className="kpi__delta kpi__delta--up"><Icon name="caretUp" strokeWidth={2.4} />12.4% vs prior period</span>}
+                  : !agencyFacing && <span className="kpi__delta kpi__delta--up"><Icon name="caretUp" strokeWidth={2.4} />12.4% vs prior period</span>}
               </div>
-              <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span className="muted" style={{ fontSize: 13 }}>{d.commSecondLbl}</span>
-                <span style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 18, color: 'var(--ink)' }}>{d.commSecondVal}</span>
-              </div>
+              {/* Dropped, not zeroed, on the agent rail: one of our agencies has
+                  no supplier above it, and a £0 "partner commission" line reads
+                  as money withheld rather than as a party that does not exist. */}
+              {d.commSecondShown && (
+                <div style={{ marginTop: 'auto', paddingTop: 18, borderTop: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <span className="muted" style={{ fontSize: 13 }}>{d.commSecondLbl}</span>
+                  <span style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 18, color: 'var(--ink)' }}>{d.commSecondVal}</span>
+                </div>
+              )}
+              {/* THE OTHER HALF OF THE PAYABLE SPLIT, for an admin. The headline
+                  is what opndoor owes out; these two say to whom. Suppliers
+                  excludes the house route, whose partner cut is opndoor's own
+                  margin and is not owed to anybody. */}
+              {d.commThirdShown && (
+                <div style={{ paddingTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <span className="muted" style={{ fontSize: 13 }}>{d.commThirdLbl}</span>
+                  <span style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 18, color: 'var(--ink)' }}>{d.commThirdVal}</span>
+                </div>
+              )}
+              {/* AND THE TOTAL, on a supplier's tile. Matt (q): the three
+                  lines are "Owed to you", the agencies' share worded by who
+                  pays it, and "Total commission on your referrals".
+
+                  SET APART, because it is the only one of the four that is
+                  a sum of the others rather than a payment to somebody. A
+                  reader scanning four money rows of equal weight has to work
+                  out which is the arithmetic. */}
+              {d.commFourthShown && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <span style={{ fontSize: 13, fontWeight: 650 }}>{d.commFourthLbl}</span>
+                  <span style={{ fontFamily: 'var(--display)', fontWeight: 800, fontSize: 18, color: 'var(--ink)' }}>{d.commFourthVal}</span>
+                </div>
+              )}
               {d.live && d.refundCount > 0 && (
                 <div className="muted" style={{ fontSize: 11.5, marginTop: 8 }}>{d.commExclDetail} excluded on refunded fees</div>
               )}
@@ -496,24 +1056,65 @@ export function Dashboard() {
             into the hero KPIs above; there is no separate block. */}
 
         {/* PERFORMANCE BAND: commission-by-partner, then the breakdown cards, then trend. */}
-        {/* COMMISSION BY PARTNER (selected period) */}
-        {d.live && partnerBreakdown.length > 0 && (
-          <RoleOnly roles={['superadmin', 'management']}>
+        {/* COMMISSION BY PARTNER (selected period), OPNDOOR STAFF AND SUPPLIERS ONLY.
+            The RoleOnly allowlist was the whole gate, and 'management' is now
+            worn by a director at one of our own agencies, so this table opened on
+            their dashboard: seven columns splitting their money with a party they
+            have never heard of, under a caption saying "partner" five times.
+            Partner is Opndoor's word for Opndoor's own business. An agency has
+            exactly one route, it is house plumbing, and there is nothing here for
+            them to read. Dropped for them entirely rather than narrowed to one
+            row, because one row of a rate they do not pay is not a smaller
+            version of this table, it is the same mistake in less space. A
+            supplier's manager keeps it: the table is about them. */}
+        {/* And a supplier's manager keeps it only if they may see earnings at all:
+            four of its seven columns are commission, gross and net, on both sides
+            of the split. `agencyFacing` already removed it from our own agencies;
+            `commission` removes it from anyone else's Manager. */}
+        {/* EVERY CUSTOMER, above the commission split, because "how is each
+            customer doing" is the question the page is for and the split is
+            the follow-up.
+
+            NOT GATED ON `d.live`. It is gated on having customers, which
+            CustomersTable decides for itself by returning null for an empty
+            list -- and the synthetic book has none, because liveByCustomer
+            reads the hydrated set. One gate rather than two, and the one
+            that is actually about whether there is anything to show. */}
+        {opndoorStaff && <CustomersTable rows={customers} seesCommission={seesCommission} periodId={period.id} />}
+
+        {/* OPNDOOR ONLY, 2026-10-03. Matt: "Reporting as a supplier
+            (Kestrel's own login and 'View as'): hide the 'Commission by
+            route' table; it's Opndoor-only. The supplier's commission is
+            already shown in the summary and its statement."
+
+            IT WAS GATED ON `!agencyFacing`, which is the same miss the
+            payable split and the Settlements blocks had on 2026-10-01: the
+            gates were written when the only non-agency reader WAS Opndoor,
+            and a supplier reading its own page is the third case. The
+            table lists the three rails and EVERY supplier, so Kestrel was
+            shown its competitors' names and what Opndoor pays them.
+
+            `opndoorStaff` is the same gate as the Every customer table
+            directly above, and it is the honest one: it also covers an
+            admin under View as, who is looking at the supplier's page and
+            should see the supplier's page. */}
+        {d.live && partnerBreakdown.length > 0 && opndoorStaff && (
+          <RoleOnly roles={READS_THE_WHOLE_BOOK} commission>
             <section className="card settle">
-              <div className="settle__head">
-                <div>
-                  <div className="kpi__label">Commission by partner</div>
-                  <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                    Partner and agent commission for the <b>selected period</b>, gross and net of refunds. Net columns reconcile to the summary totals. Settlement (what is actually payable next) is calculated separately, for the <b>prior calendar month</b>. Active partners are listed even with no paid referrals in the period; paused or onboarding partners with no activity are not shown.
-                  </div>
-                </div>
-              </div>
+              <CardHead
+                /* COMMISSION BY ROUTE, not by partner. The rows are the
+                   three rails plus each supplier, which is what "route"
+                   means here, and calling them partners made the house
+                   route read as a customer. Matt, 2026-09-30. */
+                title={<>Commission by route</>}
+                sub={<>Supplier and agent commission for the <b>selected period</b>, gross and net of refunds. Net columns reconcile to the summary totals. Settlement (what is actually payable next) is calculated separately, for the <b>prior calendar month</b>. Active routes are listed even with no paid referrals in the period; paused or onboarding suppliers with no activity are not shown.</>}
+              />
               <div className="settle__apps">
                 <table>
                   <thead>
                     <tr>
-                      <th>Partner</th><th className="num">Paid</th><th className="num">Fees (gross)</th>
-                      <th className="num">Partner comm (gross)</th><th className="num">Partner comm (net)</th>
+                      <th>Route</th><th className="num">Paid</th><th className="num">Fees (gross)</th>
+                      <th className="num">Supplier comm (gross)</th><th className="num">Supplier comm (net)</th>
                       <th className="num">Agent comm (gross)</th><th className="num">Agent comm (net)</th>
                     </tr>
                   </thead>
@@ -536,7 +1137,11 @@ export function Dashboard() {
           </RoleOnly>
         )}
 
-        {/* CHARTS */}
+        {/* CHARTS. All three stay whole for a Manager. Their three measures are
+            fees collected, referral count and Sent-to-Deed conversion: the ranking
+            is of their own branches, agencies and people, and none of the bars is
+            an earning. Commission is not offered here at all (see Measure), unlike
+            the trend below, so there is nothing on these to gate. */}
         <section className="chartrow">
           {chartMeta.map(({ key, rows, scope }) => {
             const { bars, total, max } = buildChartRows(key, rows, measure[key]);
@@ -547,7 +1152,9 @@ export function Dashboard() {
             const chart = (
               <Card key={key}>
                 <CardHead
-                  title={key === 'referrer' ? d.referrerTitle : key === 'branch' ? 'Volume by branch' : 'Volume by agency'}
+                  title={key === 'referrer' ? d.referrerTitle
+                    : key === 'branch' ? 'Volume by branch'
+                      : key === 'supplier' ? 'Volume by supplier' : 'Volume by agency'}
                   sub={`${measureLabel(measure[key])} · ${scope} · within the selected period`}
                   actions={
                     <MeasureSelect
@@ -563,13 +1170,30 @@ export function Dashboard() {
                 </CardBody>
                 <CardFoot>
                   <span className="muted" style={{ fontSize: 12.5 }}>{countLine}</span>
-                  <Button variant="quiet" size="sm" to={`/league?view=${key}`} arrow>View all</Button>
+                  {/* CARRYING WHAT THE READER IS LOOKING AT. Matt,
+                      2026-10-03: "Reporting's 'View all' links open League on
+                      its default period instead of the period selected on
+                      Reporting. Carry the period (and the chosen measure)
+                      across in the link, so League shows the same rows." The
+                      link said only which board; the period and the measure
+                      were dropped at the door, so "View all" showed a
+                      different table from the one it sat under. */}
+                  <Button variant="quiet" size="sm" to={leagueLink(key, period.id, measure[key])} arrow>View all</Button>
                 </CardFoot>
               </Card>
             );
-            if (key === 'referrer') return chart;
+            // Returned before the wrapper below, so this chart had no gate at
+            // all. It names referrers against fees collected, so it needs the
+            // same allowlist as its siblings rather than an early exit.
+            if (key === 'referrer') {
+              return (
+                <RoleOnly key={key} roles={READS_THE_WHOLE_BOOK}>
+                  {chart}
+                </RoleOnly>
+              );
+            }
             return (
-              <RoleOnly key={key} roles={['superadmin', 'management']}>
+              <RoleOnly key={key} roles={READS_THE_WHOLE_BOOK}>
                 {chart}
               </RoleOnly>
             );
@@ -577,7 +1201,7 @@ export function Dashboard() {
         </section>
 
         {/* MONTHLY TREND */}
-        <RoleOnly roles={['superadmin', 'management']}>
+        <RoleOnly roles={READS_THE_WHOLE_BOOK}>
           <Card style={{ marginBottom: 18 }}>
             <CardHead
               title="Monthly volume trend"
@@ -588,13 +1212,13 @@ export function Dashboard() {
                     ariaLabel="Break the trend down by"
                     value={trendView}
                     onChange={(v) => setTrendView(v as TrendView)}
-                    options={[{ value: 'month', label: 'By month' }, { value: 'branch', label: 'By branch' }, { value: 'agency', label: 'By agency' }, { value: 'referrer', label: 'By referrer' }]}
+                    options={trendOptions}
                   />
                   <TrendSelect
                     ariaLabel="Measure for the trend"
-                    value={trendMeasure}
+                    value={shownMeasure}
                     onChange={(v) => setTrendMeasure(v as TrendMeasure)}
-                    options={[{ value: 'commission', label: 'Commission earned' }, { value: 'value', label: 'Fees collected' }, { value: 'count', label: 'Referral count' }]}
+                    options={trendMeasures}
                   />
                 </div>
               }
@@ -605,25 +1229,128 @@ export function Dashboard() {
           </Card>
         </RoleOnly>
 
-        {/* SETTLEMENTS (below performance) — payable totals; applications collapsed. */}
-        {(naSettlements || (d.live && (settlement.partners.length > 0 || agentSettlement.agencies.length > 0))) && (
-          <RoleOnly roles={['superadmin', 'management']}>
+        {/* COMMISSION STATEMENT — the agency's own ledger for a month it picks.
+            Distinct from the settlement blocks below, which answer "what are we
+            about to pay" for the prior month only. Same accumulator, so they
+            agree; different question, so both are here. Management and admin:
+            a referrer is not a payee and reads their own referrals instead. */}
+        {/* The eyebrow goes with the statement, not before it: "Your commission"
+            standing over an empty space tells a Manager exactly what they are not
+            being shown, which is worse than the heading being absent. */}
+        {d.live && (
+          <RoleOnly roles={READS_THE_WHOLE_BOOK} commission>
+            {/* NAMED, not "Your". Under View as it is not the reader's
+                commission and saying so was the whole of Matt's third point.
+
+                AND ON THE ADMIN VIEW IT IS NOT ANYBODY'S "YOURS" EITHER.
+                Matt, 2026-09-30: "On the admin view, retitle 'Your
+                commission' to 'Commission owed'." An admin reading this
+                is reading what Opndoor owes out, not what they are paid.
+                A Director still reads "Your commission" about their own,
+                because for them it is exactly that. */}
+            <div className="section-label">
+              <Eyebrow>
+                {viewingAs !== null
+                  ? `${possessive(originLabel(viewingAs, scopeBook))} commission`
+                  : isOpndoorStaff(role) ? 'Commission owed' : 'Your commission'}
+              </Eyebrow>
+            </div>
+            {/* THE SUPPLIER'S OWN STATEMENT IS THE HEADLINE, 2026-10-02.
+                Under "Kestrel Lettings' commission" the panel below used
+                to come first, and it lists the payees in Kestrel's
+                ESTATE -- its agencies -- biggest first. So the heading
+                said "Kestrel Lettings' commission" and the figure under
+                it was one agency's, which is a different company's money
+                and a smaller number than the one Kestrel is paid.
+
+                KESTREL'S OWN STATEMENT IS A DIFFERENT ACCUMULATOR. The
+                supplier's three-way split is built server-side (see
+                SupplierStatements), which is why it was never going to
+                appear in the panel below however that panel was sorted.
+                It was already on the page, several sections further
+                down, under a heading of its own. Moving it here is the
+                whole fix: same component, same data, read in the order
+                the heading promises. */}
+            {supplierOwnPage && (
+              <SupplierStatements
+                partner={partnerScope}
+                supplierName={partnerName(partnerScope)}
+                months={statementMonths(role, partnerScope)}
+              />
+            )}
+            {/* AND THE AGENCIES BENEATH IT, SAYING WHAT THEY ARE. The
+                default title and sentence describe a headline statement;
+                here the card is the per-agency breakdown behind the one
+                above, and a reader who is not told that reads two
+                statements of the same month and asks which is right. */}
+            <CommissionStatement
+              role={role}
+              scope={partnerScope}
+              {...(supplierOwnPage ? {
+                title: 'Agency schedules',
+                sub: `One schedule for each of ${possessive(partnerName(partnerScope))} agencies, behind the statement above. Commission on fees paid in the month, net of refunds.`,
+              } : {})}
+            />
+            {/* THE LINE MOVED INTO THE STATEMENT, 2026-10-03.
+
+                Matt, 2026-10-01, asked for it: "Under the statement, one
+                line: 'Opndoor pays this on 15 Oct 2026.'" It was built here
+                from `agentSettlement.settlementDate`, which is the
+                SETTLEMENT RUN's date -- the 15th after the run's own prior
+                calendar month. That is right for the run and wrong for a
+                statement, because the reader picks the month: October's
+                statement said 15 October, a month early.
+
+                Matt, 2026-10-03: "Fix the date for every month shown." So
+                it is derived from the statement's own month, inside the
+                component that knows it. See paidOnSentence. */}
+          </RoleOnly>
+        )}
+
+        {/* THE SUPPLIER'S STATEMENTS CARD USED TO BE HERE. Matt,
+            2026-10-01, had it on the page because the supplier statement
+            email says the per-agency schedules are "always available" on
+            Reporting. It still is, and it is now the FIRST thing under
+            the supplier's own commission heading rather than several
+            sections below the agency statements: see the mount above and
+            the reason with it. ONE mount, because two would be two cards
+            building the same bundle twice. */}
+
+        {/* SETTLEMENTS (below performance) — payable totals; applications collapsed.
+            All three blocks are money owed to the agency or to the supplier above
+            it, down to the per-application commission column inside the expanders,
+            so all three carry `commission`. The label included: it is the anchor
+            the needs-attention line jumps to, and a heading reading "Settlements"
+            over nothing is a worse answer than no heading. */}
+        {/* ALWAYS DRAWN FOR A READER WHO MAY SEE IT, which is the change. The
+            section used to appear only when the CLOSED month had something in
+            it, so a Director at the start of a month saw no settlement at all
+            while this month was already taking money: silence, where the admin
+            surface printed a wrong sentence. The two blocks answer both
+            questions, and the per-payee detail below is unchanged. */}
+        {/* EXCEPT ON A SUPPLIER'S PAGE. "Payable now" and "Accruing" are
+            Opndoor's settlement run, and the split inside them names the
+            parties Opndoor owes. A supplier is one of those parties, not a
+            reader of the list: what they get is their own statement, which is
+            on this page already. Dropped for them on their own login and
+            under View as alike, which is the same predicate. */}
+        {/* Nor for an agency, for the same reason: "Payable now" is the
+            closed month of Opndoor's own run. */}
+        {!supplierFacing && !agencyFacing && (
+          <RoleOnly roles={['management']} as={drawAs} commission>
             <div id="settlements" className="section-label"><Eyebrow>Settlements</Eyebrow></div>
+            <SettlementBlocks role={role} scope={partnerScope} />
           </RoleOnly>
         )}
 
         {/* COMMISSION SETTLEMENT (partner, prior calendar month, payable the 15th) */}
-        {d.live && settlement.partners.length > 0 && (
-          <RoleOnly roles={['superadmin', 'management']}>
+        {d.live && !supplierFacing && !agencyFacing && settlement.partners.length > 0 && (
+          <RoleOnly roles={['management']} as={drawAs} commission>
             <section className="card settle">
-              <div className="settle__head">
-                <div>
-                  <div className="kpi__label">Partner commission settlement</div>
-                  <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                    Partner commission accrued on payments in <b>{settlement.monthLabel}</b> (calendar month, net of refunds), payable on <b>{settleDate}</b>.
-                  </div>
-                </div>
-              </div>
+              <CardHead
+                title={<>Supplier commission settlement</>}
+                sub={<>Supplier commission accrued on payments in <b>{settlement.monthLabel}</b> (calendar month, net of refunds), payable on <b>{settleDate}</b>.</>}
+              />
               {settlement.partners.map((p) => (
                 <div key={p.partner} className="settle__partner">
                   <div className="settle__row">
@@ -663,25 +1390,21 @@ export function Dashboard() {
         )}
 
         {/* AGENT COMMISSION SETTLEMENT (agency level, prior calendar month, payable the 15th) */}
-        {d.live && agentSettlement.agencies.length > 0 && (
-          <RoleOnly roles={['superadmin', 'management']}>
+        {d.live && !supplierFacing && !agencyFacing && agentSettlement.payees.length > 0 && (
+          <RoleOnly roles={['management']} as={drawAs} commission>
             <section className="card settle">
-              <div className="settle__head">
-                <div>
-                  <div className="kpi__label">Agent commission settlement</div>
-                  <div className="muted" style={{ fontSize: 12.5, marginTop: 3 }}>
-                    Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each agency on <b>{agentSettleDate}</b>.
-                  </div>
-                </div>
-              </div>
+              <CardHead
+                title={<>Agent commission settlement</>}
+                sub={<>Agent commission accrued on payments in <b>{agentSettlement.monthLabel}</b> (calendar month, net of refunds), payable to each payee on <b>{agentSettleDate}</b>.</>}
+              />
               <div className="settle__row settle__row--agg">
-                <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.agencies.length}</b> {agentSettlement.agencies.length === 1 ? 'agency' : 'agencies'}</span>
+                <span>Agent commission due <b>{settleDayMonth}</b> across <b>{agentSettlement.payees.length}</b> {plural(agentSettlement.payees.length, 'payee')}</span>
                 <span className="settle__amt">{gbpPence(agentDue)}</span>
               </div>
               {agentTop.map(agentAgencyRow)}
               {agentRest.length > 0 && (
                 <details className="settle__exp settle__exp--more">
-                  <summary>View all {agentSettlement.agencies.length} agencies</summary>
+                  <summary>View all {countOf(agentSettlement.payees.length, 'payee')}</summary>
                   {agentRest.map(agentAgencyRow)}
                 </details>
               )}
@@ -725,10 +1448,10 @@ export function Dashboard() {
               <div className="field">
                 <label htmlFor="apps-basis">Filter the period by</label>
                 <select id="apps-basis" value={appsBasis} onChange={(e) => setAppsBasis(e.target.value as ExportBasis)}>
-                  <option value="referred">Date referred (Sent) — reconciles to Referrals sent</option>
-                  <option value="paid">Date paid — reconciles to fees collected</option>
-                  <option value="deed">Date deed issued — reconciles to Deeds issued</option>
-                  <option value="activity">All activity — everything Sent, Paid or Deed issued in the period</option>
+                  <option value="referred">Date referred (Sent), reconciles to Referrals sent</option>
+                  <option value="paid">Date paid, reconciles to fees collected</option>
+                  <option value="deed">Date deed issued, reconciles to Deeds issued</option>
+                  <option value="activity">All activity: everything Sent, Paid or Deed issued in the period</option>
                 </select>
                 <span className="hint">{BASIS_META[appsBasis].hint}</span>
               </div>
@@ -745,14 +1468,31 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* #86 EXPIRIES MODAL (management + opndoor admin) */}
-      {expOpen && (role === 'superadmin' || role === 'management') && (
+      {/* #86 EXPIRIES MODAL (management + opndoor staff).
+
+          THE SAME ALLOWLIST AS THE BUTTON THAT OPENS IT, and it is named
+          rather than written out because these two drifted apart the
+          moment one of them was widened: f2ccdb0 added opndoor_manager to
+          the button and left this literal alone, so Opndoor's ops staff
+          got a control that rendered and opened nothing. A dead control is
+          worse than an absent one -- the reader cannot tell it from a
+          broken page. */}
+      {expOpen && readsTheWholeBook(role) && (
         <div className="bdx-scrim is-open" onMouseDown={(e) => e.target === e.currentTarget && setExpOpen(false)}>
           <div className="bdx" role="dialog" aria-modal="true">
             <div className="bdx__head">
               <div>
                 <div className="bdx__title">Expiring guarantees</div>
-                <div className="bdx__sub">Every in-force guarantee expiring in the chosen month, soonest first. {role === 'superadmin' ? 'All partners.' : 'Your partner only.'} Already-expired guarantees are never shown.</div>
+                {/* "Your agency's" OR "your company's", NEVER "your partner".
+                    Matt, 2026-10-03: "say 'Your agency's guarantees only' (or
+                    'your company's' for suppliers) instead of 'Your partner
+                    only'."
+
+                    "partner" IS THE SCHEMA'S WORD for two different kinds of
+                    company, and on the agency rail it is the HOUSE partner
+                    that every agency shares -- so "your partner" names
+                    Opndoor to the one reader it was written for. */}
+                <div className="bdx__sub">Every in-force guarantee expiring in the chosen month, soonest first. {isOpndoorStaff(role) ? 'The whole book.' : partyIsSupplier(partnerScope) ? "Your company's guarantees only." : "Your agency's guarantees only."} Already-expired guarantees are never shown.</div>
               </div>
               <button className="bdx__close" aria-label="Close" onClick={() => setExpOpen(false)}><Icon name="x" /></button>
             </div>
@@ -760,10 +1500,25 @@ export function Dashboard() {
               <div className="field">
                 <label htmlFor="exp-month">Month (by guarantee expiry date)</label>
                 <input type="month" id="exp-month" min="2024-09" max="2028-12" value={expMonth} onChange={(e) => setExpMonth(e.target.value)} />
+                {/* THE NOTE THAT TELLS THE TWO EMPTINESSES APART. Matt: "if
+                    none, next month, with a note 'Nothing expiring yet; your
+                    earliest is [month]'." Without it, a month with no rows
+                    and a book with no guarantees produce the same empty file
+                    and the reader cannot tell which they are looking at. */}
+                {!expHasAny && (
+                  <span className="hint">
+                    {expEarliest
+                      ? <>Nothing expiring yet; your earliest is {formatMonth(expEarliest)}.</>
+                      : <>Nothing expiring yet. Guarantees appear here once a deed has been issued.</>}
+                  </span>
+                )}
               </div>
               <div className="bdx__warn" style={{ background: 'var(--white-lilac)', borderColor: 'rgba(211,100,251,0.25)' }}>
                 <Icon name="info" />
-                <span>Columns: guarantee reference, tenant name, property address, agency and branch, tenancy start, expiry date, days remaining, monthly and annualised rent, and referrer. Management receive this cohort by email six weeks before the month begins.</span>
+                {/* "get this list", not "receive this cohort". Matt,
+                    2026-10-03. "Cohort" is ours: the reader is a Director
+                    being told they will be emailed a list. */}
+                <span>Columns: guarantee reference, tenant name, property address, agency and branch, tenancy start, expiry date, days remaining, monthly and annualised rent, and referrer. Management get this list by email six weeks before the month begins.</span>
               </div>
             </div>
             <div className="bdx__foot">
@@ -774,45 +1529,37 @@ export function Dashboard() {
         </div>
       )}
 
-      {/* BORDEREAU MODAL (opndoor admin only) */}
-      {bdxOpen && role === 'superadmin' && (
-        <div className="bdx-scrim is-open" onMouseDown={(e) => e.target === e.currentTarget && setBdxOpen(false)}>
-          <div className="bdx" role="dialog" aria-modal="true">
-            <div className="bdx__head">
-              <div>
-                <div className="bdx__title">Monthly bordereau</div>
-                <div className="bdx__sub">Underwriter export (C&amp;C format) with full tenant details, for one calendar month by tenancy start date. opndoor admin only.</div>
-              </div>
-              <button className="bdx__close" aria-label="Close" onClick={() => setBdxOpen(false)}><Icon name="x" /></button>
-            </div>
-            <div className="bdx__body">
-              <div className="field">
-                <label htmlFor="bdx-month">Month (by tenancy start date)</label>
-                <input type="month" id="bdx-month" min="2024-09" max="2026-12" value={bdxMonth} onChange={(e) => setBdxMonth(e.target.value)} />
-              </div>
-              <div className="field">
-                <label htmlFor="bdx-rate">Insurance rate applied to every row</label>
-                <div className="bdx__rate">
-                  <input type="number" id="bdx-rate" step="0.1" min="0" max="100" value={bdxRate} onChange={(e) => setBdxRate(e.target.value)} />
-                  <span>%</span>
-                </div>
-                <span className="hint">
-                  {(() => { const m = getBordereauRateMeta(); return `Current rate: ${m.rate}%${m.changedAt ? ` · last changed ${dmyShort(m.changedAt)} by ${m.changedBy ?? 'an administrator'}` : ' (default)'}.`; })()}
-                  {' '}Changing it here saves the new rate for future exports and records who changed it and when.
-                </span>
-              </div>
-              <div className="bdx__warn">
-                <Icon name="alert" />
-                <span>Contains full tenant personal data. For the underwriter only. Never share with partner users.</span>
-              </div>
-            </div>
-            <div className="bdx__foot">
-              <Button variant="ghost" onClick={() => setBdxOpen(false)} disabled={bdxBusy}>Cancel</Button>
-              <Button variant="primary" onClick={exportBordereau} disabled={bdxBusy}>{bdxBusy ? 'Saving…' : 'Export bordereau'}</Button>
-            </div>
-          </div>
-        </div>
+      {/* SETTLEMENTS AND THE UNDERWRITER BORDEREAU, moved here from Home.
+
+          Home is the human work queue: what needs a person today. A settlement
+          total and a bordereau are neither a queue nor a thing a person does
+          today, and they were the largest thing on that page. They are money,
+          and money is this page's subject: the figures above and the settlement
+          below come from the same services with the same role and scope, so
+          they reconcile exactly, which they could not visibly do while sitting
+          on two different screens.
+
+          FinanceSurfaces refuses itself for a reader who may not see
+          commission, and that was never the right gate: a Director passes it.
+          Round 6 found the consequence -- the whole "Supplier commission
+          settlement" section, headed "Commission payable to Agency referral",
+          with a per-application table of the agency's own book at Opndoor's
+          cut, rendered for every agency Director. It also double-rendered
+          SettlementBlocks, which is mounted above under its own RoleOnly, and
+          that duplicate was the visible tell.
+
+          This is an opndoor money-ops surface. The gate is the seat, not the
+          capability. */}
+      {/* NOT WHILE VIEWING AS SOMEBODY. The gate stays `superadmin` -- the
+          seat, not the capability, which ourMarginIsNotTheirs.test.ts asserts
+          -- and the whole stack simply is not part of the page an agency's
+          management reads. */}
+      {viewingAs === null && (
+        <RoleOnly roles={['superadmin']}>
+          <FinanceSurfaces role={role} partnerScope={partnerScope} />
+        </RoleOnly>
       )}
+
     </>
   );
 }

@@ -1,0 +1,10 @@
+/* Lifted from AgencyHome.css verbatim, so the two pages cannot drift apart
+   on the one piece of furniture they are meant to share. */
+.pt-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+.pt-tab {
+  background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
+  font-family: var(--display); font-weight: 700; font-size: 13.5px; color: var(--ink-mute);
+  padding: 8px 14px;
+}
+.pt-tab:hover { color: var(--ink); }
+.pt-tab.is-on { color: var(--ink); border-bottom-color: var(--ink); }

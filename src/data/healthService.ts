@@ -27,6 +27,19 @@ export interface CronJobHealth {
   http_created: string | null;
   /** true = 2xx, false = non-2xx, null = no correlated response. */
   http_ok: boolean | null;
+  /** True when this job's command is gated on ops_functions_base_url(). Read
+      off the command text by the RPC, so a job that gains or loses the guard
+      describes itself correctly without anything here being edited. */
+  needs_base_url: boolean;
+  /** True when the job's command calls something (`net.http_post`). False for
+      a job that is a bare DELETE -- job-log-trim-nightly and
+      rate-limit-cleanup today -- which will never have a response to match
+      and must not be warned about. Read off the command by the RPC, so a
+      third such job is covered the day it is added. */
+  makes_call?: boolean;
+  /** True when this job is switched off for this environment on purpose. A
+      job that is off by choice is not a job that is failing. */
+  disabled_here: boolean;
 }
 
 /** A recent net._http_response row: the authoritative HTTP signal. */
@@ -38,6 +51,23 @@ export interface RecentHttp {
   content: string | null;
   error_msg: string | null;
   timed_out: boolean;
+  /** The job this response is attributed to, or null when none could be.
+      CORRELATED, NOT KNOWN: pg_net deletes the request row (and its URL) when
+      the response lands, so the RPC matches a response to the job whose run
+      started most recently before it, within five minutes. Two jobs firing in
+      the same minute are ambiguous; null means no run window contained it. */
+  job: string | null;
+}
+
+/** One job's HTTP traffic over the window, so a chatty job does not drown the
+    rest of the list. */
+export interface HttpByJob {
+  job: string | null;
+  total: number;
+  errors: number;
+  /** Switched off for this environment on purpose. */
+  disabled_here?: boolean;
+  latest: RecentHttp | null;
 }
 
 /** 24h failure/volume counts drawn from signals the system already records. */
@@ -48,26 +78,36 @@ export interface HealthCounts {
   webhook_failures: number;
   deed_failures: number;
   anomalies: number;
+  /** Raised by the BROWSER, not by a cron: something the portal needed and
+      could not read. Absent on a back end that predates 20261008020000, so
+      it is read with a fallback rather than assumed. */
+  portal_errors?: number;
   /** Non-2xx (or errored) HTTP responses in the window: the silent-401 tally. */
   http_errors: number;
-}
-
-/** Operational backlog a human needs to clear. */
-export interface NeedsAttention {
-  stuck_sent: number;
-  awaiting_signature: number;
-  pending_reconciliation: number;
-  pending_tenancy_corrections: number;
 }
 
 export interface CronHealth {
   generated_at: string;
   /** true when the single most recent HTTP response was not a 2xx. */
   http_alert: boolean;
+  /** The secret four crons are gated on. Null means those jobs report
+      "succeeded" having made no call at all, which is the single most
+      misleading state this page can be in. */
+  functions_base_url: string | null;
+  /** HubSpot is deliberately off on this environment (an explicit
+      ops_secrets row, never inferred). Its failures are expected and are
+      reported as "disabled" rather than alerted on. */
+  hubspot_disabled: boolean;
+  /** How long `net._http_response` keeps a row, from `pg_net.ttl` (six
+      hours here). A job that runs less often than this can NEVER have a
+      matched response, which is why the weekly digest showed "no match"
+      for a run that had in fact sent. A string, as pg_settings gives it. */
+  response_ttl: string | null;
   jobs: CronJobHealth[];
+  /** Errors first, then newest: what the page exists for, at the top. */
   recent_http: RecentHttp[];
+  http_by_job: HttpByJob[];
   counts: HealthCounts;
-  needs_attention: NeedsAttention;
 }
 
 /**

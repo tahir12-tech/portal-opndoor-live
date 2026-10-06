@@ -27,7 +27,10 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader) return json({ ok: false, error: "Not authenticated." }, 401);
 
-    const { ref, recipientEmail, saveContact } = await req.json();
+    /* `resend` is the caller saying they have read when this deed last went
+       and mean to send it again. The RPC refuses a second send without it:
+       one delivery per signed deed, and a resend is a decision. */
+    const { ref, recipientEmail, saveContact, resend } = await req.json();
     if (!ref) return json({ ok: false, error: "Missing application reference." }, 400);
 
     const userClient = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: authHeader } } });
@@ -47,17 +50,20 @@ Deno.serve(async (req) => {
       p_app: app.id,
       p_recipient_email: recipientEmail ?? null,
       p_save_contact: saveContact ?? false,
+      p_resend: resend === true,
     });
     if (rpcErr) {
       return json({ ok: false, error: "Could not send the deed to the agent." }, 400);
     }
     const sentTo = resolved?.sent_to as string | undefined;
     if (!sentTo) {
-      // No resolved contact: record a delivery-failed activity so the record
-      // surfaces on the delivery-failure/needs-attention surfaces. Keep the
-      // client informed by returning a structured error.
+      // CANNOT DELIVER, not delivery failed (20261005100000): the ladder
+      // resolved nothing, so no send was attempted and delivery_failed_at must
+      // stay null. It parks in the queue, admin-facing, because there is no
+      // address, no error and nothing the agency can act on.
       const service = createClient(SUPABASE_URL, SERVICE);
-      await service.from("activity_log").insert({ application_id: app.id, kind: "deed_delivery_failed", message: "Deed issued; no agent contact on file — delivery failed.", actor: "System", visibility: "business" });
+      await service.from("applications").update({ awaiting_staff_send: true }).eq("id", app.id);
+      await service.from("activity_log").insert({ application_id: app.id, kind: "deed_delivery_failed", message: "Deed issued. No agent contact on file, so it could not be delivered.", actor: "System", visibility: "internal" });
       return json({ ok: false, sentTo: null, error: "No agent contact on file for this branch. Add one, then resend." }, 400);
     }
     // Greet by the resolved contact's name only when the recipient IS that
@@ -84,7 +90,36 @@ Deno.serve(async (req) => {
       tenancyStart: app.tenancy_start ?? null,
       agencyName,
       pdfPath: app.executed_pdf_path,
-    }, { email: sentTo, name: recipientName }, `sent by ${actor}`);
+      /* The RPC returns the whole ladder in `recipients`, referrer first. An
+         override addresses one person and carries no copies; without one, the
+         button sends to exactly who the automatic path sends to, which is the
+         reason send_deed_to_agent exists at all. */
+    }, {
+      email: sentTo,
+      name: recipientName,
+      also: ((resolved?.recipients as string[] | undefined) ?? []).filter((e) => e !== sentTo),
+    }, `sent by ${actor}`);
+
+    // WRITE DOWN THE ATTEMPT, both outcomes. record_delivery_attempt is the
+    // only thing that sets delivery_failed_at, and nothing in the tree called
+    // it, so a manual send that the provider refused left no trace but a return
+    // value: the button reported an error to the person pressing it and the
+    // record said nothing had gone wrong. On success it stamps where the deed
+    // actually went, the question asked far more often than why it did not,
+    // and clears awaiting_staff_send itself, which is why the update below is
+    // gone rather than kept alongside it.
+    const everyone = [sentTo, ...(((resolved?.recipients as string[] | undefined) ?? [])
+      .filter((e) => e !== sentTo))].filter(Boolean);
+    await service.rpc("record_delivery_attempt", {
+      p_app: app.id, p_ok: out.ok, p_to: sentTo,
+      // EVERYONE THE EMAIL ADDRESSED, not just the first of them: the deed
+      // goes to the referrer and their copies in one message.
+      p_recipients: everyone.join(", "),
+      // The rung is only knowable here when the sender overrode it. Null leaves
+      // whatever the automatic path last recorded, rather than inventing a rung.
+      p_source: recipientEmail ? "explicit" : null,
+      p_reason: out.ok ? null : (out.error ?? "The email provider refused the send."),
+    }).then(() => {}, () => {});
 
     return json({ ok: out.ok, sentTo, emailError: out.ok ? null : out.error });
   } catch (e) {

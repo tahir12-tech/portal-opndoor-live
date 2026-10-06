@@ -16,6 +16,11 @@
 // prior 7 days to report) so it can be verified without waiting.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { resolveRecipients } from "../_shared/emailRecipients.ts";
+
+import { sendMessage } from "../_shared/mailer.ts";
+import { weeklyDigestEmail } from "../_shared/emailTemplates.ts";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -62,6 +67,14 @@ interface DigestRow {
   climber?: { name: string; delta: number } | null; // #5 climber of the week
 }
 
+/** The same week, grouped one level down, so a reader's email can be summed
+    over exactly the agencies their position covers. */
+interface AgencyDigestRow {
+  agency_id: string; agency_name: string; partner_id: string;
+  sent: number; sent_paid: number; paid: number; fees: number;
+  deeds: number; awaiting: number; top_branch: string | null; top_branch_fees: number;
+}
+
 const V = "#271d5f", INK = "#5b4d86", LILAC = "#f8eff9", HELI = "#d364fb";
 function stat(label: string, value: string): string {
   return `<td style="padding:12px 14px;border:1px solid rgba(39,29,95,0.1);border-radius:12px;background:#fff;" width="50%">
@@ -73,50 +86,6 @@ function statPair(a: string, b: string): string {
   return `<tr>${a}<td style="width:12px;"></td>${b}</tr><tr><td colspan="3" style="height:12px;"></td></tr>`;
 }
 
-function digestEmail(p: { partnerName: string; rangeLabel: string; d: DigestRow; intended: string; redirected: boolean }): { subject: string; html: string } {
-  const d = p.d;
-  const topBranch = d.top_branch && d.top_branch_fees > 0 ? `${d.top_branch} (${gbp(d.top_branch_fees)})` : "No branch fees this week";
-  // Cohort conversion: of the referrals SENT this week, the share that have paid
-  // (bounded 0-100%, never contradictory). "-" when none were sent this week.
-  const conversion = d.sent > 0 ? pct(d.sent_paid, d.sent) : "n/a";
-  // #5 Climber of the week (biggest fees-rank rise vs last week), when there is one.
-  const climberRow = d.climber
-    ? `<tr><td colspan="3" style="padding:12px 14px;border:1px solid rgba(211,100,251,0.28);border-radius:12px;background:${LILAC};">
-        <div style="font:700 11px 'Manrope',system-ui,Arial,sans-serif;letter-spacing:0.1em;text-transform:uppercase;color:${INK};">Climber of the week</div>
-        <div style="font:800 16px 'Sora',system-ui,Arial,sans-serif;color:${V};margin-top:4px;">${d.climber.name} <span style="color:${HELI};">&#9650;${d.climber.delta}</span></div>
-      </td></tr><tr><td colspan="3" style="height:12px;"></td></tr>`
-    : "";
-  const grid = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;">
-    ${statPair(stat("Referrals sent", String(d.sent)), stat("Guarantor fees paid", String(d.paid)))}
-    ${statPair(stat("Fees collected", gbp(d.fees)), stat("Sent to Paid", conversion))}
-    ${statPair(stat("Deeds issued", String(d.deeds)), stat("Awaiting signature", String(d.awaiting)))}
-    <tr>${stat("Top branch by fees", topBranch)}<td></td><td width="50%"></td></tr>
-    <tr><td colspan="3" style="height:12px;"></td></tr>
-    ${climberRow}
-  </table>`;
-  const cta = APP_URL
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:14px 0 4px;"><tr><td>
-        <a href="${APP_URL}/dashboard" style="display:inline-block;background:${HELI};color:#fff;text-decoration:none;font:700 14px 'Manrope',system-ui,Arial,sans-serif;padding:12px 26px;border-radius:999px;box-shadow:0 6px 18px -8px rgba(211,100,251,0.6);">Open your dashboard</a>
-      </td></tr></table>`
-    : "";
-  const banner = p.redirected
-    ? `<tr><td style="padding:10px 16px;background:${LILAC};border-bottom:1px solid rgba(39,29,95,0.1);font:600 12px 'Manrope',system-ui,Arial,sans-serif;color:${INK};">Test mode. This email was intended for ${p.intended} and redirected to you for review.</td></tr>`
-    : "";
-  const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;"><tr><td align="center">
-    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">
-    <tr><td style="background:${V};padding:22px 28px;"><span style="font:800 22px 'Sora',system-ui,Arial,sans-serif;letter-spacing:-0.04em;color:#fff;">opndoor</span><span style="font:600 12px 'Manrope',system-ui,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Guarantee Referral Portal</span></td></tr>
-    ${banner}
-    <tr><td style="padding:26px 28px;font:400 15px/1.6 'Manrope',system-ui,Arial,sans-serif;color:${V};">
-      <p style="margin:0 0 4px;font:800 18px 'Sora',system-ui,Arial,sans-serif;">Your week at a glance</p>
-      <p style="margin:0 0 16px;font-size:13px;color:${INK};">${p.partnerName} &middot; ${p.rangeLabel}</p>
-      ${grid}
-      ${cta}
-    </td></tr>
-    <tr><td style="padding:16px 28px;background:${LILAC};font:400 12px/1.5 'Manrope',system-ui,Arial,sans-serif;color:${INK};">Sent every Monday. Questions? Reply to this email or contact ${REPLY_TO}.</td></tr>
-    </table></td></tr></table></body></html>`;
-  return { subject: `Your weekly summary, ${p.rangeLabel}`, html };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -132,10 +101,13 @@ Deno.serve(async (req) => {
 
     // Cron auth: x-reminders-secret must match the edge env OR the ops_secrets mirror.
     const presented = req.headers.get("x-reminders-secret") ?? "";
-    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && presented === CRON_SECRET;
+    // Constant time: a cron secret is a bearer credential, and `===` leaks a
+    // matching prefix through timing the way a password compare does. The
+    // helper already existed for the partner API and the webhook verifier.
+    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && timingSafeEqual(presented, CRON_SECRET);
     if (!cronAuthed && presented) {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
-      if (sec?.secret && presented === sec.secret) cronAuthed = true;
+      if (sec?.secret && timingSafeEqual(presented, sec.secret)) cronAuthed = true;
     }
     let adminAuthed = false;
     if (!cronAuthed) {
@@ -167,46 +139,74 @@ Deno.serve(async (req) => {
     const endIso = `${weekStart}T00:00:00Z`;
     const rangeLabel = `${dmy(shiftDate(weekStart, -7))} to ${dmy(shiftDate(weekStart, -1))}`;
 
+<<<<<<< HEAD
     const { data: rows, error: rpcErr } = await service.rpc("partner_weekly_digest", { p_start: startIso, p_end: endIso });
     if (rpcErr) {
       return json({ ok: false, error: "Could not prepare the weekly digest." }, 500);
     }
     const digest = (rows ?? []) as DigestRow[];
+=======
+    /* GROUPED BY AGENCY, NOT BY PARTNER. partner_weekly_digest sums every
+       agency on the house route into one row, so each of Regent's, Northgate's,
+       Southbank's and Harborview's managers was emailed the four added
+       together and told it was theirs. agency_weekly_digest is the same
+       aggregate one level down; the per-reader sum below is over the agencies
+       that reader's position actually covers. */
+    const { data: rows, error: rpcErr } = await service.rpc("agency_weekly_digest", { p_start: startIso, p_end: endIso });
+    if (rpcErr) return json({ ok: false, error: rpcErr.message }, 500);
+    const byAgency = (rows ?? []) as AgencyDigestRow[];
+>>>>>>> partner-api
 
-    // #5 Climber of the week: the referrer whose fees-rank rose most vs the prior
-    // 7-day window ([-14d, -7d)). One RPC for all partners; attach to each row.
-    const prevStartIso = `${shiftDate(weekStart, -14)}T00:00:00Z`;
-    const { data: climbers } = await service.rpc("partner_weekly_climbers", {
-      p_curr_start: startIso, p_curr_end: endIso, p_prev_start: prevStartIso, p_prev_end: startIso,
-    });
-    const climberByPartner = new Map<string, { name: string; delta: number }>();
-    for (const c of (climbers ?? []) as Array<{ partner_id: string; climber_name: string; climber_delta: number }>) {
-      climberByPartner.set(c.partner_id, { name: c.climber_name, delta: Number(c.climber_delta) });
+    /* THE CLIMBER IS BACK, RANKED INSIDE THE READER'S OWN AGENCIES.
+       partner_weekly_climbers ranked referrers within a PARTNER, which on the
+       house route meant Regent's negotiators were ranked against Northgate's
+       and one winner was named to both. It was withdrawn rather than rescoped
+       because there was no agency-level twin and naming a competitor's staff
+       is worse than naming nobody. agency_weekly_climber (20261006370000) is
+       that twin, and it partitions by the READER -- so a group director sees
+       the best riser across the agencies they hold, and a branch manager sees
+       theirs, from the same call. Asked per reader, below. */
+    /* ONE READER, THE AGENCIES THEY COVER. Was `users where role='management'`
+       bucketed by partner_id, with no status, position or agency filter. */
+    const partnerIds = [...new Set(byAgency.map((r) => r.partner_id))];
+    type Reader = { userId: string; email: string; partnerId: string; agencyIds: Set<string> };
+    const readers = new Map<string, Reader>();
+    for (const pid of partnerIds) {
+      const { data: scopes } = await service.rpc("staff_notification_scopes", { p_partner: pid });
+      for (const row of (scopes ?? []) as Array<{ user_id: string; email: string; agency_id: string }>) {
+        if (!row.email) continue;
+        const r = readers.get(row.user_id) ?? { userId: row.user_id, email: row.email, partnerId: pid, agencyIds: new Set<string>() };
+        r.agencyIds.add(row.agency_id);
+        readers.set(row.user_id, r);
+      }
     }
-    for (const row of digest) row.climber = climberByPartner.get(row.partner_id) ?? null;
 
-    // Management recipients per partner.
-    const { data: mgmt } = await service.from("users").select("email, partner_id").eq("role", "management");
-    const mgmtByPartner = new Map<string, string[]>();
-    for (const u of (mgmt ?? []) as Array<{ email: string; partner_id: string }>) {
-      if (!u.email || !u.partner_id) continue;
-      const list = mgmtByPartner.get(u.partner_id) ?? [];
-      list.push(u.email);
-      mgmtByPartner.set(u.partner_id, list);
-    }
-
-    // Already-sent this week (idempotency).
-    const { data: already } = await service.from("partner_digest_sends").select("partner_id").eq("week_start", weekStart);
-    const sentSet = new Set((already ?? []).map((s: { partner_id: string }) => s.partner_id));
+    // Already-sent this week (idempotency), per reader: the ledger gained a
+    // user_id in 20261006200000 so one reader's send cannot mark the partner
+    // done for everybody else on it.
+    // The WRITE was already guarded on `test` below. The READ is guarded here
+    // too, so a test run exercises the whole path instead of skipping whatever
+    // the last real Monday covered, and the two ends agree.
+    const { data: already } = test
+      ? { data: [] as Array<{ partner_id: string; user_id: string | null }> }
+      : await service.from("partner_digest_sends").select("partner_id, user_id").eq("week_start", weekStart);
+    const sentSet = new Set((already ?? []).map((s: { partner_id: string; user_id: string | null }) => s.user_id ?? s.partner_id));
 
     let emailed = 0, skipped = 0, failed = 0;
-    for (const d of digest) {
-      const recipients = mgmtByPartner.get(d.partner_id) ?? [];
-      // Skip partners with no Management, already sent this week, or no activity.
-      if (recipients.length === 0) { skipped += 1; continue; }
-      if (sentSet.has(d.partner_id)) { skipped += 1; continue; }
+    for (const reader of readers.values()) {
+      const mine = byAgency.filter((r) => reader.agencyIds.has(r.agency_id));
+      const d = {
+        partner_id: reader.partnerId,
+        sent: mine.reduce((n, r) => n + Number(r.sent ?? 0), 0),
+        paid: mine.reduce((n, r) => n + Number(r.paid ?? 0), 0),
+        deeds: mine.reduce((n, r) => n + Number(r.deeds ?? 0), 0),
+        fees: mine.reduce((n, r) => n + Number(r.fees ?? 0), 0),
+      };
+      const recipients = [reader.email];
+      if (sentSet.has(reader.userId)) { skipped += 1; continue; }
       if (d.sent + d.paid + d.deeds === 0) { skipped += 1; continue; }
 
+<<<<<<< HEAD
        const dest = recipients;
 
       // const dest = REVIEW_ADDRESS ? [REVIEW_ADDRESS] : recipients; // test build redirects to review
@@ -216,13 +216,41 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ from: EMAIL_FROM, to: dest, reply_to: REPLY_TO, subject: tpl.subject, html: tpl.html }),
+=======
+      const routed = resolveRecipients(recipients);
+      const dest = routed.to;
+      // `redirected` was hardcoded false, so the banner three functions up was
+      // dead code that could never render. It now reflects what actually
+      // happened.
+      /* The previous seven days, so "climbed" compares like with like. A
+         reader whose agencies had no riser gets no line: weeklyDigestEmail
+         renders without it, and inventing a climber out of a flat week is how
+         the feature stops meaning anything. */
+      const { data: climbRows } = await service.rpc("agency_weekly_climber", {
+        p_user: reader.userId,
+        p_curr_start: startIso, p_curr_end: endIso,
+        p_prev_start: `${shiftDate(weekStart, -14)}T00:00:00Z`, p_prev_end: startIso,
+>>>>>>> partner-api
       });
+      const climb = ((climbRows ?? []) as Array<{ climber_name: string; climber_delta: number }>)[0] ?? null;
+
+      const tpl = weeklyDigestEmail({
+          sent: Number(d.sent ?? 0), paid: Number(d.paid ?? 0), deeds: Number(d.deeds ?? 0),
+          fees: `£${Number(d.fees ?? 0).toLocaleString("en-GB", { maximumFractionDigits: 0 })}`,
+          commission: null,
+          climber: climb
+            ? `${climb.climber_name} climbed ${climb.climber_delta} ${climb.climber_delta === 1 ? "place" : "places"} this week.`
+            : null,
+          link: `${APP_URL}/dashboard`,
+        });
+      if (!RESEND_API_KEY || dest.length === 0) { failed += 1; continue; }
+      const res = await sendMessage({ to: dest, message: tpl });
       if (!res.ok) { failed += 1; continue; }
       // Only the real scheduled run consumes the idempotency ledger; a manual/test
       // preview must never poison it (which would make the real Monday cron skip
       // that partner for the week).
       if (!test) {
-        await service.from("partner_digest_sends").insert({ partner_id: d.partner_id, week_start: weekStart, recipients: recipients.length });
+        await service.from("partner_digest_sends").insert({ partner_id: d.partner_id, user_id: reader.userId, week_start: weekStart, recipients: recipients.length });
       }
       emailed += 1;
     }

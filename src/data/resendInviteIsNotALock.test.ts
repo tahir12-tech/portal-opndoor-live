@@ -1,0 +1,151 @@
+/* RESEND INVITE CANNOT ASK FOR A POSITION THE PERSON ALREADY HOLDS.
+ *
+ * Round 5, H3. Everybody on our estate holds a position, so invite-user
+ * refuses to create anybody without one. That refusal was also reached on the
+ * RE-INVITE path, which creates nobody: `resendInvite` in usersService sends a
+ * name, an email and a role and no scope at all, so `scopeKind` was empty and
+ * every "Resend invite" on the estate answered
+ *
+ *   Choose the group, brand or branch this person will hold.
+ *
+ * for a person who was already holding one. A rule about creating people,
+ * enforced on a path that creates nobody. That is a lock, and a lock is as
+ * much a defect as a hole: the difference is only who it inconveniences.
+ *
+ * WHAT THIS ASSERTS AND WHY IT IS NOT A GREP. The other edge-function guards
+ * in this directory read source text, because Deno is not installed here and
+ * `npm test` cannot collect the Deno suites. This one does not have to:
+ * `_shared/invitePosition.ts` imports nothing, so the real decision can be
+ * imported and exercised. It is the logic under test, not a regex hoping to
+ * describe it.
+ *
+ * THE FOUR CASES THAT MUST NOT MOVE are asserted alongside, because the
+ * obvious fix -- drop the requirement when scopeKind is empty -- would bring
+ * back the unpositioned account that 20261006300000 exists to forbid.
+ */
+import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  NEEDS_A_POSITION,
+  resolveInvitePosition,
+  type PositionAsk,
+} from '../../supabase/functions/_shared/invitePosition.ts';
+
+/** A management re-invite as usersService.resendInvite actually sends it:
+ *  no scopeKind, no scopeTarget, no branch. */
+const resend = (over: Partial<PositionAsk> = {}): PositionAsk => ({
+  inviteeOnOurEstate: true,
+  scopeKind: null,
+  scopeTarget: null,
+  role: 'management',
+  homeBranchId: null,
+  alreadyPositioned: true,
+  ...over,
+});
+
+describe('re-inviting somebody who already holds a position', () => {
+  /* THE ASSERTION THE FILE IS FOR. */
+  it('is allowed, and asks for no position', () => {
+    const out = resolveInvitePosition(resend());
+    expect(out).toEqual({ ok: true, scopeKind: null, scopeTarget: null });
+  });
+
+  it('is allowed for a negotiator too, who also sends no branch on a resend', () => {
+    const out = resolveInvitePosition(resend({ role: 'referrer' }));
+    expect(out.ok).toBe(true);
+  });
+});
+
+/* AND THE PATH, not only the decision.
+ *
+ * The first version of this file asserted resolveInvitePosition alone and
+ * passed while "Resend invite" was still refused -- because a SECOND
+ * requirement, the negotiator's home branch, sat forty lines ABOVE the
+ * `existing` lookup in invite-user and answered "Choose the branch this
+ * negotiator will work at" before the decision under test was ever reached.
+ * Round 6 found it. A unit test of an extracted rule says nothing about
+ * whether the caller reaches it, and the ordering is the thing that broke, so
+ * the ordering is what is asserted here.
+ */
+describe('invite-user reaches that decision', () => {
+  const src = readFileSync(
+    join(process.cwd(), 'supabase', 'functions', 'invite-user', 'index.ts'), 'utf8');
+  const at = (needle: string) => {
+    const i = src.indexOf(needle);
+    expect(i, `not found in invite-user: ${needle}`).toBeGreaterThan(-1);
+    return i;
+  };
+
+  it('knows whether this is a re-invite before it requires anything of them', () => {
+    const lookup = at('const { data: existing }');
+    expect(lookup).toBeLessThan(at('Choose the branch this negotiator will work at'));
+    expect(lookup).toBeLessThan(at('resolveInvitePosition({'));
+  });
+
+  it('asks a re-invite for no branch, because resendInvite sends none', () => {
+    expect(src).toMatch(/else if \(callerScoped && !existing\)/);
+  });
+
+  /* AND IT ASKS THE LADDER. Round 6, M7: the re-invite branch tested REACH
+     (users_select) and the target's role, and reach is not rank -- a Manager
+     can see the Director above them. So a Manager could send
+     {email: "director@...", role: "referrer"}, pass both tests, and trigger a
+     recovery link and a user_audit row against somebody senior. */
+  it('asks may_act_on_user before re-inviting somebody who already exists', () => {
+    expect(src).toMatch(/rpc\("may_act_on_user", \{ p_user: existing\.id \}\)/);
+    // Before the link is minted, not after.
+    expect(src.indexOf('may_act_on_user')).toBeLessThan(src.indexOf('generateLink'));
+  });
+
+  /* AND IT DOES NOT RE-CLOSE WHAT IT JUST OPENED. Round 6, M2: a supplier
+     management caller may create a developer and could never resend that
+     developer's invitation, because the re-invite role allowlist did not name
+     the role the create allowlist hands out. The ladder resolves on the
+     supplier rail (a supplier Manager is rank 2, their developer rank 3), so
+     adding may_act_on_user above does not undo this. */
+  it('lets a supplier manager resend the developer they were allowed to create', () => {
+    // The re-invite block: from the reach read to the ladder call.
+    const from = src.indexOf('const { data: reachable }');
+    const to = src.indexOf('may_act_on_user', from);
+    expect(from).toBeGreaterThan(-1);
+    expect(to).toBeGreaterThan(from);
+    expect(src.slice(from, to)).toMatch(/\["referrer", "management", "developer"\]/);
+  });
+});
+
+describe('and the rule it must not repeal', () => {
+  it('still refuses a NEW person on the estate with no position', () => {
+    const out = resolveInvitePosition(resend({ alreadyPositioned: false }));
+    expect(out).toEqual({ ok: false, error: NEEDS_A_POSITION });
+  });
+
+  /* THE CASE THAT MAKES "already exists" THE WRONG TEST. Somebody created
+     before 20261006300000 can exist and hold nothing, and that is precisely
+     the state the constraint outlaws. Re-inviting them must still ask. */
+  it('still refuses an EXISTING person on the estate who holds no position', () => {
+    const out = resolveInvitePosition(resend({ alreadyPositioned: false }));
+    expect(out.ok).toBe(false);
+  });
+
+  it('still derives a branch position for a new negotiator placed at a branch', () => {
+    const out = resolveInvitePosition(resend({
+      alreadyPositioned: false, role: 'referrer', homeBranchId: 'b-1',
+    }));
+    expect(out).toEqual({ ok: true, scopeKind: 'branch', scopeTarget: 'b-1' });
+  });
+
+  it('still asks nothing of an invitee who is not on our estate', () => {
+    const out = resolveInvitePosition(resend({
+      inviteeOnOurEstate: false, alreadyPositioned: false,
+    }));
+    expect(out.ok).toBe(true);
+  });
+
+  it('passes an explicit position straight through', () => {
+    const out = resolveInvitePosition(resend({
+      alreadyPositioned: false, scopeKind: 'agency', scopeTarget: 'a-1',
+    }));
+    expect(out).toEqual({ ok: true, scopeKind: 'agency', scopeTarget: 'a-1' });
+  });
+});

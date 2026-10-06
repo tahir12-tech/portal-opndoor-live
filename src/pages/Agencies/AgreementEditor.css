@@ -1,0 +1,119 @@
+/* The agreement editor. A settings form, not a document: dense, tabular, and
+   every number editable in place. Borrows roleopt from UserManagement.css for
+   the model selector so it reads like every other "pick one of these" in the
+   portal. */
+
+.agr-models {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.agr-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.agr-sect {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 18px 0 8px;
+}
+
+.agr-table {
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.agr-table th {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+  padding: 0 8px 6px;
+}
+
+.agr-table td { padding: 3px 8px 3px 0; }
+
+.agr-table input {
+  width: 100%;
+  min-width: 70px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  background: var(--paper, #fff);
+  color: var(--ink);
+}
+
+.agr-add {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.agr-hint {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin: 10px 0 0;
+  max-width: 64ch;
+}
+
+.agr-preview {
+  margin-top: 20px;
+  padding: 12px 14px;
+  border-radius: 9px;
+  background: var(--wash, #f1eefc);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.agr-preview__lbl {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.agr-preview__val {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* A refusal is the database speaking. It gets the weight of an alert and the
+   words it chose, with no paraphrase around it. */
+.agr-refusal {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border-radius: 9px;
+  border: 1px solid var(--warn-line, #e6c9a8);
+  background: var(--warn-wash, #fdf5ec);
+  font-size: 13.5px;
+}
+
+.agr-refusal__msg { margin-top: 3px; }
+
+.agr-confirm {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* A lead line under a section heading: the short example that makes the
+   table beneath it readable without a glossary. */
+.agr-hint--lead { margin-top: -4px; margin-bottom: 10px; }

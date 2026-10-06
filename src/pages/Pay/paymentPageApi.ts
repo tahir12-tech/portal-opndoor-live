@@ -19,8 +19,42 @@ export interface PayPageData {
   guaranteeExpiry?: string | null;
   monthlyRent?: number;
   feeGBP?: string;
+  /* WHAT THE FEE IS MEASURED AGAINST, and the five fields below it.
+
+     payment-page has returned all of these since the fee became a concept, and
+     this interface stopped at feeGBP, so they were dropped at the type boundary
+     and no part of the page could render them. That is the whole reason a Regent
+     tenant read "Guarantee fee £692.31" under "Monthly rent £1,000" with nothing
+     joining the two: not a missing string, a missing declaration. TypeScript
+     could not report the absence of a field the contract never mentioned. */
+
+  /** "one month's rent", "3 weeks of rent". Absent when it cannot be worked out. */
+  feeBasis?: string | null;
+  /** THIS tenant's share of the rent. On a joint tenancy monthlyRent is the whole
+      tenancy's and the fee is only this applicant's share, so printing the two
+      side by side contradicts its own arithmetic. */
+  rentShare?: number;
+  /** Which rail, for the opening line. */
+  rail?: 'agency' | 'supplier' | 'direct';
+  referencingMode?: string | null;
+  /** agencies.name, the agency the tenant actually dealt with, never the group. */
+  agencyName?: string | null;
+  /** The agency arranged this and opndoor made no decision about this tenant, so
+      the agency is the subject of the opening line. */
+  agencyArranged?: boolean;
+  /** How many tenants share this tenancy's fee. 1 for a sole referral. A joint
+      tenancy is priced once and charged by share, so every figure on the page is a
+      share and the basis beside it is a fact about the whole tenancy. */
+  tenantCount?: number;
   status?: string;
   isPaid?: boolean;
+  /* WHERE THE DEED HAS GOT TO, for a link opened after payment. Matt,
+     2026-10-03: "Tenant payment link opened after payment: reflect where they
+     actually are." The page used to say "Your Deed of Guarantee will be sent
+     to you to sign" to a tenant who had already signed it. */
+  deedReady?: boolean;
+  deedSigned?: boolean;
+  deedError?: boolean;
   isExpired?: boolean;
   isClosed?: boolean;
   payable?: boolean;
@@ -40,10 +74,19 @@ export function getPayPageState(status: string | null | undefined, paymentState:
   return { isPaid, isExpired, isClosed, payable };
 }
 
+/* The demo priced the fee AT THE RENT, £2,200 against £2,200, which is the exact
+   shape of the defect this page was fixed for. A fixture that models the bug
+   teaches the bug: anybody reading it, or screenshotting the page with no back
+   end, learns that the fee is a month of rent. It is now an agency referral on a
+   three-week agreement, so the demo exercises the basis line and the
+   agency-arranged opening rather than the two paths that need no explaining. */
 const DEMO: PayPageData = {
-  ok: true, ref: 'GR-20608', partnerName: 'Rightmove', tenantName: 'Mr Alex Turner', tenantTitle: 'Mr',
+  ok: true, ref: 'GR-20608', partnerName: 'Acme Property Group', tenantName: 'Mr Alex Turner', tenantTitle: 'Mr',
   addr1: '12 Sydney Street', postcode: 'SW3 6PU', propFull: '12 Sydney Street, London, SW3 6PU',
-  tenancyStart: '01/09/2026', guaranteeExpiry: '31/08/2027', monthlyRent: 2200, feeGBP: '£2,200',
+  tenancyStart: '1 Sep 2026', guaranteeExpiry: '31 Aug 2027', monthlyRent: 2200, feeGBP: '£1,523.08',
+  feeBasis: '3 weeks of rent', rentShare: 2200, tenantCount: 1,
+  rail: 'agency', referencingMode: 'pre_referenced_open',
+  agencyName: 'Marylebone & Co', agencyArranged: true,
   status: 'sent', isPaid: false, isExpired: false, isClosed: false, payable: true,
 };
 
@@ -52,7 +95,15 @@ export async function getPayPage(token: string): Promise<PayPageData> {
   if (!SUPABASE_ENABLED) return DEMO;
   try {
     const { data, error } = await sb().functions.invoke('payment-page', { body: { token, action: 'view' } });
-    if (error) return { ok: false, transient: true, error: 'network' };
+    if (error) {
+      // A definitive 4xx is an answer about the link itself: 410 expired, 404/400
+      // invalid. Stop retrying and let the page show the expired/invalid state.
+      // Only a 5xx, a 429 or a network failure is a blip worth retrying, so the
+      // tenant no longer watches an endless spinner over a dead link.
+      const status = (error as { context?: { status?: number } })?.context?.status;
+      const definitive = typeof status === 'number' && status >= 400 && status < 500 && status !== 429;
+      return { ok: false, transient: !definitive, error: definitive ? 'link' : 'network' };
+    }
     return (data ?? { ok: false, transient: true }) as PayPageData;
   } catch {
     return { ok: false, transient: true, error: 'network' };
@@ -76,9 +127,34 @@ export async function declineApplication(token: string, reason: string): Promise
   if (!SUPABASE_ENABLED) return { ok: true, status: 'withdrawn' };
   try {
     const { data, error } = await sb().functions.invoke('payment-page', { body: { token, action: 'decline', reason } });
-    if (error) return { ok: false, error: 'Could not record that. Please contact hello@opndoor.co.' };
+    if (error) return { ok: false, error: 'Could not record that. Please contact support@opndoor.co.' };
     return (data ?? { ok: false }) as { ok: boolean; status?: string; error?: string };
   } catch {
-    return { ok: false, error: 'Could not record that. Please contact hello@opndoor.co.' };
+    return { ok: false, error: 'Could not record that. Please contact support@opndoor.co.' };
+  }
+}
+
+/**
+ * Mint a signing link for a paid, unsigned deed, from the saved payment link.
+ *
+ * Matt, 2026-10-03: "If paid but not yet signed: show the 'Sign your deed now'
+ * button. Same for every tenant-facing page reached from an old link."
+ *
+ * THE POST-CHECKOUT PAGE HAS HAD THAT BUTTON for a while, through
+ * `requestSigningLink`, which mints from a STRIPE SESSION ID. A tenant opening
+ * the link they saved from the email has no session id, so that door was shut
+ * to exactly the reader Matt is describing. This is the same act through the
+ * token they already hold.
+ */
+export async function requestSigningLinkByToken(
+  token: string,
+): Promise<{ ok: boolean; deedReady?: boolean; deedSigned?: boolean; signingUrl?: string | null; error?: string }> {
+  if (!SUPABASE_ENABLED) return { ok: true, deedReady: false };
+  try {
+    const { data, error } = await sb().functions.invoke('payment-page', { body: { token, action: 'sign' } });
+    if (error) return { ok: false, error: 'Could not open the signing session.' };
+    return (data ?? { ok: false }) as { ok: boolean; deedReady?: boolean; signingUrl?: string | null };
+  } catch {
+    return { ok: false, error: 'Could not open the signing session.' };
   }
 }

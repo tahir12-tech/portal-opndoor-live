@@ -15,6 +15,10 @@
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 
+import { sendMessage } from "../_shared/mailer.ts";
+import { opsAlertEmail } from "../_shared/emailTemplates.ts";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-ops-secret",
@@ -27,7 +31,11 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <payments@opndoor.co>";
 const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
 // Production sets OPS_ALERT_ADDRESS; in this test build it falls back to the review address.
-const OPS_ADDRESS = Deno.env.get("OPS_ALERT_ADDRESS") ?? Deno.env.get("EMAIL_REVIEW_ADDRESS") ?? "";
+/* OPS_ALERT_ADDRESS and EMAIL_REVIEW_ADDRESS are no longer read here. Q-04:
+   who receives an internal alert is the routing table's answer, and a type
+   with nobody routed to it falls back to support@opndoor.co inside
+   ops_route_recipients -- which also SAYS it fell back, so an unrouted
+   critical alert does not look like a configured one. */
 const APP_URL = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
 
 // Human-readable label per failure type (partner-safe wording is irrelevant here:
@@ -45,6 +53,13 @@ const LABELS: Record<string, string> = {
   refund_email_failed: "Refund confirmation email failed to send",
   refund_anomaly: "Refund policy anomaly (review required)",
   payment_anomaly: "Payment received on a withdrawn application (review + refund)",
+  /* A REFUND ON COMMISSION WE HAD ALREADY STATEMENTED. Without an entry
+     here the fan-out still routes it -- routing reads
+     ops_notification_types, which has it -- but the email subject reads
+     the raw type, and an ops alert that says
+     "commission_refunded_after_statement" is one somebody has to decode
+     before they can act on it. */
+  commission_refunded_after_statement: "Refund on commission already sent on a statement",
   cron_error: "Scheduled job error",
   webhook_error: "Webhook processing error",
 };
@@ -65,43 +80,6 @@ function row(label: string, value: string): string {
   </tr>`;
 }
 
-function template(p: { type: string; label: string; ref: string | null; tenant: string | null; partner: string | null; message: string; link: string | null }): { subject: string; html: string } {
-  const subject = `[opndoor ops] ${p.label}${p.ref ? ` (${p.ref})` : ""}`;
-  const rows = [
-    row("Failure", esc(p.label)),
-    row("Type", esc(p.type)),
-    p.ref ? row("Application", esc(p.ref)) : "",
-    p.tenant ? row("Tenant", esc(p.tenant)) : "",
-    p.partner ? row("Partner", esc(p.partner)) : "",
-  ].filter(Boolean).join("");
-  const button = p.link
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 4px;"><tr><td>
-        <a href="${p.link}" style="display:inline-block;background:${VALHALLA};color:#fff;text-decoration:none;font:700 14px 'Manrope',system-ui,Arial,sans-serif;padding:12px 24px;border-radius:999px;">Open the application</a>
-      </td></tr></table>`
-    : "";
-  const inner = `
-    <p style="margin:0 0 6px;font:800 16px 'Sora',system-ui,Arial,sans-serif;color:${DANGER};">Operational failure</p>
-    <p style="margin:0 0 16px;">${esc(p.label)} was detected and logged. Details below.</p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:10px 0;border:1px solid rgba(39,29,95,0.12);border-radius:12px;background:${LILAC};"><tr><td style="padding:14px 18px;">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
-    </td></tr></table>
-    <div style="margin:12px 0;padding:12px 14px;border-radius:10px;background:#fff5f5;border:1px solid rgba(192,57,43,0.25);font:400 13px/1.5 'Manrope',system-ui,Arial,sans-serif;color:${VALHALLA};"><b style="color:${DANGER};">Error</b><br>${esc(p.message).slice(0, 800)}</div>
-    ${button}`;
-  const html = `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;">
-      <tr><td align="center">
-        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">
-          <tr><td style="background:${VALHALLA};padding:20px 28px;">
-            <span style="font:800 20px 'Sora',system-ui,Arial,sans-serif;letter-spacing:-0.04em;color:#fff;">opndoor</span>
-            <span style="font:600 12px 'Manrope',system-ui,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Operations alert</span>
-          </td></tr>
-          <tr><td style="padding:26px 28px;font:400 15px/1.6 'Manrope',system-ui,Arial,sans-serif;color:${VALHALLA};">${inner}</td></tr>
-          <tr><td style="padding:16px 28px;background:${LILAC};font:400 12px/1.5 'Manrope',system-ui,Arial,sans-serif;color:${INK_SOFT};">Automated alert from the Guarantee Referral Portal. Deduped to one per failure type per application per hour.</td></tr>
-        </table>
-      </td></tr>
-    </table></body></html>`;
-  return { subject, html };
-}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -113,10 +91,13 @@ Deno.serve(async (req) => {
 
     // Auth: x-ops-secret must match the edge env OR the ops_secrets mirror.
     const presented = req.headers.get("x-ops-secret") ?? "";
-    let authed = Boolean(presented) && Boolean(CRON_SECRET) && presented === CRON_SECRET;
+    // Constant time: a cron secret is a bearer credential, and `===` leaks a
+    // matching prefix through timing the way a password compare does. The
+    // helper already existed for the partner API and the webhook verifier.
+    let authed = Boolean(presented) && Boolean(CRON_SECRET) && timingSafeEqual(presented, CRON_SECRET);
     if (!authed && presented) {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
-      if (sec?.secret && presented === sec.secret) authed = true;
+      if (sec?.secret && timingSafeEqual(presented, sec.secret)) authed = true;
     }
     if (!authed) return json({ ok: false, error: "Not authorised." }, 401);
 
@@ -125,7 +106,6 @@ Deno.serve(async (req) => {
     const message = String(body.message ?? "");
     const appId = body.application_id ? String(body.application_id) : null;
 
-    if (!OPS_ADDRESS) return json({ ok: false, error: "No OPS_ALERT_ADDRESS/EMAIL_REVIEW_ADDRESS configured." }, 500);
     if (!RESEND_API_KEY) return json({ ok: false, error: "Resend not configured." }, 500);
 
     // Enrich with the application context (ref/tenant/partner) when present.
@@ -151,18 +131,51 @@ Deno.serve(async (req) => {
       ?? (type.startsWith("cron_error") ? "Scheduled job error"
         : type.startsWith("webhook_error") ? "Webhook processing error"
         : type);
-    const tpl = template({ type, label, ref, tenant, partner, message, link });
+    /* WHO GETS IT IS THE ROUTING TABLE'S ANSWER. Q-04. This used to be one
+       address out of OPS_ALERT_ADDRESS ?? EMAIL_REVIEW_ADDRESS ?? "", and if
+       neither was set the function returned 500 and the alert was lost with
+       nothing but an ops_alerts row to show for it.
 
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: EMAIL_FROM, to: [OPS_ADDRESS], reply_to: REPLY_TO, subject: tpl.subject, html: tpl.html }),
-    });
-    if (!res.ok) {
-      const detail = await res.text();
-      return json({ ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}` }, 502);
-    }
-    return json({ ok: true, sent_to: OPS_ADDRESS, type, ref });
+       The suffix is stripped for routing and kept for the email: the five
+       cron_error:<fn> and webhook_error:<fn> variants dedupe separately, which
+       is right, and route together, which is also right -- nobody would set
+       five switches differently. */
+    const routeType = type.split(":")[0];
+    const { data: routed } = await service.rpc("ops_route_recipients", { p_type: routeType });
+    const rows = (routed ?? []) as Array<{ email: string; fellback: boolean }>;
+    const recipients = rows.map((r) => (r.email ?? "").trim()).filter(Boolean);
+    const fellback = rows.some((r) => r.fellback === true);
+
+    /* NOTHING TO SEND IS A REAL ANSWER for a non-critical type: somebody
+       switched it off, and an unwanted alert is how an inbox stops being read.
+       A CRITICAL type never reaches here empty -- ops_route_recipients falls
+       back rather than returning nothing. */
+    if (!recipients.length) return json({ ok: true, skipped: "no recipients routed", type, ref });
+
+    /* AND THE FALLBACK SAYS SO IN THE EMAIL. A critical alert that arrived at
+       support because its own routing was empty looks identical to one that
+       was routed there deliberately, and telling those apart is the whole
+       point of having a floor. Built as a new message rather than mutating
+       the template, so opsAlertEmail stays the single description of the
+       ordinary case. */
+    const base = opsAlertEmail({ type, label, ref, message, link });
+    const tpl = fellback
+      ? {
+        ...base,
+        subject: `[UNROUTED] ${base.subject}`,
+        blocks: [
+          { p: 'This alert has nobody routed to receive it, so it came here. Set its recipients on the internal notifications page.' },
+          ...base.blocks,
+        ],
+      }
+      : base;
+
+    // ONE SEND WITH EACH AS A RECIPIENT, like every other notification.
+    // sendMessage returns a SendResult, not a fetch Response: the shared sender
+    // already turned the provider's reply into ok plus a reason.
+    const res = await sendMessage({ to: recipients, message: tpl });
+    if (!res.ok) return json({ ok: false, error: res.error ?? "Send failed." }, 502);
+    return json({ ok: true, sent_to: recipients, fellback, type, ref });
   } catch (e) {
     return json({ ok: false, error: "The operational alert could not be sent." }, 500);
   }

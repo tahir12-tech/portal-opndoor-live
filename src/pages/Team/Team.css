@@ -1,0 +1,241 @@
+/* Team — people under the structure they sit in.
+
+   Deliberately a stack of small cards rather than one table: the grouping IS
+   the information here, and a table with a repeated "Branch" column buries it.
+   Borrows the role-tag and roleopt classes from UserManagement.css so the two
+   screens cannot drift apart on what a Management pill looks like. */
+
+.tm-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tm-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Group scope only: the agency the cards under it belong to. Deliberately not a
+   card of its own — it is a label for the run that follows, and boxing it would
+   make the group look like a fourth level of structure. */
+.tm-agency {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 10px 0 -4px;
+}
+.tm-blocks > .tm-agency:first-child { margin-top: 0; }
+
+.tm-empty {
+  padding: 18px 20px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.tm-person {
+  display: grid;
+  grid-template-columns: 34px minmax(180px, 1.6fr) auto auto minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+}
+.tm-person:first-child { border-top: 0; }
+
+.tm-person__avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--wash, #f1eefc);
+  color: var(--heliotrope-deep, #5b3fd9);
+  font-weight: 700;
+  font-size: 12.5px;
+  text-transform: uppercase;
+}
+
+.tm-person__name {
+  font-weight: 650;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tm-you {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--heliotrope-deep, #5b3fd9);
+  background: var(--wash, #f1eefc);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.tm-person__email {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.tm-person__pos {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.tm-person__acts {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+/* Who receives the monthly commission statement. Full width under the row it
+   belongs to: the label is a sentence and the line explaining it is another,
+   neither of which fits in the actions column beside four buttons. */
+.tm-stmt {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 8px 0 0 48px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.tm-stmt input { margin: 0; accent-color: var(--heliotrope-deep, #5b3fd9); cursor: pointer; }
+.tm-stmt input:disabled { cursor: progress; }
+.tm-stmt__lbl { font-weight: 600; color: var(--ink, #1c1633); }
+.tm-stmt__why { color: var(--muted); flex: 1 1 260px; min-width: 0; }
+
+/* Below the table breakpoint the grid stops helping: stack the identity, let
+   the pills and the actions wrap under it. */
+@media (max-width: 860px) {
+  .tm-person {
+    grid-template-columns: 34px 1fr;
+    row-gap: 8px;
+  }
+  .tm-person__id { grid-column: 2; }
+  .tm-person > .role-tag,
+  .tm-person > .pill,
+  .tm-person__pos,
+  .tm-person__acts {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+  /* The 48px indent lined the control up under the name against the avatar
+     column, which is gone at this width. */
+  .tm-stmt { margin-left: 0; grid-column: 2; }
+}
+
+/* ---- AT SCALE: search, filters, collapsing groups, paging ----------------
+   The page was written for an agency of five and is the only screen a group of
+   several hundred has. */
+
+.tm-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+/* The search takes the room, the selects take what they need. min-width rather
+   than a fixed width so the row still wraps rather than overflowing on a phone. */
+/* The box is the portal's `.inp` now (border, padding, focus ring); this
+   only places it in the row. It had neither before: a search field with
+   no border at all, beside two styled selects. */
+.tm-search { flex: 1 1 240px; min-width: 0; }
+.tm-filters select { flex: 0 0 auto; }
+.tm-filters__state { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+/* THE WHOLE HEADING IS THE CONTROL. A button reset rather than a styled div, so
+   it is reachable by keyboard and announces its state, which a clickable div
+   would not. */
+.tm-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tm-group:disabled { cursor: default; }
+/* The chevron is decoration once the group is forced open by a filter. */
+.tm-group:disabled > svg { opacity: 0; }
+.tm-group > svg { color: var(--ink-mute); flex: none; }
+.tm-group__txt { flex: 1; min-width: 0; }
+/* The count is the information a collapsed group carries, so it is not muted
+   into the background the way a caption would be. */
+.tm-group__n {
+  flex: none;
+  min-width: 28px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--app-bg);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--ink-mute);
+}
+.tm-group:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: var(--r-sm); }
+
+.tm-more {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 2px;
+}
+.tm-more .soft { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 560px) {
+  /* Two selects to a row beats four squeezed onto one. */
+  .tm-filters select { flex: 1 1 calc(50% - 5px); }
+  .tm-filters__state { margin-left: 0; width: 100%; }
+}
+
+/* WHO IS COPIED. The tickbox sits between the position and the row actions,
+   because it is a fact about the person's remit rather than an action taken
+   against them. It collapses with the position on a narrow screen for the
+   same reason. */
+.tm-notify-note {
+  margin: 0 0 12px;
+  color: var(--ink-mute);
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 68ch;
+}
+.tm-person__notify {
+  display: inline-flex;
+  align-items: center;
+  min-width: 96px;
+  font-size: 13px;
+}
+.tm-notify {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.tm-notify input { cursor: pointer; }
+@media (max-width: 900px) {
+  .tm-person__notify { min-width: 0; }
+}
+
+/* "To change or remove a Director, contact your account manager at
+   partners@opndoor.co." It stands where a peer's buttons would be, so it is
+   quieter than they are and it wraps: the actions cell is right-aligned and a
+   sentence on one line would widen the table past the screen. */
+.tm-peernote {
+  display: block; max-width: 260px;
+  font-size: 12px; line-height: 1.45; color: var(--ink-mute); text-align: right;
+}

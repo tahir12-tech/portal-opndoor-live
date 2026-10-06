@@ -113,7 +113,7 @@ export function PaymentConfirmed() {
         <p className="pay__lead">
           {gaveUp
             ? <>This is taking longer than usual. If your payment went through, you&rsquo;ll receive an email confirmation shortly.</>
-            : <>Just a moment while we confirm your guarantor fee{conf.firstName ? `, ${conf.firstName}` : ''}&hellip;</>}
+            : <>Just a moment while we confirm your guarantee fee{conf.firstName ? `, ${conf.firstName}` : ''}&hellip;</>}
         </p>
       </Frame>
     );
@@ -126,7 +126,7 @@ export function PaymentConfirmed() {
       <div className="pay__icon pay__icon--ok"><Icon name="check" strokeWidth={2.4} /></div>
       <h1 className="pay__title">Payment received</h1>
       <p className="pay__lead">
-        Thank you{conf.firstName ? `, ${conf.firstName}` : ''}. Your guarantor fee has been paid.
+        Thank you{conf.firstName ? `, ${conf.firstName}` : ''}. Your guarantee fee has been paid.
       </p>
 
       <div className="pay__receipt">
@@ -146,7 +146,7 @@ export function PaymentConfirmed() {
             <button className="pay__btn pay__btn--primary" onClick={onSign} disabled={signing}>
               <Icon name="edit" strokeWidth={2} /> {signing ? 'Opening…' : 'Sign your deed now'}
             </button>
-            {signErr && <p className="pay__muted">We couldn&rsquo;t open the signing session just now &mdash; we&rsquo;ll email your signing link shortly.</p>}
+            {signErr && <p className="pay__muted">We couldn&rsquo;t open the signing session just now. We&rsquo;ll email your signing link shortly.</p>}
           </>
         ) : conf.deedError || gaveUp ? (
           <>

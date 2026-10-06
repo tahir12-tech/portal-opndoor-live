@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>opndoor management guide</title>
+<style>
+:root{--ink:#271D5F;--ink-soft:#5B4D86;--ink-mute:#8B80AD;--helio:#B54DE0;--helio-deep:#9A3ACB;--lilac:#F5EEFB;--lilac-line:#E9DEF5;--paper:#fff}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact;scroll-behavior:smooth}
+body{margin:0;font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:#EFE9F6;line-height:1.65;font-size:15.5px;-webkit-font-smoothing:antialiased}
+.sheet{max-width:860px;margin:0 auto;background:var(--paper);min-height:100vh}
+.pad{padding:56px 64px 72px}
+.lockup{display:flex;align-items:center;gap:14px;margin-bottom:34px}
+.lockup__mark{font-family:'Sora',sans-serif;font-weight:800;font-size:26px;letter-spacing:-.02em;color:var(--helio)}
+.lockup__bar{width:1.5px;height:28px;background:var(--lilac-line)}
+.lockup__sub{font-size:10.5px;font-weight:700;letter-spacing:.14em;line-height:1.35;text-transform:uppercase;color:var(--helio)}
+.gated{display:inline-flex;align-items:center;gap:8px;background:var(--lilac);border-radius:999px;padding:5px 14px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--helio-deep);margin:0 0 16px}
+.gated::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--helio)}
+.eyebrow{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--helio);margin:0 0 14px}
+.eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--helio)}
+h1{font-family:'Sora',sans-serif;font-weight:800;font-size:44px;line-height:1.05;letter-spacing:-.025em;color:var(--ink);margin:0 0 20px}
+.lead{font-size:19px;line-height:1.5;color:var(--ink-soft);margin:0;max-width:60ch}
+.rule{height:2px;background:var(--ink);border:0;margin:38px 0 6px}
+h2{font-family:'Sora',sans-serif;font-weight:800;font-size:25px;letter-spacing:-.01em;color:var(--ink);margin:40px 0 12px}
+h3{font-family:'Sora',sans-serif;font-weight:700;font-size:16.5px;color:var(--ink);margin:24px 0 6px}
+p{margin:0 0 14px;max-width:70ch}
+strong,b{font-weight:700;color:var(--ink)}
+ul,ol{margin:0 0 16px;padding-left:24px;max-width:70ch}
+li{margin:8px 0}
+a{color:var(--helio);font-weight:600;text-decoration:none}
+.callout{background:var(--lilac);border-radius:20px;padding:24px 28px;margin:24px 0}
+.callout__label{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;color:var(--helio);margin:0 0 10px}
+.callout ul{margin:0;padding-left:22px}
+.callout li{margin:9px 0}
+.callout li::marker{color:var(--helio)}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14.5px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--lilac-line);vertical-align:top}
+th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink);background:var(--lilac)}
+.foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--lilac-line);color:var(--ink-mute);font-size:12.5px}
+.printbtn{position:fixed;top:22px;right:22px;background:var(--helio);color:#fff;border:0;border-radius:999px;padding:12px 22px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(181,77,224,.38);font-family:inherit;z-index:50}
+.printbtn:hover{background:var(--helio-deep)}
+@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:0}.printbtn{display:none}h1{font-size:31pt}h2{page-break-after:avoid}.callout,table{page-break-inside:avoid}a{color:var(--ink)}@page{margin:16mm 18mm}}
+@media(max-width:640px){.pad{padding:32px 24px 48px}h1{font-size:33px}.lead{font-size:17px}}
+</style>
+</head>
+<body>
+<button class="printbtn" onclick="window.print()">Save as PDF</button>
+<div class="sheet"><div class="pad">
+  <div class="lockup">
+    <span class="lockup__mark">opndoor</span>
+    <span class="lockup__bar"></span>
+    <span class="lockup__sub">Guarantee<br>Referral Portal</span>
+  </div>
+
+  <div class="gated">For letting agents</div>
+  <h1>A failed reference doesn't have to be a lost let</h1>
+  <p class="lead">When an applicant fails referencing, the deal usually falls through. opndoor lets the tenancy go ahead and protects the landlord.</p>
+
+  <hr class="rule">
+
+  <h2>Why offer it</h2>
+  <div class="callout">
+    <div class="callout__label">A Deed of Guarantee in the landlord's favour</div>
+    <p style="margin:0">opndoor provides a Deed of Guarantee covering up to <b>12 months' rent, capped at &pound;120,000</b>, plus <b>&pound;10,000 of legal costs</b>. The landlord, or you on their behalf, can claim under it. They end up better protected than on a standard let.</p>
+  </div>
+  <ul class="plain">
+    <li><b>Completed lets, not lost deals.</b> Turn a failed reference into a tenancy that proceeds, instead of starting the search again. The deal you had stays the deal you close.</li>
+    <li><b>Fast and simple.</b> Refer through the portal, the tenant pays, the deed issues. It can be near instant, and you track every referral from Sent to Deed Issued in one screen.</li>
+    <li><b>Eligible for rent guarantee.</b> With the opndoor guarantee in place, the tenancy is also eligible for a rent guarantee policy if the landlord wants one. An optional extra layer on top.</li>
+    <li><b>No cost to your agency or the landlord.</b> The tenant pays the fee.</li>
+  </ul>
+
+  <h2>How it works</h2>
+  <table>
+    <tr><th>Step</th><th>What happens</th></tr>
+    <tr><td><b>1. Refer</b></td><td>Pass the failed-referencing applicant to opndoor. It takes a couple of minutes.</td></tr>
+    <tr><td><b>2. Tenant pays</b></td><td>They get a secure link and pay the guarantee fee.</td></tr>
+    <tr><td><b>3. Deed issues</b></td><td>opndoor issues the Deed of Guarantee. The let proceeds.</td></tr>
+  </table>
+  <p>Tracked end to end: <b>Sent &rarr; Paid &rarr; Deed Issued</b>.</p>
+  <p><b>Plainly:</b> the tenant pays the guarantee fee. There is no cost to your agency or the landlord.</p>
+
+  <h2>Who's a fit?</h2>
+  <p><b>Likely a fit</b></p>
+  <ul class="plain">
+    <li>Tenants in employment or on a stable income</li>
+    <li>Students</li>
+    <li>Tenants with solid savings</li>
+    <li>Some adverse credit can still be considered</li>
+  </ul>
+  <p><b>Not a fit</b></p>
+  <ul class="plain">
+    <li>Anyone who has misrepresented their application</li>
+    <li>Tenants with significant CCJs</li>
+    <li>Anyone with an IVA or undischarged bankruptcy</li>
+    <li>Rents above &pound;10,000 a month</li>
+  </ul>
+  <p><b>Every case is approved individually.</b> Your account manager will walk your team through the detail.</p>
+
+  <div class="callout">
+    <div class="callout__label">Get set up</div>
+    <p>Start turning failed references into completed lets. Speak to the team that referred you to opndoor to get your agency set up, so your failed-referencing applicants can be referred and the let can still go ahead.</p>
+    <p style="margin:0">Need to reach opndoor directly? Get in touch at <a href="mailto:hello@opndoor.co">hello@opndoor.co</a>.</p>
+  </div>
+</div></div>
+</div></div>
+</body>
+</html>

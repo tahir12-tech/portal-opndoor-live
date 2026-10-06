@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // =====================================================================
 // Deed-to-agent delivery, shared by the automatic path (pandadoc-webhook, on
 // execution) and the manual path (send-deed-to-agent). Sends the branded deed
@@ -11,116 +12,20 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "opndoor <noreply@opndoor.co>";
 const REPLY_TO = Deno.env.get("EMAIL_REPLY_TO") ?? "hello@opndoor.co";
 // const REVIEW_ADDRESS = Deno.env.get("EMAIL_REVIEW_ADDRESS");
+=======
+import { sendMessage, bytesToBase64, type SendResult, type Attachment } from "./mailer.ts";
+import { executedDeedAgentEmail, executedDeedLandlordEmail } from "./emailTemplates.ts";
+import { managedByFor } from "./managedBy.ts";
+>>>>>>> partner-api
 
-interface SendResult { ok: boolean; error?: string; to?: string }
-
-// export async function sendEmail(opts: { subject: string; html: string; to?: string }): Promise<SendResult> {
-//   if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
-//   if (!REVIEW_ADDRESS) return { ok: false, error: "Test review address (EMAIL_REVIEW_ADDRESS) is not set." };
-//   const recipients = [REVIEW_ADDRESS];
-//   if (opts.to && opts.to !== REVIEW_ADDRESS) recipients.push(opts.to);
-//   try {
-//     const res = await fetch("https://api.resend.com/emails", {
-//       method: "POST",
-//       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-//       body: JSON.stringify({ from: EMAIL_FROM, to: recipients, reply_to: REPLY_TO, subject: opts.subject, html: opts.html }),
-//     });
-//     if (!res.ok) {
-//       const detail = await res.text();
-//       return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", ") };
-//     }
-//     return { ok: true, to: recipients.join(", ") };
-//   } catch (e) {
-//     return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
-//   }
-// }
-
-
-export async function sendEmail(opts: { subject: string; html: string; to: string }): Promise<SendResult> {
-  if (!RESEND_API_KEY) return { ok: false, error: "Resend is not configured (RESEND_API_KEY not set)." };
-  if (!opts.to) return { ok: false, error: "No recipient email provided." };
-  const recipients = [opts.to];
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from: EMAIL_FROM, to: recipients, reply_to: REPLY_TO, subject: opts.subject, html: opts.html }),
-    });
-    if (!res.ok) {
-      const detail = await res.text();
-      return { ok: false, error: `Resend responded ${res.status}: ${detail.slice(0, 200)}`, to: recipients.join(", ") };
-    }
-    return { ok: true, to: recipients.join(", ") };
-  } catch (e) {
-    return { ok: false, error: `Resend request failed: ${e instanceof Error ? e.message : String(e)}`, to: recipients.join(", ") };
-  }
-}
-
-
-const VALHALLA = "#271d5f";
-const HELIOTROPE = "#d364fb";
-const HELIOTROPE_DEEP = "#b54de0";
-const INK_SOFT = "#5b4d86";
-const LILAC = "#f8eff9";
-
-//email for tenat only 
-function layout(inner: string): string {
-  return `<!doctype html><html><body style="margin:0;padding:0;background:#f6f3fa;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f6f3fa;padding:28px 0;">
-    <tr><td align="center">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px;max-width:92%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px -18px rgba(39,29,95,0.4);">
-        <tr><td style="background:${VALHALLA};padding:22px 28px;">
-          <span style="font:800 22px 'Sora',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:-0.04em;color:#ffffff;">opndoor</span>
-          <span style="font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:rgba(255,255,255,0.7);margin-left:10px;">Guarantee Referral Portal</span>
-        </td></tr>
-        <tr><td style="padding:28px;font:400 15px/1.6 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${VALHALLA};">${inner}</td></tr>
-        <tr><td style="padding:18px 28px;background:${LILAC};font:400 12px/1.5 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};">opndoor. Questions? Reply to this email or contact ${REPLY_TO}.</td></tr>
-      </table>
-    </td></tr>
-  </table></body></html>`;
-}
-
-function detailRow(label: string, value: string): string {
-  return `<tr>
-    <td style="padding:6px 0;font:600 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${INK_SOFT};white-space:nowrap;vertical-align:top;">${label}</td>
-    <td style="padding:6px 0 6px 16px;font:600 14px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;color:${VALHALLA};">${value}</td>
-  </tr>`;
-}
-
-// Owner-approved final copy. Greets the agency team by name (never a contact's
-// email address, #69); the recipient is a letting-agent branch with no portal
-// access, so the tone is comfort + completeness with no portal pitch.
-function deedAgentTemplate(p: {
-  agencyName: string; tenantTitle: string; tenantName: string; addr1: string; postcode: string;
-  tenancyStartLabel: string; guaranteeRef: string; downloadUrl: string; correctionUrl: string; intendedFor: string;
-}): { subject: string; html: string } {
-  const teamName = (p.agencyName || "").trim();
-  const greet = teamName ? `Dear team at ${teamName},` : "Dear team,";
-  const propertyLine = [p.addr1, p.postcode].filter(Boolean).join(", ");
-  const tenantLine = [p.tenantTitle, p.tenantName].filter((x) => (x || "").trim()).join(" ").trim();
-  const subject = `Deed of Guarantee issued, ${p.guaranteeRef}, ${p.addr1}`;
-  const button = p.downloadUrl
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:6px 0 8px;"><tr><td>
-        <a href="${p.downloadUrl}" style="display:inline-block;background:${HELIOTROPE};color:#ffffff;text-decoration:none;font:700 15px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;padding:13px 28px;border-radius:999px;box-shadow:0 6px 18px -8px rgba(211,100,251,0.6);">Download the Deed of Guarantee</a>
-      </td></tr></table>`
-    : `<p style="margin:0 0 8px;font-size:13px;color:${INK_SOFT};">The signed deed is on file with opndoor. Contact us quoting the reference to receive a copy.</p>`;
-  const inner = `
-    <p style="margin:0 0 14px;">${greet}</p>
-    <p style="margin:0 0 16px;">The Deed of Guarantee for <b>${tenantLine}</b> at ${propertyLine} has been signed and issued. opndoor is now the professional guarantor for this tenancy, and nothing further is needed from you, the guarantee is in place.</p>
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;border:1px solid rgba(39,29,95,0.12);border-radius:12px;background:${LILAC};"><tr><td style="padding:14px 18px;">
-      <div style="font:700 12px 'Manrope',system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif;letter-spacing:0.12em;text-transform:uppercase;color:${INK_SOFT};margin-bottom:6px;">Guarantee details</div>
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-        ${detailRow("Tenant", tenantLine)}
-        ${detailRow("Property", propertyLine)}
-        ${detailRow("Tenancy start", p.tenancyStartLabel)}
-        ${detailRow("Guarantee period", "12 months from tenancy start")}
-        ${detailRow("Reference", p.guaranteeRef)}
-      </table>
-    </td></tr></table>
-    ${button}
-    <p style="margin:12px 0 0;font-size:13px;color:${INK_SOFT};">Please keep the deed with the tenancy paperwork, it's the reference for any claim under the guarantee. The download link expires in a few days; if you ever need the deed re-sent, contact us quoting the reference.</p>
-    ${p.correctionUrl ? `<p style="margin:10px 0 0;font-size:12px;color:${INK_SOFT};">If the tenancy start date shown is incorrect, <a href="${p.correctionUrl}" style="color:${HELIOTROPE_DEEP};text-decoration:underline;">let us know</a>.</p>` : ""}`;
-  return { subject, html: layout(inner) };
+/** ISO tenancy start (yyyy-mm-dd) as a readable date for the email, e.g.
+    "1 September 2026". Parsed from the parts so a timezone cannot shift the day. */
+export function formatTenancyStart(iso: string | null): string | null {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return null;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "numeric", month: "long", year: "numeric" }).format(d);
 }
 
 export interface DeedTarget {
@@ -132,60 +37,275 @@ export interface DeedTarget {
   postcode: string;
   /** ISO tenancy start date (yyyy-mm-dd); rendered dd/mm/yyyy in the email. */
   tenancyStart: string | null;
+  /** Optional pre-formatted label shown as the guarantee's expiry row. Left unset
+      by callers today, so the row is omitted; declared so the reference below
+      type-checks rather than reading a property the interface never had. */
+  tenancyStartLabel?: string | null;
   agencyName: string;
   pdfPath: string | null;
 }
-export interface DeedRecipient { email: string; name: string }
 
-/** dd/mm/yyyy from an ISO date, or an em-dash-free placeholder. */
-function ddmmyyyy(iso: string | null): string {
-  if (!iso) return "the tenancy start date";
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
-}
+/* ONE SEND, EVERY RECIPIENT. `email` stays for the primary, because the
+   activity line and the "sent to" on screen name one person, and `also` is
+   everybody else the ladder resolved. On the agency rail that is the referrer
+   plus every ticked user whose position covers the referral; on the other two
+   rails it is empty, because those rails have one contact. */
+export interface DeedRecipient { email: string; name: string; also?: string[] }
 
-/**
- * Deliver the issued deed to the resolved claim contact: mint a signed download
- * link, email it (redirected to the review address in test mode), and write the
- * partner-safe "Deed sent to <email> · <mode>" activity entry plus an admin-only
- * internal entry for the test-mode redirect. Returns the send outcome.
- */
 export async function deliverDeedToAgent(service: any, target: DeedTarget, recipient: DeedRecipient, mode: string): Promise<SendResult> {
-  let downloadUrl = "";
+  // The signed deed rides as an ATTACHMENT now, not a download link. The PDF is
+  // already in the deeds bucket: the completion webhook uploads it before calling
+  // this, and the manual resend reads the stored executed PDF. Fetch and base64 it.
+  const attachments: Attachment[] = [];
   if (target.pdfPath) {
-    const { data: signed } = await service.storage.from("deeds").createSignedUrl(target.pdfPath, 604800); // 7 days
-    downloadUrl = signed?.signedUrl ?? "";
+    const { data: blob } = await service.storage.from("deeds").download(target.pdfPath);
+    if (blob) {
+      attachments.push({
+        filename: `Deed of Guarantee ${target.ref}.pdf`,
+        content: bytesToBase64(new Uint8Array(await blob.arrayBuffer())),
+      });
+    }
   }
-  // #81 Mint a tokenised tenancy-correction link, expiring with the download link.
+  if (!attachments.length) {
+    // The copy says the signed copy is attached, so a missing PDF is worth an
+    // internal note. The send still goes: the notification and (for an agent) the
+    // portal link carry value, and holding the email helps nobody.
+    await service.from("activity_log").insert({
+      application_id: target.appId, kind: "deed_attachment_missing",
+      message: "Executed-deed email sent without the signed PDF: it could not be read from storage.",
+      actor: "System", visibility: "internal",
+    });
+  }
+
+  const appBase = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
+
+  /* AN AGENCY INSIDE A SUPPLIER'S ESTATE HAS NO LOGIN AND NO SAY.
+   *
+   * Matt (bf): "Signed-deed email to an agency without portal access (any
+   * agency in a supplier's estate, e.g. Test Lettings asda for Kestrel):
+   * remove 'You can also view it any time in the portal' and the 'Wrong
+   * tenancy start date? Change it here' link. Instead: 'Wrong tenancy start
+   * date? Contact [supplier name], who referred this tenant.'"
+   *
+   * TWO DEAD INVITATIONS IN ONE EMAIL, to the person holding the guarantee.
+   * The supplier refers; the agency is a record in the supplier's book and
+   * has no account at all.
+   *
+   * THE SECOND IS WORSE THAN A DEAD LINK. The correction link is a TOKEN and
+   * would actually work -- but on this rail the amendment is not the
+   * agency's to make. The supplier owns the relationship, holds the portal
+   * access, and can change the date themselves before the tenancy starts.
+   * An agency that corrects a date behind its supplier's back is a worse
+   * outcome than one that is told who to ring.
+   *
+   * THE TEST IS THE ESTATE, NOT THE RECIPIENT'S ROLE, because this email has
+   * more than one recipient since (bg): it is addressed to the agency and
+   * copies the supplier's referrer, who does have a login. The ADDRESSEE
+   * decides the wording, and the referrer can reach the application from
+   * their own portal without being told. */
+  const { data: estate } = await service
+    .from("applications")
+    .select("partner:partners(name, partner_kind)")
+    .eq("id", target.appId).maybeSingle();
+  // deno-lint-ignore no-explicit-any
+  const pt = (Array.isArray(estate?.partner) ? (estate?.partner as any)[0] : (estate?.partner as any)) ?? null;
+  const supplierName: string | null = pt?.partner_kind === "supplier"
+    ? (typeof pt?.name === "string" && pt.name.trim() ? pt.name.trim() : null)
+    : null;
+  const inSupplierEstate = pt?.partner_kind === "supplier";
+
+  // "You can also view it in the portal" is only for a recipient who has a login.
+  // A private landlord has none, so the line is omitted for them; a letting agent
+  // (and a referral-rail branch contact, whose delivery-contact kind is null here)
+  // gets it. An agency in a supplier's estate has none either.
+  let portalUrl = "";
+  if (appBase && !inSupplierEstate) {
+    const kind = await managedByFor(service, target.appId);
+    if (kind !== "private_landlord") portalUrl = `${appBase}/applications/${encodeURIComponent(target.ref)}`;
+  }
+
+  // #81 Mint a tokenised tenancy-correction link (7-day expiry). Submitting it now
+  // applies the correction automatically (void + reissue), so the wording invites
+  // a change rather than promising a review.
   let correctionUrl = "";
-  const base = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
-  if (base) {
-    const { data: tok } = await service.from("tenancy_correction_tokens").insert({
-      application_id: target.appId, guarantee_ref: target.ref,
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-    }).select("token").maybeSingle();
-    if (tok?.token) correctionUrl = `${base}/tenancy-correction?token=${tok.token}`;
+  // NOT MINTED AT ALL on a supplier's estate, rather than minted and hidden:
+  // an unused seven-day correction token is a live way to amend a tenancy
+  // sitting in a table, and the point of (bf) is that this agency is not the
+  // one who should be amending it.
+  if (appBase && !inSupplierEstate) {
+    /* ONE LIVE CORRECTION LINK PER APPLICATION. Round 6, M4.
+       This minted a NEW seven-day token on EVERY call, and it is called by the
+       completion webhook, by every manual "Send deed to agent", and by every
+       reissue. Round 5 closed the same-token replay; it did not close this
+       one, because the claim was scoped to the token presented and the other
+       outstanding links stayed live. Submitting the first archived the signed
+       PDF, reset the status, nulled the executed PDF and reissued; submitting
+       the second did it all again.
+
+       So an unexpired, unsubmitted token for this application is REUSED. The
+       link in the second email is the same link as in the first, which is
+       also what the recipient would expect. */
+    const { data: live } = await service.from("tenancy_correction_tokens")
+      .select("token")
+      .eq("application_id", target.appId)
+      .is("submitted_at", null)
+      .gt("expires_at", new Date().toISOString())
+      .order("expires_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    let tokenValue = live?.token as string | undefined;
+    if (!tokenValue) {
+      const { data: tok } = await service.from("tenancy_correction_tokens").insert({
+        application_id: target.appId, guarantee_ref: target.ref,
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      }).select("token").maybeSingle();
+      tokenValue = tok?.token as string | undefined;
+    }
+    if (tokenValue) correctionUrl = `${appBase}/tenancy-correction?token=${tokenValue}`;
   }
-  const tpl = deedAgentTemplate({
-    agencyName: target.agencyName,
-    tenantTitle: target.tenantTitle,
-    tenantName: target.tenantName,
-    addr1: target.addr1,
-    postcode: target.postcode,
-    tenancyStartLabel: ddmmyyyy(target.tenancyStart),
+
+  /* THE TENANCY THIS DEED IS PART OF, so the email can say that another is
+     coming. Read here rather than threaded through DeedTarget because both
+     callers (the completion webhook and the manual send) would otherwise have to
+     fetch and pass it, and one of them would eventually not. */
+  /* HOW MANY HAVE SIGNED, NOT WHICH ONE THIS IS.
+
+     Matt, 2026-10-01, on GR-23853/GR-23854: "Joint Two signed first, and the
+     agent's signed-deed email said 'deed 2 of 2' and 'This is the last of
+     this tenancy's deeds: every tenant has now signed their own', while
+     Joint One has not paid or signed."
+
+     This read `tenancy_position`, which is the order the agent typed the
+     tenants in. The second tenant's deed was "2 of 2" whoever had signed,
+     and the closing sentence followed the same number, so an agent was told
+     a tenancy was fully guaranteed when half of it was. An ordinal read as
+     a count.
+
+     `deed_state = 'executed'` is the count, and this row is counted whether
+     or not its own state has been written yet: the completion webhook sends
+     this email in the same breath as recording the signature, and the order
+     of those two is not something the sentence should depend on. */
+  /* AND WHO HAS PAID, which the sentence was asserting without asking.
+     Matt, 2026-10-03: "the agent's joint-tenancy line says 'one more deed
+     follows once the other tenant has paid and signed' even when the other
+     tenant has already paid; say 'once the other tenant has signed' in that
+     case." `paid_at` is the test, which is the column every other tally on
+     this tenancy counts (see referrerNotify). */
+  let joint: { signed: number; count: number; paid: number; coTenants: string } | null = null;
+  const { data: me } = await service.from("applications")
+    .select("tenancy_id, tenancy_position").eq("id", target.appId).maybeSingle();
+  if (me?.tenancy_id && me?.tenancy_position) {
+    const { data: mates } = await service.from("applications")
+      .select("id, tenancy_position, tenant_first_name, tenant_last_name, deed_state, paid_at")
+      .eq("tenancy_id", me.tenancy_id)
+      .order("tenancy_position");
+    if (mates && mates.length > 1) {
+      const signed = mates.filter((m: { id: string; deed_state: string | null }) =>
+        m.id === target.appId || m.deed_state === "executed").length;
+      /* THIS ROW COUNTS AS PAID WHATEVER ITS OWN STAMP SAYS, for the same
+         reason it counts as signed: a tenant whose deed has just been
+         executed paid to get it, and the order in which the webhook writes
+         the two is not something the sentence should depend on. */
+      const paid = mates.filter((m: { id: string; paid_at: string | null }) =>
+        m.id === target.appId || !!m.paid_at).length;
+      joint = {
+        signed,
+        paid,
+        count: mates.length,
+        coTenants: mates
+          .filter((m: { tenancy_position: number }) => Number(m.tenancy_position) !== Number(me.tenancy_position))
+          .map((m: { tenant_first_name: string; tenant_last_name: string }) =>
+            `${m.tenant_first_name ?? ""} ${m.tenant_last_name ?? ""}`.trim())
+          .filter(Boolean)
+          .join(", "),
+      };
+    }
+  }
+
+  const correctedFrom = await correctedFromLabel(service, target.appId);
+
+  /* ONE EMAIL PER RECIPIENT, EACH WRITTEN FOR THEM. Matt (bk): "send one
+     email per recipient, never several addresses on one email. The agency's
+     version keeps 'Contact Kestrel Lettings, who referred this tenant'; the
+     referrer's version (a portal user) gets the portal link and 'Wrong
+     tenancy start date? Change it here.'"
+ 
+     THIS REVERSES A STATED DECISION, and the comment that used to sit at the
+     send said why it was made: "the deed is a single event, and the people
+     on it should see who else has it." That was written when every recipient
+     was on one agency's ladder and could reasonably see each other. Since
+     (bg) the supplier rail puts an AGENCY and the SUPPLIER'S OWN STAFF on
+     one message, and those two should not be shown each other's addresses.
+ 
+     IT ALSO RESOLVES THE TENSION I LEFT IN (bf). That stripped the portal
+     and correction lines from this email because the ADDRESSEE on a
+     supplier's estate has no login -- and the referrer, who does, lost them
+     too. I noted the trade-off and chose the addressee. The answer was to
+     stop sending one email to two kinds of reader.
+ 
+     THE ADDRESSEE IS THE MAILBOX, THE COPIES ARE PEOPLE, on the rail where
+     the two differ: deed_delivery_target puts the agency's contact first on
+     a supplier referral and the referrer after it. On the agency rail every
+     rung is a person and nothing changes but the envelope. */
+  const buildFor = (forPortalUser: boolean) => {
+    const m = executedDeedAgentEmail({
+    correctedFrom,
     guaranteeRef: target.ref,
-    downloadUrl,
-    correctionUrl,
-    intendedFor: recipient.email,
-  });
-  const res = await sendEmail({ subject: tpl.subject, html: tpl.html, to: recipient.email });
+    tenantName: `${target.tenantTitle ?? ""} ${target.tenantName ?? ""}`.trim() || target.tenantName,
+    propertyAddr: [target.addr1, target.postcode].filter(Boolean).join(", "),
+      tenancyStartLabel: target.tenancyStartLabel ?? formatTenancyStart(target.tenancyStart),
+      portalUrl: forPortalUser ? portalUrl : "",
+      joint,
+    });
+    if (forPortalUser && correctionUrl) {
+      m.blocks = [...m.blocks, {
+        small: `Wrong tenancy start date? <a href="${correctionUrl}">Change it here</a>.`,
+      }];
+    } else if (supplierName) {
+      /* WHO CAN, instead of a link that cannot. Matt's own sentence. Somebody
+         who spots a wrong start date and is given nothing to do about it does
+         nothing, and the deed stays wrong -- which is the whole reason this
+         line exists at all. */
+      m.blocks = [...m.blocks, {
+        small: `Wrong tenancy start date? Contact ${supplierName}, who referred this tenant.`,
+      }];
+    }
+    return m;
+  };
+
+  const copies = (recipient.also ?? []).map((e) => (e ?? '').trim()).filter(Boolean);
+  const addressee = (recipient.email ?? '').trim();
+  const everyone = [addressee, ...copies]
+    .filter((e, i, xs) => e.length > 0 && xs.indexOf(e) === i);
+
+  /* THE ADDRESSEE'S VERSION IS THE ONE WITHOUT THE PORTAL on a supplier's
+     estate, and the one WITH it everywhere else: on the agency rail the
+     addressee is the referrer. Everyone copied is a person on a ladder, so
+     they get the portal version on both rails. */
+  const sends = await Promise.all(everyone.map((to, i) =>
+    sendMessage({ to, message: buildFor(i === 0 ? !inSupplierEstate : true), attachments })));
+  /* ONE OUTCOME FOR THE DELIVERY RECORD, because `deed_delivered_to` and
+     record_delivery_attempt describe one event and must not become several
+     conflicting answers to "where did the deed go". The addressee's send is
+     the one that decides it: a failed copy to a colleague is not a failed
+     delivery of the deed. */
+  const res = sends[0] ?? { ok: false, error: "No recipient." } as typeof sends[number];
+  const failedCopies = everyone.filter((_, i) => i > 0 && !sends[i]?.ok);
+  if (failedCopies.length) {
+    await service.from("activity_log").insert({
+      application_id: target.appId,
+      kind: "deed_delivery_failed",
+      message: `The signed deed reached the agency but a copy could not be sent to ${failedCopies.join(", ")}.`,
+      actor: "System", visibility: "internal",
+    });
+  }
 
   // Partner-safe business entry names the intended agent contact; the test-mode
   // redirect target stays admin-only (a separate internal entry).
   await service.from("activity_log").insert({
     application_id: target.appId,
     kind: res.ok ? "deed_delivered" : "deed_delivery_failed",
-    message: res.ok ? `Deed sent to ${recipient.email} · ${mode}` : `Deed email to the agent could not be sent: ${res.error}`,
+    message: res.ok ? `Deed sent to ${everyone.join(", ")} · ${mode}` : `Deed email to the agent could not be sent: ${res.error}`,
     actor: "System",
     visibility: res.ok ? "business" : "internal",
   });
@@ -194,6 +314,175 @@ export async function deliverDeedToAgent(service: any, target: DeedTarget, recip
       application_id: target.appId,
       kind: "deed_delivered",
       message: `Deed email delivered to ${res.to}.`,
+      actor: "System",
+      visibility: "internal",
+    });
+  }
+  return { ...res, to: recipient.email };
+}
+
+/**
+ * The date an earlier copy of this deed was sent, when this one replaces it.
+ *
+ * Matt, 2026-10-01: "Signed deed email after a tenancy start correction:
+ * say so at the top ... This corrected deed replaces the one sent on 1 Oct
+ * 2026." Null on a first delivery and on a plain resend, which are not
+ * corrections and must not say they are.
+ *
+ * WHICH IS NEWER IS THE WHOLE TEST, the same one the delivery guard uses:
+ * a tenancy-start correction voids the document and issues a new one, so
+ * its issue stamp lands after the previous delivery's. A resend of the
+ * same deed has them the other way round.
+ */
+export async function correctedFromLabel(service: any, appId: string): Promise<string | null> {
+  const { data } = await service.from("applications")
+    .select("deed_delivered_at, deed_delivery_superseded_at, deed_issued_at").eq("id", appId).maybeSingle();
+  /* THE SUPERSEDED DELIVERY IS THE ANSWER, and it is read FIRST.
+     20261007640000 moved the earlier delivery to
+     `deed_delivery_superseded_at` when a correction voids the deed, and
+     nulled `deed_delivered_at` -- which is what unblocked the corrected
+     deed's automatic send. This function was still asking the nulled
+     column, so from that day the note that says "this replaces the one
+     sent on ..." could never appear on the very emails it is for: the
+     correction clears the only date it was reading.
+
+     A stamp here IS the statement that a delivery was superseded, so it
+     needs no second test. The issued/delivered comparison below is the
+     HISTORIC path: rows corrected before that migration still carry the
+     old delivery in place, and there the newer issue stamp is the only
+     thing that separates a correction from a plain resend. */
+  const superseded = data?.deed_delivery_superseded_at ? new Date(data.deed_delivery_superseded_at) : null;
+  const sent = data?.deed_delivered_at ? new Date(data.deed_delivered_at) : null;
+  const issued = data?.deed_issued_at ? new Date(data.deed_issued_at) : null;
+  const was = superseded ?? ((sent && issued && issued > sent) ? sent : null);
+  if (!was) return null;
+  return londonDayLabel(was);
+}
+
+/** "1 Oct 2026", in London.
+ *
+ *  Matt, 2026-10-03: "Dates as '1 Oct 2026', not '01 Oct 2026'."
+ *
+ *  AND `day: "numeric"` IS NOT WHAT DELIVERS THAT, which is the whole reason
+ *  this needed measuring rather than reading. The options asked for a numeric
+ *  day and still produced "01": en-GB has no pattern for day-month-year all
+ *  numeric that keeps a one-digit day, so the resolved format is dd/mm/yyyy
+ *  and `formatToParts` hands back the day already padded. The option was
+ *  right and the output was wrong, which is why the bug survived a reading of
+ *  this function.
+ *
+ *  So the zero comes off explicitly, through Number(). The month is an
+ *  abbreviation from the list rather than Intl's "short", whose output
+ *  carries a full stop in some runtimes ("1 Oct. 2026"). */
+function londonDayLabel(when: Date): string {
+  const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const d = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London", day: "numeric", month: "numeric", year: "numeric",
+  }).formatToParts(when);
+  const day = Number(d.find((p) => p.type === "day")?.value ?? "0");
+  const mon = Number(d.find((p) => p.type === "month")?.value ?? "0");
+  const year = d.find((p) => p.type === "year")?.value ?? "";
+  return `${day} ${MONTH[mon - 1] ?? mon} ${year}`;
+}
+
+export interface LandlordRecipient { email: string; name: string; note?: string; actor?: string }
+
+// Sibling of deliverDeedToAgent for agency staff sending to their landlord. The
+// covering line the sender typed opens the email; no portal or correction link (a
+// private landlord has no login). The activity entry names who sent it (actor)
+// and to whom (message), so the feed reads as an audit line.
+export async function deliverDeedToLandlord(service: any, target: DeedTarget, recipient: LandlordRecipient): Promise<SendResult> {
+  /* ONE EMAIL, EVERY SIGNED DEED ON THE TENANCY.
+
+     Matt, 2026-10-01: '"Send deed to landlord" on a joint tenancy: send
+     all the tenancy's signed deeds in one email, listing each tenant, and
+     say if any are still unsigned ("Joint Two has not signed yet; we'll
+     send theirs when they do" only if you can, otherwise just list what's
+     attached).'
+
+     A landlord does not hold a tenancy in two halves. Sending one deed
+     and calling it "the signed Deed of Guarantee" tells them the tenancy
+     is covered when half of it is -- the same fault as the agent's "deed
+     2 of 2", from the other end.
+
+     Everything executed on this tenancy is attached, named by tenant, and
+     anybody still out is named too. A tenancy of one takes the single
+     path unchanged: one row, one attachment, no list. */
+  const { data: me } = await service.from("applications")
+    .select("tenancy_id").eq("id", target.appId).maybeSingle();
+
+  type Mate = {
+    id: string; guarantee_ref: string; tenant_first_name: string; tenant_last_name: string;
+    deed_state: string | null; executed_pdf_path: string | null; tenancy_position: number;
+  };
+  let mates: Mate[] = [];
+  if (me?.tenancy_id) {
+    const { data } = await service.from("applications")
+      .select("id, guarantee_ref, tenant_first_name, tenant_last_name, deed_state, executed_pdf_path, tenancy_position")
+      .eq("tenancy_id", me.tenancy_id)
+      .order("tenancy_position");
+    mates = (data ?? []) as Mate[];
+  }
+  const nameOf = (m: Mate) => `${m.tenant_first_name ?? ""} ${m.tenant_last_name ?? ""}`.trim();
+  /* THIS ROW COUNTS AS SIGNED whatever its stored state says, for the
+     reason the agent's count does: the send can run in the same breath as
+     the signature being recorded. */
+  const signed = mates.filter((m) => m.id === target.appId || m.deed_state === "executed");
+  const unsigned = mates.filter((m) => !(m.id === target.appId || m.deed_state === "executed"));
+
+  const attachments: Attachment[] = [];
+  const pull = async (path: string | null, ref: string, who: string) => {
+    if (!path) return;
+    const { data: blob } = await service.storage.from("deeds").download(path);
+    if (!blob) return;
+    attachments.push({
+      filename: mates.length > 1
+        ? `Deed of Guarantee ${ref} - ${who || "tenant"}.pdf`
+        : `Deed of Guarantee ${ref}.pdf`,
+      content: bytesToBase64(new Uint8Array(await blob.arrayBuffer())),
+    });
+  };
+  if (signed.length > 1) {
+    for (const m of signed) {
+      await pull(m.id === target.appId ? (target.pdfPath ?? m.executed_pdf_path) : m.executed_pdf_path,
+        m.guarantee_ref, nameOf(m));
+    }
+  } else {
+    await pull(target.pdfPath, target.ref, nameOf(signed[0] ?? ({} as Mate)));
+  }
+  if (!attachments.length) {
+    await service.from("activity_log").insert({
+      application_id: target.appId, kind: "deed_attachment_missing",
+      message: "Executed-deed email to the landlord sent without the signed PDF: it could not be read from storage.",
+      actor: "System", visibility: "internal",
+    });
+  }
+
+  const message = executedDeedLandlordEmail({
+    guaranteeRef: target.ref,
+    tenantName: `${target.tenantTitle ?? ""} ${target.tenantName ?? ""}`.trim() || target.tenantName,
+    propertyAddr: [target.addr1, target.postcode].filter(Boolean).join(", "),
+    tenancyStartLabel: target.tenancyStartLabel ?? formatTenancyStart(target.tenancyStart),
+    note: recipient.note,
+    joint: mates.length > 1
+      ? { signedNames: signed.map(nameOf).filter(Boolean), unsignedNames: unsigned.map(nameOf).filter(Boolean) }
+      : null,
+  });
+  const res = await sendMessage({ to: recipient.email, message, attachments });
+
+  const actor = recipient.actor && recipient.actor.trim() ? recipient.actor.trim() : "System";
+  await service.from("activity_log").insert({
+    application_id: target.appId,
+    kind: res.ok ? "deed_delivered_landlord" : "deed_delivery_failed",
+    message: res.ok ? `Deed of Guarantee sent to ${recipient.name} (${recipient.email})` : `Deed email to the landlord could not be sent: ${res.error}`,
+    actor: res.ok ? actor : "System",
+    visibility: res.ok ? "business" : "internal",
+  });
+  if (res.ok && res.to && res.to !== recipient.email) {
+    await service.from("activity_log").insert({
+      application_id: target.appId,
+      kind: "deed_delivered_landlord",
+      message: `Redirected to ${res.to} (test mode).`,
       actor: "System",
       visibility: "internal",
     });

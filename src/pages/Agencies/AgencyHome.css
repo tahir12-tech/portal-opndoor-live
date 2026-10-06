@@ -1,0 +1,289 @@
+/* =====================================================================
+   AgencyHome — one org tree. Group = indigo, Agency = heliotrope, Branch = slate.
+   Reuses .card / .dt from portal.css; everything else is the tree + its inline
+   node chrome (people, commission chip, invite, referral count, deed recipient).
+   ===================================================================== */
+
+.ah-back { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--ink-mute); text-decoration: none; }
+.ah-back:hover { color: var(--heliotrope-deep); }
+.ah-sub.ah-sub { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-top: 8px; }
+
+/* tree */
+.ah-tree { display: flex; flex-direction: column; }
+.ah-node { padding: 14px 20px; border-top: 1px solid var(--line); }
+.ah-node:first-child { border-top: none; }
+.ah-node.lv2 { padding-left: 40px; }
+.ah-node.lv3 { padding-left: 64px; }
+.ah-node--group { background: rgba(39, 29, 95, 0.03); }
+.ah-node--branch { background: var(--white-lilac); }
+
+.ah-node-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ah-tick { width: 18px; height: 18px; border-radius: 5px; display: grid; place-items: center; font-size: 10px; font-weight: 800; color: #fff; flex: none; }
+.ah-tick.t-group { background: var(--ink); }
+.ah-tick.t-agency { background: var(--heliotrope-deep); }
+.ah-tick.t-branch { background: #64748b; }
+.ah-node-name { font-family: var(--display); font-weight: 700; font-size: 14.5px; color: var(--ink); }
+.ah-node-level { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-mute); background: var(--app-bg); border-radius: 999px; padding: 2px 8px; }
+
+/* commission chip + editor + expander (inline on the node) */
+.ah-comm-wrap { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.ah-chip { font-size: 12px; color: var(--ink); background: var(--white-lilac); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-variant-numeric: tabular-nums; }
+.ah-node--branch .ah-chip { background: #fff; }
+.ah-chip b { color: var(--heliotrope-deep); }
+.ah-chip-src { font-size: 11px; color: var(--ink-mute); }
+.ah-linkbtn { border: none; background: none; padding: 0; font-size: 12px; font-weight: 700; color: var(--heliotrope-deep); cursor: pointer; }
+.ah-linkbtn:hover { text-decoration: underline; }
+.ah-linkbtn--quiet { color: var(--ink-mute); font-weight: 600; }
+/* The agreement summary stands where Set rate used to, so it reads as a
+   statement of what the party is on rather than as another control: the weight
+   of the chip beside it, not the weight of a button. */
+.ah-agreement-sum { font-weight: 600; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* The tick is the expander now, so it has to look and behave like a control
+   rather than a bullet: same box as the glyph it replaces, so the tree's
+   alignment does not shift. */
+.ah-tick-btn { border: none; background: none; padding: 0; cursor: pointer; color: var(--ink-mute); font-size: 11px; line-height: 1; }
+.ah-tick-btn:hover { color: var(--heliotrope-deep); }
+/* The merged office on a one-office agency card. */
+.ah-office-inline { margin-left: 10px; }
+
+/* One node, opened out of the tree. */
+.ah-nv-rate { display: flex; justify-content: flex-end; min-height: 22px; }
+.ah-nv-h { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-mute); margin: 18px 0 8px; }
+.ah-nv-invite { margin-top: 10px; }
+.ah-rate-edit { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; }
+.ah-rate-edit label { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-soft); }
+.ah-rate-edit input { width: 54px; text-align: right; border: 1px solid var(--line-strong); border-radius: 6px; padding: 3px 6px; font-variant-numeric: tabular-nums; }
+.ah-how { font-size: 11.5px; }
+.ah-how summary { color: var(--ink-mute); cursor: pointer; list-style: none; }
+.ah-how summary::-webkit-details-marker { display: none; }
+.ah-how__body { margin-top: 6px; padding: 8px 10px; background: var(--white-lilac); border-radius: 8px; color: var(--ink-soft); display: flex; flex-direction: column; gap: 3px; }
+.ah-how__body .muted { color: var(--ink-mute); }
+
+.ah-refs { border: none; background: none; padding: 0; font-size: 12px; color: var(--ink-mute); cursor: pointer; white-space: nowrap; }
+.ah-refs:hover { color: var(--heliotrope-deep); text-decoration: underline; }
+
+/* people, inline on the node */
+.ah-node-people { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding-left: 28px; }
+.ah-chip-person { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink); background: #fff; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px 2px 3px; }
+.ah-av { width: 22px; height: 22px; border-radius: 50%; background: var(--white-lilac); color: var(--heliotrope-deep); display: grid; place-items: center; font-size: 9.5px; font-weight: 800; }
+.ah-role { font-size: 10.5px; color: var(--ink-mute); text-transform: uppercase; letter-spacing: .03em; }
+.ah-invite-inline { display: inline-flex; align-items: center; gap: 5px; }
+
+.ah-deed { margin-top: 8px; padding-left: 28px; font-size: 12px; color: var(--ink-soft); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ah-deed select { border: 1px solid var(--line-strong); border-radius: 6px; padding: 3px 8px; font-size: 12px; }
+
+/* referrals table */
+.ah-table { width: 100%; }
+.ah-table td.soft { color: var(--ink-mute); }
+.ah-tenant { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+.ah-tenant .dt__name { display: block; font-weight: 600; }
+.ah-tenant .dt__sub { display: block; font-size: 11.5px; color: var(--ink-mute); }
+.ah-st { display: inline-flex; align-items: center; font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 6px; }
+.ah-st.st-wait { background: var(--warn-bg); color: var(--warn); }
+.ah-st.st-live { background: var(--white-lilac); color: var(--heliotrope-deep); }
+.ah-st.st-ok { background: rgba(34, 160, 100, 0.12); color: var(--deed); }
+.ah-st.st-neutral { background: var(--app-bg); color: var(--ink-mute); }
+.ah-viewall { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--heliotrope-deep); text-decoration: none; background: none; border: none; cursor: pointer; }
+.ah-empty { padding: 22px; text-align: center; color: var(--ink-mute); font-size: 13px; }
+
+@media (max-width: 720px) {
+  .ah-comm-wrap { margin-left: 0; width: 100%; }
+}
+
+.ah-deed-warn {
+  margin-top: 8px; margin-left: 28px; display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--warn); background: var(--warn-bg);
+  border-radius: 8px; padding: 8px 12px;
+}
+/* Sized here too, for the same reason as .pos-empty > svg. Both call sites pass
+   size={14} today, so this rule is currently harmless; a third that forgets would
+   reproduce the panel-filling icon exactly. */
+.ah-deed-warn svg { width: 14px; height: 14px; flex: none; }
+
+
+/* ---- drill-down: a node name is the control that scopes the page ---- */
+.ah-node-btn {
+  background: none; border: 0; padding: 0; cursor: pointer; text-align: left;
+  font: inherit; color: inherit;
+}
+.ah-node-btn:hover { text-decoration: underline; }
+.ah-node.is-sel > .ah-node-main { background: var(--white-lilac, #f7f6fb); }
+.ah-node-meta { font-size: 11.5px; color: var(--ink-mute); margin-left: auto; padding-left: 10px; }
+
+/* the one plain line a branch shows: who is paid, added up */
+.ah-payout {
+  font-size: 12px; color: var(--ink-mute); padding: 2px 0 6px 28px;
+}
+
+/* breadcrumb over the referrals list */
+.ah-crumb {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 12.5px;
+}
+.ah-crumb__seg {
+  background: none; border: 0; padding: 2px 4px; cursor: pointer;
+  font: inherit; color: var(--heliotrope-deep, #5b4bd6); border-radius: 4px;
+}
+.ah-crumb__seg:hover { background: var(--white-lilac, #f7f6fb); }
+.ah-crumb__seg.is-cur { color: var(--ink); font-weight: 700; cursor: default; }
+.ah-crumb__sep { color: var(--ink-mute); }
+
+/* rate editor: the total the change produces, before it is committed */
+.ah-rate-preview { font-size: 12px; color: var(--ink-mute); }
+.ah-rate-preview.is-over { color: var(--danger, #c0392b); font-weight: 700; }
+.ah-rate-hint { font-size: 11.5px; color: var(--ink-mute); }
+.ah-rate-err {
+  display: block; width: 100%; margin-top: 4px;
+  font-size: 12px; color: var(--danger, #c0392b);
+}
+
+/* ---- tabs ---- */
+.ah-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+.ah-tab {
+  background: none; border: 0; border-bottom: 2px solid transparent; cursor: pointer;
+  font-family: var(--display); font-weight: 700; font-size: 13.5px; color: var(--ink-mute);
+  padding: 8px 14px;
+}
+.ah-tab:hover { color: var(--ink); }
+.ah-tab.is-on { color: var(--ink); border-bottom-color: var(--ink); }
+
+/* summary figures are the way into their tab */
+.ah-figs { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ah-fig {
+  background: none; border: 0; padding: 0 2px; cursor: pointer; font: inherit;
+  color: var(--ink-mute); border-radius: 4px;
+}
+.ah-fig:hover { color: var(--ink); text-decoration: underline; }
+.ah-fig-sep { color: var(--line); }
+
+/* ---- creation anchored to a node ---- */
+.ah-node-add { display: flex; gap: 14px; flex-wrap: wrap; padding: 2px 0 6px 28px; }
+.ah-node-add__why { color: var(--ink-mute); font-weight: 400; margin-left: 6px; font-size: 11.5px; }
+.ah-node-note { font-size: 12px; color: var(--ink-mute); padding: 2px 0 6px 28px; }
+
+/* ---- who receives the monthly commission statement ---- */
+.ah-stmt-note {
+  margin: 0 0 12px; font-size: 12.5px; color: var(--ink-mute); line-height: 1.5;
+}
+.ah-stmt { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; cursor: pointer; }
+.ah-stmt input { margin: 0; accent-color: var(--heliotrope-deep); cursor: pointer; }
+.ah-stmt input:disabled { cursor: progress; }
+
+/* ---- people filters ---- */
+.ah-filters { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+/* THE LOOK MOVED TO `.sel` IN portal.css, 2026-10-03, and this rule is the
+   reason: Matt pointed at these filters as the ones that look right and asked
+   for every other dropdown to match them. Two definitions of one look is how
+   they come apart, so the declarations went to the shared class and the
+   selects here carry it. The search box keeps them, because `.ah-filter-q` is
+   a text input and `.sel` is for dropdowns. */
+.ah-filter-q {
+  font: inherit; font-size: 13px; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--app-bg);
+}
+.ah-filter-q { min-width: 200px; }
+
+/* ---- add-agency shape picker ---- */
+.ac-shapes { display: flex; flex-direction: column; gap: 10px; }
+.ac-shape {
+  text-align: left; cursor: pointer; padding: 14px 16px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--app-bg);
+  display: flex; flex-direction: column; gap: 4px; font: inherit;
+}
+.ac-shape:hover:not(:disabled) { border-color: var(--ink); }
+.ac-shape:disabled { opacity: .55; cursor: not-allowed; }
+.ac-shape b { font-family: var(--display); font-size: 14px; }
+.ac-shape span { font-size: 12.5px; color: var(--ink-mute); }
+
+.ac-agencies { display: flex; flex-direction: column; gap: 14px; }
+.ac-agency { border-top: 1px solid var(--line); padding-top: 12px; }
+.ac-agency__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 13px; }
+.ac-invite { border-top: 1px solid var(--line); padding-top: 14px; margin-top: 14px; }
+.ac-invite__title { font-family: var(--display); font-weight: 700; font-size: 13.5px; margin-bottom: 10px; }
+.ac-grouplist { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; max-height: 160px; overflow-y: auto; }
+.ac-groupopt {
+  cursor: pointer; font: inherit; font-size: 12.5px; padding: 5px 10px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--app-bg);
+}
+.ac-groupopt.is-on { border-color: var(--ink); background: var(--ink); color: #fff; }
+
+/* ---- per-agency referencing route (admin) ---- */
+.ah-route {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 4px 0 8px 28px; font-size: 12.5px;
+}
+.ah-route__lbl { color: var(--ink-mute); }
+.ah-route select {
+  font: inherit; font-size: 12.5px; padding: 4px 8px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--app-bg);
+}
+.ah-route__why { color: var(--ink-mute); font-style: italic; }
+
+/* ---- negotiated agreement panel ---- */
+.ah-agr__std { font-size: 13.5px; color: var(--ink-mute); margin: 0; }
+.ah-agr__note { font-size: 13px; margin: 0 0 12px; font-style: italic; color: var(--ink-mute); }
+.ah-agr__sub {
+  font-family: var(--display); font-weight: 700; font-size: 12.5px;
+  margin: 16px 0 6px; color: var(--ink);
+}
+.ah-agr__now {
+  display: flex; gap: 28px; flex-wrap: wrap; margin-top: 14px;
+  padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px;
+}
+.ah-agr__lbl { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-mute); }
+
+/* The people table's action cell now carries up to four controls instead of one
+   Cancel invite. Wrapped and right-aligned so a narrow window stacks them under
+   each other rather than widening the table past the viewport. */
+.ah-rowacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-content: flex-end;
+}
+
+/* WHY CREATE DID NOT CREATE. At the top of the Add agency form, because a
+   reason beside a field the reader has scrolled past is a reason they will
+   not find. The per-field messages are Field's own `error`. */
+.ac-problems {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 0 0 16px; padding: 12px 14px; border-radius: 10px;
+  background: var(--danger-bg); color: var(--danger);
+  font-size: 13px; line-height: 1.6;
+}
+.ac-problems svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+.ac-problems ul { margin: 4px 0 0; padding-left: 18px; }
+
+/* An invitation out is not an empty agency: it resolves itself, so it is
+   said in the informational tone rather than the warning one. */
+.ah-deed-warn--waiting { color: var(--ink-mute); }
+.ah-deed-warn--waiting svg { color: var(--ink-mute); }
+
+/* HOW THIS AGENCY'S TENANTS ARE CHECKED: two answers, each with the
+   sentence that says what it does to the tenant. A dropdown can only
+   explain the one already chosen, which is why these are radios. */
+.ah-route__opts { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.ah-route__opt {
+  display: flex; gap: 9px; align-items: flex-start;
+  padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px;
+  cursor: pointer;
+}
+.ah-route__opt.is-on { border-color: var(--heliotrope-deep); background: var(--heliotrope-wash, #faf5ff); }
+.ah-route__opt input { margin-top: 2px; flex: none; }
+.ah-route__opt b { display: block; font-size: 13.5px; color: var(--ink); }
+.ah-route__opt .ah-route__why { display: block; margin-top: 1px; }
+
+/* "N open referrals from people who have left; deeds will go to [who]."
+   A NOTE AND NOT A WARNING: the answer is reassuring -- the deeds have
+   somewhere to go -- so it does not borrow the blocked banner's red. The one
+   case that IS a problem (nobody left at the agency at all) says so in its own
+   words rather than by colour. */
+.ah-departed {
+  display: flex; align-items: center; gap: 8px;
+  margin: 14px 0 0; padding: 10px 14px;
+  border: 1px solid var(--line); border-radius: var(--r-md, 10px);
+  background: var(--white-lilac); color: var(--ink);
+  font-size: 13.5px; font-weight: 500;
+}
+.ah-departed svg { flex: 0 0 auto; color: var(--ink-mute); }

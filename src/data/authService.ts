@@ -9,6 +9,7 @@
    the database requires before it returns any data.
    ===================================================================== */
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { portalEnvironment } from './devCentreService';
 
 export interface LoginResult {
   ok: boolean;
@@ -40,18 +41,24 @@ export function verify2fa(_code: string): { ok: boolean } {
  * Self-service password reset. In Supabase mode this invokes the
  * send-password-reset Edge Function, which generates a recovery link and emails
  * it via the branded Resend template (redirected to the review address in this
- * test build). It ALWAYS resolves ok and never reveals whether the address has
- * an account (no enumeration); the UI shows the neutral "if an account exists"
- * confirmation regardless. No-op in mock mode.
+ * test build). It never reveals whether the address has an account (the function
+ * answers ok either way), so the UI keeps its neutral "if an account exists"
+ * confirmation. It DOES reject when the send failed or the function is down, so
+ * the caller can say so instead of promising an email nobody will get.
+ * No-op in mock mode.
  */
-export async function requestPasswordReset(email: string): Promise<{ ok: boolean }> {
+export async function requestPasswordReset(
+  email: string, audience: 'agent' | 'supplier' = 'agent',
+): Promise<{ ok: boolean }> {
   if (!SUPABASE_ENABLED) return { ok: true };
-  try {
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    await sb().functions.invoke('send-password-reset', { body: { email: email.trim(), origin } });
-  } catch {
-    // Swallow: the confirmation is intentionally identical whether or not the
-    // send succeeded, so an outage never leaks account existence.
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  // The tab travels with the request so it can travel back in the link.
+  const { data, error } = await sb().functions
+    .invoke('send-password-reset', { body: { email: email.trim(), origin, audience } });
+  // Whether the address has an account is still invisible: the function answers
+  // ok for both. What is no longer invisible is a send we failed to make.
+  if (error || (data && data.ok === false)) {
+    throw new Error((data && data.error) || 'We could not send that just now. Try again in a moment.');
   }
   return { ok: true };
 }
@@ -114,6 +121,32 @@ export interface EnrolResult extends AuthResult {
     surfaced a raw "a factor with the friendly name '' already exists" error): we
     drop unverified factors first, and if enrolment still collides we clear every
     TOTP factor and retry once. Any failure returns a clean, mapped message. */
+/* =====================================================================
+   WHICH OPNDOOR THE PHONE IS SHOWING YOU.
+
+   Matt, 2026-10-01: "Authenticator labels: on dev, the issuer shows as
+   'opndoor DEV' so dev and live entries can't be confused. On live it
+   stays 'opndoor'."
+
+   An authenticator entry is labelled issuer + account, and the account
+   half is the person's email -- the same email on both projects. So
+   somebody who holds an account on dev and on live had two entries
+   reading "opndoor (rosa@regents.co.uk)", identical, six digits each,
+   and no way to tell which one the sign-in screen in front of them
+   wants.
+
+   THE EXISTING PREDICATE, NOT A SECOND ONE. `portalEnvironment()`
+   already answers "which project is this" from the Supabase URL's ref,
+   against the same list the Stripe key guard uses, and its own comment
+   is emphatic that there must not be two answers to that question. Its
+   rule that an UNRECOGNISED project counts as production applies here
+   too, and is the right way round for the same reason: a live entry is
+   the one that must be labelled plainly.
+   ===================================================================== */
+export function totpIssuer(): string {
+  return portalEnvironment().id === 'development' ? 'opndoor DEV' : 'opndoor';
+}
+
 export async function enrolTotp(): Promise<EnrolResult> {
   // enrolTotp is only reached when the user has NO verified factor, so any
   // factors present are stale unverified attempts. Clear them all (best effort),
@@ -122,14 +155,40 @@ export async function enrolTotp(): Promise<EnrolResult> {
   // name '' already exists") whenever a stale factor lingers, which previously
   // stranded invitees at the two-factor step. On failure we surface the real
   // GoTrue message rather than a blanket one.
+  /* UNVERIFIED ONLY, WHICH THE COMMENT ABOVE ALWAYS ASSUMED AND THE CODE
+     DID NOT. This looped every TOTP factor and unenrolled it, verified
+     ones included, on the strength of "enrolTotp is only reached when the
+     user has NO verified factor". Both callers do check that first -- so
+     it has never fired on a live factor -- but a guard that holds only
+     while every caller remembers is the kind this codebase keeps having
+     to fix. A third caller, or a stale read of `hasVerifiedFactor`,
+     would have had this silently destroy somebody's working
+     authenticator and lock them out of their own account.
+
+     Raised while reading this path for Matt's reset-two-factor report,
+     2026-10-01. It is not that bug -- see the queue -- but it is the
+     same shape of hazard and a line to fix while it is in front of me. */
   try {
     const { data } = await sb().auth.mfa.listFactors();
     for (const f of (data?.totp ?? [])) {
+      if (f.status === 'verified') continue;
       try { await sb().auth.mfa.unenroll({ factorId: f.id }); } catch { /* best effort */ }
     }
   } catch { /* best effort */ }
   const friendlyName = `opndoor ${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-  const res = await sb().auth.mfa.enroll({ factorType: 'totp', friendlyName });
+  /* ISSUER, so the entry in the authenticator app says who it is for.
+
+     Without it GoTrue labels the entry with the project reference, so a person
+     who holds accounts on more than one opndoor environment, or who has any
+     other Supabase-backed app, sees a list of indistinguishable six-digit codes
+     labelled with opaque strings. The account half of the label is the user's
+     own email, which GoTrue takes from the session, so the entry reads
+     "opndoor (rosa@regents.co.uk)".
+
+     friendlyName stays unique and separate: it is our own handle for the factor
+     row and is what stops the duplicate-name collision that used to strand
+     invitees. It is not what the phone displays. */
+  const res = await sb().auth.mfa.enroll({ factorType: 'totp', friendlyName, issuer: totpIssuer() });
   if (res.error || !res.data) {
     const detail = res.error?.message ?? '';
     // #92/#73 Never surface a raw server-ism. A session/token error means the
@@ -140,6 +199,30 @@ export async function enrolTotp(): Promise<EnrolResult> {
     return { ok: false, error: detail ? `We could not start two-factor setup: ${detail}` : 'We could not start two-factor setup. Please try again, or ask your administrator to reset your 2FA.' };
   }
   return { ok: true, factorId: res.data.id, qr: res.data.totp.qr_code, secret: res.data.totp.secret, uri: res.data.totp.uri };
+}
+
+/* WHAT THE PHONE WILL DISPLAY, read back off the otpauth URI.
+
+   An otpauth URI is otpauth://totp/LABEL?secret=...&issuer=ISSUER, where LABEL
+   is either "account" or "issuer:account". Both halves matter and they are
+   carried twice, in the path and in the query, so a URI can disagree with
+   itself; the query parameter is the authoritative issuer per the Key Uri
+   Format, and the path is what older apps read.
+
+   Exported so the labelling can be ASSERTED rather than eyeballed on a phone,
+   which is the only reason it exists as a function. */
+export function otpauthParts(uri: string): { issuer: string; account: string } {
+  try {
+    const u = new URL(uri);
+    // The pathname is '/' + the label, percent-encoded.
+    const label = decodeURIComponent(u.pathname.replace(/^\/+/, ''));
+    const colon = label.indexOf(':');
+    const pathIssuer = colon > -1 ? label.slice(0, colon) : '';
+    const account = colon > -1 ? label.slice(colon + 1) : label;
+    return { issuer: u.searchParams.get('issuer') || pathIssuer, account: account.trim() };
+  } catch {
+    return { issuer: '', account: '' };
+  }
 }
 
 /** Verify a 6-digit code against a factor (enrolment or step-up). Reaches AAL2.

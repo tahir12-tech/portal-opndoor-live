@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>opndoor management guide</title>
+<style>
+:root{--ink:#271D5F;--ink-soft:#5B4D86;--ink-mute:#8B80AD;--helio:#B54DE0;--helio-deep:#9A3ACB;--lilac:#F5EEFB;--lilac-line:#E9DEF5;--paper:#fff}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact;scroll-behavior:smooth}
+body{margin:0;font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:#EFE9F6;line-height:1.65;font-size:15.5px;-webkit-font-smoothing:antialiased}
+.sheet{max-width:860px;margin:0 auto;background:var(--paper);min-height:100vh}
+.pad{padding:56px 64px 72px}
+.lockup{display:flex;align-items:center;gap:14px;margin-bottom:34px}
+.lockup__mark{font-family:'Sora',sans-serif;font-weight:800;font-size:26px;letter-spacing:-.02em;color:var(--helio)}
+.lockup__bar{width:1.5px;height:28px;background:var(--lilac-line)}
+.lockup__sub{font-size:10.5px;font-weight:700;letter-spacing:.14em;line-height:1.35;text-transform:uppercase;color:var(--helio)}
+.gated{display:inline-flex;align-items:center;gap:8px;background:var(--lilac);border-radius:999px;padding:5px 14px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--helio-deep);margin:0 0 16px}
+.gated::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--helio)}
+.eyebrow{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--helio);margin:0 0 14px}
+.eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--helio)}
+h1{font-family:'Sora',sans-serif;font-weight:800;font-size:44px;line-height:1.05;letter-spacing:-.025em;color:var(--ink);margin:0 0 20px}
+.lead{font-size:19px;line-height:1.5;color:var(--ink-soft);margin:0;max-width:60ch}
+.rule{height:2px;background:var(--ink);border:0;margin:38px 0 6px}
+h2{font-family:'Sora',sans-serif;font-weight:800;font-size:25px;letter-spacing:-.01em;color:var(--ink);margin:40px 0 12px}
+h3{font-family:'Sora',sans-serif;font-weight:700;font-size:16.5px;color:var(--ink);margin:24px 0 6px}
+p{margin:0 0 14px;max-width:70ch}
+strong,b{font-weight:700;color:var(--ink)}
+ul,ol{margin:0 0 16px;padding-left:24px;max-width:70ch}
+li{margin:8px 0}
+a{color:var(--helio);font-weight:600;text-decoration:none}
+.callout{background:var(--lilac);border-radius:20px;padding:24px 28px;margin:24px 0}
+.callout__label{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;color:var(--helio);margin:0 0 10px}
+.callout ul{margin:0;padding-left:22px}
+.callout li{margin:9px 0}
+.callout li::marker{color:var(--helio)}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14.5px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--lilac-line);vertical-align:top}
+th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink);background:var(--lilac)}
+.foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--lilac-line);color:var(--ink-mute);font-size:12.5px}
+.printbtn{position:fixed;top:22px;right:22px;background:var(--helio);color:#fff;border:0;border-radius:999px;padding:12px 22px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(181,77,224,.38);font-family:inherit;z-index:50}
+.printbtn:hover{background:var(--helio-deep)}
+@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:0}.printbtn{display:none}h1{font-size:31pt}h2{page-break-after:avoid}.callout,table{page-break-inside:avoid}a{color:var(--ink)}@page{margin:16mm 18mm}}
+@media(max-width:640px){.pad{padding:32px 24px 48px}h1{font-size:33px}.lead{font-size:17px}}
+</style>
+</head>
+<body>
+<button class="printbtn" onclick="window.print()">Save as PDF</button>
+<div class="sheet"><div class="pad">
+  <div class="lockup">
+    <span class="lockup__mark">opndoor</span>
+    <span class="lockup__bar"></span>
+    <span class="lockup__sub">Guarantee<br>Referral Portal</span>
+  </div>
+
+  <div class="gated">Sales and conversation guide</div>
+  <h1>Turn a failed reference into a guaranteed let</h1>
+  <p class="lead">A practical guide for referencing teams: how to talk to the agent, how to talk to the tenant, who qualifies, how claims work, and where the line is.</p>
+
+  <hr class="rule">
+
+  <h2>1. What you are offering, in one line</h2>
+  <p>When a reference fails, the let usually falls through. This gives it a second route.</p>
+  <p>opndoor provides a <b>Deed of Guarantee in favour of the landlord</b>, which covers up to 12 months' rent and legal costs, and the let goes ahead. The deed sits alongside the tenancy; opndoor is the guarantor under it, not a party to the tenancy agreement. The tenant pays the guarantee fee, and your agency earns commission on every referral that converts.</p>
+  <p>You are not selling insurance and you are not lending. You are offering a guarantee that lets a let proceed that would otherwise be declined.</p>
+
+  <h2>2. The two conversations</h2>
+  <p>You will speak to two different people, and they want different things. Keep them separate in your head.</p>
+  <p><b>The letting agent wants their deal saved.</b> Their tenant just failed, the landlord is twitchy, and the let is about to collapse. Your message to them is: there is a way to keep this tenancy alive, the landlord ends up better protected than a normal let, and there is commission in it for you.</p>
+  <p><b>The tenant wants the property.</b> They have just been told no, and they are worried. Your message to them is: this is a way forward, here is what it costs, here is what it does, and the choice is yours.</p>
+
+  <h2>3. Talking to the agent</h2>
+  <p><b>The opener (call)</b></p>
+  <div class="callout">
+    <p style="margin:0"><i>&ldquo;Your applicant hasn't passed referencing this time. Before it falls through, there's a route that can still get this tenancy done. opndoor provides a Deed of Guarantee in favour of the landlord, which means they're covered for up to twelve months' rent and legal costs. The tenant pays a one-off guarantee fee, and there's commission in it for you on that fee. Shall I talk you through whether they'd qualify?&rdquo;</i></p>
+  </div>
+  <p><b>What the agent gets, plainly</b></p>
+  <ul class="plain">
+    <li>The let proceeds instead of collapsing.</li>
+    <li>The landlord is better protected than on a standard let: opndoor provides a Deed of Guarantee in their favour covering up to 12 months' rent (capped at &pound;120,000) and &pound;10,000 of legal costs. The landlord can claim under the deed, or the agent can claim on their behalf.</li>
+    <li>Commission on the tenant's fee, on every referral that converts.</li>
+    <li>No cost to the agent or the landlord. The tenant pays the fee.</li>
+    <li>With the opndoor guarantee in place, the tenancy is eligible for rent guarantee. This is a separate policy the landlord can take if they want one. In practice the deed already protects the landlord's rent for the first 12 months, so it is an optional extra layer rather than a necessity, and it becomes most useful at the end of the 12 months when a tenant who has paid without arrears can move onto a standard rent guarantee.</li>
+  </ul>
+  <div class="callout">
+    <div class="callout__label">Be clear on what the fee is</div>
+    <p style="margin:0">The tenant's fee is the guarantee fee, paid once. It is the guarantee fee. It is not rent, it is not rent paid in advance, and it is not a deposit. It does not count towards rent or the deposit and should not be recorded as either. Make sure the tenant, the landlord and your own records all treat it as a one-off fee for opndoor acting as guarantor.</p>
+  </div>
+
+  <p><b>Agent objections</b></p>
+  <ul class="plain">
+    <li><b>&ldquo;Why would my landlord accept this over a normal tenant?&rdquo;</b> Because they end up more protected, not less. A standard tenant gives them a deposit and a hope. Here the landlord holds a Deed of Guarantee covering up to a year's rent and legal costs if anything goes wrong, which they (or you on their behalf) can claim under. The let proceeds and the landlord's downside is covered.</li>
+    <li><b>&ldquo;Is this going to slow my deal down?&rdquo;</b> No. It can be near instant. You refer in the portal in a couple of minutes, the tenant gets a link and pays, and the deed issues. You track the whole thing from Sent to Deed Issued in one screen.</li>
+    <li><b>&ldquo;How does the landlord get the rent guarantee?&rdquo;</b> The point to make is that the tenancy is now eligible for it with the opndoor guarantee in place, where it wouldn't have been otherwise. For how to arrange a policy, check with your account manager rather than promising anything on the call.</li>
+    <li><b>&ldquo;On a flat share, does one opndoor tenant cover the whole rent?&rdquo;</b> No. opndoor covers the share of the tenant who holds the guarantee, not the whole rent. On a joint tenancy where only one sharer has opndoor, only that tenant's share is covered. Be careful not to let a landlord assume otherwise. See section 7.</li>
+    <li><b>&ldquo;What's the catch for me?&rdquo;</b> There isn't one. The tenant pays the fee, you earn commission on it, the let completes. The only cases that don't work are the ones we won't underwrite, and the guidelines below tell you which those are up front.</li>
+  </ul>
+
+  <h2>4. Talking to the tenant</h2>
+  <p>This is the more sensitive conversation. The tenant has just been declined. Be straight, be calm, and make clear it is their choice.</p>
+  <p><b>The opener (call or email)</b></p>
+  <div class="callout">
+    <p style="margin:0"><i>&ldquo;Your reference hasn't passed on its own this time. There is an option that can still let you take the property. A company called opndoor provides a guarantee to the landlord, which reassures them and lets the tenancy go ahead. There's a one-off guarantee fee. It's completely your choice, and I can send you the details to read before you decide.&rdquo;</i></p>
+  </div>
+  <p><b>What to make sure the tenant understands</b></p>
+  <ul class="plain">
+    <li>The fee is a one-off guarantee fee, paid once.</li>
+    <li>It is a fee for opndoor acting as guarantor. It is not rent, it is not rent paid in advance, and it is not a deposit. It does not go towards either.</li>
+    <li>opndoor provides a Deed of Guarantee in the landlord's favour. It covers the landlord if rent isn't paid.</li>
+    <li>It does not cover the tenant, and it does not clear the tenant's own responsibility to pay their rent. They still owe their rent in the normal way.</li>
+    <li>They will receive a copy of the deed once it is issued.</li>
+    <li>It is optional. They are not required to take it.</li>
+    <li>Their details will be shared with opndoor to set up the guarantee. Point them to opndoor's privacy notice if they want to know how their data is used.</li>
+  </ul>
+  <p><b>Tenant objections</b></p>
+  <ul class="plain">
+    <li><b>&ldquo;Why am I paying when I failed the reference?&rdquo;</b> The fee covers the guarantee that makes the tenancy possible. Without it the landlord's referencing requirement isn't met and the let can't proceed. It's the thing that turns a no into a yes.</li>
+    <li><b>&ldquo;Is this insurance for me?&rdquo;</b> No, and it's important you know that. It protects the landlord, not you. You still owe your rent as normal. What it does for you is let you get the property.</li>
+    <li><b>&ldquo;Does this fee count towards my rent or deposit?&rdquo;</b> No. It's a one-off fee for opndoor acting as guarantor. It doesn't come off your rent and it isn't a deposit, so it's separate from both.</li>
+    <li><b>&ldquo;What do I actually get for it?&rdquo;</b> A guarantee that lets you take the property, and a copy of the Deed of Guarantee once it's issued so you have it on record.</li>
+    <li><b>&ldquo;What does the landlord actually get?&rdquo;</b> If you didn't pay your rent, opndoor's Deed of Guarantee covers the landlord for up to twelve months of it, plus legal costs. That's the reassurance that lets them grant the tenancy.</li>
+    <li><b>&ldquo;What if the tenancy falls through after I've paid?&rdquo;</b> If the tenancy doesn't go ahead, you get a full refund. You can cancel for a refund any time before the tenancy begins.</li>
+    <li><b>&ldquo;Can I get this cheaper somewhere else?&rdquo;</b> This is the product the landlord's agent works with, and it's what unlocks this specific tenancy. You're free to look at alternatives, but this is the route that gets this property done now.</li>
+    <li><b>&ldquo;What happens at the end of the twelve months?&rdquo;</b> The guarantee runs for twelve months from your tenancy start date. After that it expires. If you've paid your rent without falling into arrears, you'll be in a stronger position to rent in the normal way after that. Speak to the agent nearer the time.</li>
+  </ul>
+
+  <h2>5. Who qualifies: your underwriting guidelines</h2>
+  <p>You are applying these guidelines yourself before you send the payment link. Always check the hard declines first. Only if the tenant is clear of every hard decline do the instant-pass routes apply.</p>
+  <p><b>Step 1 &middot; Stop &mdash; hard declines.</b> Do not refer, do not send a link. If any one is true, it is an automatic no.</p>
+  <ul class="plain">
+    <li>The tenant has lied or misrepresented anything on their reference.</li>
+    <li>More than 2 CCJs, or any single CCJ over &pound;2,000.</li>
+    <li>Any IVA (Individual Voluntary Arrangement).</li>
+    <li>Any undischarged bankruptcy.</li>
+    <li>Rent above &pound;10,000 per month.</li>
+  </ul>
+  <p><b>Step 2 &middot; Pass &mdash; instant pass.</b> Clear of all hard declines, they pass on any one of these. Send the link.</p>
+  <ul class="plain">
+    <li><b>Verified student</b> &mdash; any proof of student status.</li>
+    <li><b>Income at least 1.5x the monthly rent</b>, including Universal Credit. Example: &pound;1,000 rent needs &pound;1,500 a month.</li>
+    <li><b>Six months' rent in genuine savings</b> &mdash; the balance shown held across the last 3 months of bank statements, not money just moved in to pass the check.</li>
+  </ul>
+  <p><b>Step 3 &middot; Check &mdash; contact your account manager.</b> Anything that isn't a clean pass and isn't a hard decline.</p>
+  <ul class="plain">
+    <li>A mix of savings and income where neither passes on its own.</li>
+    <li>Any case you're unsure about.</li>
+  </ul>
+  <p><b>Your discretion.</b> Even where a tenant technically passes, you can decline if, having spoken to them, you don't think it's a sound let. Trust your judgment. Apply it consistently and on the facts of the case only, never on the basis of someone's background or any protected characteristic.</p>
+
+  <h2>6. How a claim works</h2>
+  <p>If the tenant falls into arrears, the landlord (or the agent on their behalf) can claim under the deed.</p>
+  <div class="callout">
+    <div class="callout__label">Claims at a glance</div>
+    <ol>
+      <li><b>Notify opndoor within 2 weeks of the second month of arrears.</b> This deadline is important. A claim raised late may not be valid.</li>
+      <li><b>Start the claim by emailing claims@opndoor.co.</b> opndoor will ask for supporting documents, including the rent schedule.</li>
+      <li><b>Payments begin one month after eviction proceedings have started</b>, and continue monthly from there.</li>
+    </ol>
+  </div>
+  <p>Make the notification deadline clear to landlords and agents early, not when things have already gone wrong. It is the single thing most likely to catch a landlord out.</p>
+
+  <h2>7. Joint tenancies and sharers</h2>
+  <ul class="plain">
+    <li>opndoor covers the share of the rent belonging to the tenant who holds the guarantee, not the whole rent.</li>
+    <li>On a joint tenancy where only one tenant has opndoor, opndoor covers that tenant's share only (for example, their half of a two-person tenancy).</li>
+    <li>Each tenant who takes opndoor pays the fee and is covered for their own share. If more than one sharer needs cover, each is referred and pays separately.</li>
+    <li>How this is structured (one deed for the tenancy or one per tenant) is led by the agent. The coverage principle stays the same: opndoor only ever covers the share of a tenant who actually holds the guarantee.</li>
+  </ul>
+  <div class="callout">
+    <div class="callout__label">Important</div>
+    <p style="margin:0">On a joint and several tenancy the landlord can normally pursue any tenant for all the rent, but opndoor only covers the share of the tenant who holds the guarantee. Do not let a landlord believe that one opndoor tenant protects the whole rent on a sharer let.</p>
+  </div>
+
+  <h2>8. Refunds, renewal and compliance</h2>
+  <p><b>Refunds and cancellation</b></p>
+  <ul class="plain">
+    <li>If the tenancy doesn't go ahead, the tenant gets a full refund of the guarantee fee.</li>
+    <li>A tenant can cancel and get a refund at any point before the tenancy begins.</li>
+    <li>Once the tenancy has started, the guarantee fee is non-refundable, because the guarantee is then live.</li>
+  </ul>
+  <p><b>At the end of the 12 months</b></p>
+  <p>The guarantee runs for one 12-month term. It is not renewed as a tenant-paid guarantee for a second year. Instead, a tenant who has paid without arrears moves onto a rent guarantee policy taken by the landlord, which carries the protection forward. Route any renewal questions to your account manager.</p>
+  <p><b>The compliance guardrails</b></p>
+  <p>You are offering a financial product to someone who has just been declined, so how you say it matters as much as what you say.</p>
+  <ul class="plain">
+    <li><b>Present it as an option, never a requirement.</b> The tenant chooses.</li>
+    <li><b>Don't tell the tenant they're &ldquo;covered.&rdquo;</b> The landlord is covered. The tenant still owes their rent.</li>
+    <li><b>Be clear the fee is not rent or deposit.</b> It's a one-off guarantee fee. Don't let anyone treat it as rent in advance or a deposit.</li>
+    <li><b>Don't give financial advice.</b> Explain what the product is and does. Don't tell the tenant whether it's a good financial decision for them.</li>
+    <li><b>Don't pressure.</b> No &ldquo;you'll lose the property if you don't decide now.&rdquo; Give them the facts and let them decide.</li>
+    <li><b>Be honest about cost and limits.</b> The guarantee fee, optional, twelve months, landlord's benefit, one tenant's share on a sharer let. Never oversell it.</li>
+    <li><b>Tell the tenant their data is shared with opndoor</b>, and point them to the privacy notice.</li>
+  </ul>
+  <p>If you're ever unsure how to put something, ask your account manager before you say it.</p>
+  <p><b>Complaints</b></p>
+  <p>If a tenant, landlord or agent is unhappy, they can raise it with opndoor at claims@opndoor.co and your account manager. Make sure anyone who asks knows there is a route.</p>
+
+  <h2>9. Quick reference card</h2>
+  <table>
+    <tr><th>&nbsp;</th><th>&nbsp;</th></tr>
+    <tr><td><b>The offer</b></td><td>opndoor provides a Deed of Guarantee in favour of the landlord, covering up to <b>12 months' rent (max &pound;120,000)</b> plus <b>&pound;10,000 legal costs</b>. The landlord, or the agent on their behalf, can claim under it. Tenant pays the guarantee fee. You earn commission on that fee.</td></tr>
+    <tr><td><b>The fee</b></td><td>The guarantee fee, paid once. The guarantee fee, <b>not rent, not rent in advance, not a deposit</b>. Doesn't count towards either.</td></tr>
+    <tr><td><b>Speed</b></td><td>Can be near instant. Refer, tenant pays, deed issues.</td></tr>
+    <tr><td><b>Bonus for the agent</b></td><td>With the opndoor guarantee in place, the tenancy is eligible for rent guarantee, a separate optional policy the landlord can take, most relevant at the end of the 12 months. Route how-to-arrange questions to your account manager.</td></tr>
+    <tr><td><b>Send the link if</b></td><td>(and only if clear of all hard declines) verified student, OR income at least 1.5x monthly rent (incl. UC), OR six months' rent in savings held across the last 3 months.</td></tr>
+    <tr><td><b>Never refer if</b></td><td>lied on reference; more than 2 CCJs or any CCJ over &pound;2,000; any IVA; any undischarged bankruptcy; rent over &pound;10,000 pcm.</td></tr>
+    <tr><td><b>Account manager if</b></td><td>savings and income that only pass combined, or anything borderline.</td></tr>
+    <tr><td><b>Claims</b></td><td>Notify within <b>2 weeks of the second month of arrears</b>, email claims@opndoor.co, payments start one month after eviction proceedings begin.</td></tr>
+    <tr><td><b>Sharers</b></td><td>opndoor covers only the share of the tenant who holds the guarantee, never the whole rent.</td></tr>
+    <tr><td><b>Refunds</b></td><td>Full refund any time before the tenancy begins; non-refundable once it starts.</td></tr>
+    <tr><td><b>Always</b></td><td>Option not requirement, landlord is covered not the tenant, no advice, no pressure.</td></tr>
+  </table>
+</div></div>
+</div></div>
+</body>
+</html>

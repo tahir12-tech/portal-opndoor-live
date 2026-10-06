@@ -1,0 +1,20 @@
+-- ===========================================================================
+-- TWO NEW COLUMNS, TWO MISSING GRANTS.
+--
+-- applications carries a column-level DENYLIST, not a table grant:
+-- 20260811180000 took partner_rate and agent_rate off and re-granted every
+-- other column by name. That fails closed, which is the right way round
+-- and also means a column added later is invisible to `authenticated`
+-- until a migration says otherwise. The last time that step was skipped,
+-- eight lifecycle columns went ungranted and every staff dashboard died
+-- with "permission denied for table applications".
+--
+-- last_activity_at (20261007490000) and expired_from (20261007530000)
+-- skipped it. applications_column_grants.test.sql named them both, which
+-- is the whole reason that test was written.
+--
+-- SELECT ONLY. Both are written by triggers and by the sweeps, which run
+-- as service_role; the browser has no business setting either, and
+-- granting UPDATE would let a client reset its own thirty-day clock.
+-- ===========================================================================
+grant select (last_activity_at, expired_from) on public.applications to authenticated;

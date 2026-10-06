@@ -16,7 +16,9 @@
 // (optional {date, reset}) so the job can be verified today without waiting.
 // =====================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { sendEmail, expiryReminderTemplate } from "./email.ts";
+import { sendMessage } from "../_shared/mailer.ts";
+import { expiryReminderEmail } from "../_shared/emailTemplates.ts";
+import { timingSafeEqual } from "../_shared/partnerAuth.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -60,10 +62,13 @@ Deno.serve(async (req) => {
     // Auth: cron secret (edge env OR the ops_secrets mirror, resilient to a drifted
     // edge env), or a signed-in opndoor admin (test path).
     const presented = req.headers.get("x-reminders-secret") ?? "";
-    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && presented === CRON_SECRET;
+    // Constant time: a cron secret is a bearer credential, and `===` leaks a
+    // matching prefix through timing the way a password compare does. The
+    // helper already existed for the partner API and the webhook verifier.
+    let cronAuthed = Boolean(presented) && Boolean(CRON_SECRET) && timingSafeEqual(presented, CRON_SECRET);
     if (!cronAuthed && presented) {
       const { data: sec } = await service.from("ops_secrets").select("secret").eq("name", "reminders_cron").maybeSingle();
-      if (sec?.secret && presented === sec.secret) cronAuthed = true;
+      if (sec?.secret && timingSafeEqual(presented, sec.secret)) cronAuthed = true;
     }
     let adminAuthed = false;
     if (!cronAuthed) {
@@ -93,7 +98,9 @@ Deno.serve(async (req) => {
     // the run can be repeated from scratch. Never available on the cron path.
     if (test && reset) {
       const { data: win } = await service.from("applications")
-        .select("id").eq("status", "deed").gte("expiry_date", pToday).lte("expiry_date", addDaysStr(pToday, 30));
+        // Matches the livemode filter now on fire_expiry_reminders, so the test
+        // reset clears exactly the set that function will re-fire and no more.
+        .select("id").eq("status", "deed").eq("livemode", true).gte("expiry_date", pToday).lte("expiry_date", addDaysStr(pToday, 30));
       const ids = (win ?? []).map((w: { id: string }) => w.id);
       if (ids.length) {
         await service.from("expiry_reminders").delete().in("application_id", ids);
@@ -114,22 +121,32 @@ Deno.serve(async (req) => {
       agency: string | null; branch: string | null; referrer_email: string | null; partner_id: string; prop: string | null;
     }>;
 
-    // Management recipients per partner (one query), for the "intended for" line.
-    const { data: mgmt } = await service.from("users").select("email, partner_id").eq("role", "management");
-    const mgmtByPartner = new Map<string, string[]>();
-    for (const u of (mgmt ?? []) as Array<{ email: string; partner_id: string }>) {
-      if (!u.email) continue;
-      const list = mgmtByPartner.get(u.partner_id) ?? [];
-      list.push(u.email);
-      mgmtByPartner.set(u.partner_id, list);
-    }
+    /* WHO IS TOLD A GUARANTEE IS ENDING.
+       This was the referrer PLUS `users where role='management'` for the whole
+       partner, with no status, position or agency filter. On the agency rail
+       every agency shares the house partner, so a reminder naming one agency's
+       tenant, property and branch went to every other agency's managers.
 
-    let emailed = 0, emailFailed = 0;
+       An expiry reminder is a per-application notification, so it takes the
+       same rule as everything else on that rail: the referrer, plus whoever is
+       ticked within their position. That rule, and the supplier and direct
+       equivalents, are now all behind notification_recipients, which is asked
+       once per reminder below.
+
+       The whole-estate management list that used to be built here is gone
+       with it: it selected every active management user on every partner and
+       was only ever consumed by the non-agency arm. A query that gathers
+       every partner's staff addresses to pick two of them is worth deleting
+       on its own account. */
+    // parked: an agency reminder with nobody to send it to. Counted and
+    // returned, so Health shows it rather than it reading as a quiet success.
+    let emailed = 0, emailFailed = 0, parkedCount = 0;
     for (const r of newReminders) {
       const isValidEmail = (value: unknown): value is string =>
               typeof value === "string" &&
               /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 
+<<<<<<< HEAD
             const recipients = [
               r.referrer_email,
               ...(mgmtByPartner.get(r.partner_id) ?? [])
@@ -141,6 +158,91 @@ Deno.serve(async (req) => {
         daysUntil: r.days, expiryDmy: dmy(r.expiry_date), intendedFor: recipients.join(", ") || "the owning referrer and partner management",
       });
       const res = await sendEmail({ subject: tpl.subject, html: tpl.html, to: recipients.join(", ")});
+=======
+            /* WHICH RAIL, NOT WHICH LIST LENGTH.
+
+               This chose the partner-wide list whenever the agency ladder came
+               back empty. Empty is not "this is not an agency referral" -- it
+               is a deactivated referrer with nobody ticked and no manager
+               covering the branch, which is precisely the case the ladder
+               exists to handle. So the one application whose recipients could
+               not be resolved was the one that went to every agency on the
+               house route, naming another agency's tenant and property.
+
+               The same expression swallowed the RPC's error: a failed call
+               also returns nothing, so an outage read as "not an agency
+               referral" and broadcast. The channel is asked first, and it is
+               asked of the application. */
+            /* application_channel, NOT application_is_agent_estate. The
+               estate flag is TRUE for 'opndoor-direct', which is seeded
+               opndoor_referenced, so every direct guarantee asked the agency
+               ladder, got nothing (the ladder is gated on 'Agent referral'),
+               and parked with an ops incident. A permanent false alarm on a
+               rail that has no agency ladder to consult. 20261006160000
+               named this exact trap for deed_delivery_target and switched to
+               application_channel; this call site was not converted. */
+            /* ONE DOOR, FOR EVERY RAIL. Q-02 and Q-03.
+               This asked the agency ladder on one rail and built a list of
+               that PARTNER's management on the others, which is both wider
+               than the rule in one direction (every manager on the partner)
+               and narrower in another (never the branch desk the referral
+               actually came from) -- gap 3 in docs/NOTIFICATIONS.md.
+
+               notification_recipients answers for all three rails and applies
+               the party's matrix, so the rail test, the ladder call and the
+               partner-management list all collapse into it. The PARKING below
+               is untouched and matters more than ever: an expiry that reaches
+               nobody must be said out loud, and now "nobody" can also mean
+               "somebody turned this off", which is a thing worth an ops line
+               rather than a silence. */
+            let recipients: string[] = [];
+            let parked: string | null = null;
+
+            const { data: scoped, error: scopedErr } = await service.rpc(
+              "notification_recipients", { p_application: r.application_id, p_type: "lapse" });
+            if (scopedErr) {
+              parked = `the recipient list could not be read: ${scopedErr.message}`;
+            } else {
+              recipients = ((scoped ?? []) as Array<{ email: string }>)
+                .map((x) => x.email).filter(isValidEmail).map((e) => e.trim());
+              if (recipients.length === 0) {
+                parked = "nobody is addressed for a lapse on this party: no active referrer, nobody ticked in scope, no branch contact, or the matrix has it switched off";
+              }
+            }
+
+            /* PARKED, AND SAID OUT LOUD. Sending nothing quietly is how an
+               expiry passes unnoticed; sending it to the route is worse. The
+               reminder row is already written and idempotent, so the guarantee
+               is not lost -- somebody has to be told to place a recipient. */
+            if (parked) {
+              parkedCount += 1;
+              /* `.then(ok, err)`, NOT `.catch`. A Supabase query builder is a
+                 THENABLE and implements `then` only; `.catch` is undefined on
+                 it, so the previous line threw a TypeError before the RPC was
+                 even awaited. The outer handler caught that, the whole nightly
+                 job returned 500, and every remaining reminder went unsent --
+                 one guarantee with no recipient silenced the rest. Found by
+                 `deno check` the day Deno was installed; the same two-argument
+                 shape is already used in send-deed-to-agent, renewal-notices
+                 and stripe-webhook. */
+              await service.rpc("report_ops_incident", {
+                p_type: "expiry_reminder_unaddressed",
+                p_detail: `${r.guarantee_ref}: ${parked}`,
+              }).then(() => {}, () => {});
+              await service.from("activity_log").insert({
+                application_id: r.application_id, kind: "expiry_reminder_parked",
+                message: `Expiry reminder not sent: ${parked}.`, actor: "System", visibility: "internal",
+              });
+              continue;
+            }
+      const res = await sendMessage({
+        to: recipients,
+        message: expiryReminderEmail({
+          guaranteeRef: r.guarantee_ref, propertyAddr: r.prop ?? "",
+          expiryLabel: dmy(r.expiry_date), agency: r.agency ?? null, branch: r.branch ?? null,
+        }),
+      });
+>>>>>>> partner-api
       if (res.ok) {
         emailed += 1;
       } else {
@@ -153,7 +255,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    return json({ ok: true, test, date: pToday, fired: newReminders.length, emailed, emailFailed });
+    return json({ ok: true, test, date: pToday, fired: newReminders.length, emailed, emailFailed, parked: parkedCount });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Unexpected error.";
     // #3 A total cron failure (a crash before it could log anything) still alerts

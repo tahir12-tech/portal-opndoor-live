@@ -13,13 +13,17 @@ export interface RoleIdentity {
 
 export const ROLES: Record<Role, RoleIdentity> = {
   superadmin: { name: 'Maya Holloway', label: 'opndoor admin', initials: 'MH' },
+  opndoor_manager: { name: 'Ola Mensah', label: 'opndoor manager', initials: 'OM' },
   management: { name: 'Tom Sefton', label: 'Management', initials: 'TS' },
   referrer: { name: 'Priya Nair', label: 'Referrer', initials: 'PN' },
+  developer: { name: 'Dev Integrator', label: 'Developer', initials: 'DI' },
 };
 
 /** The order + short labels used by the demo role switcher. */
 export const ROLE_SWITCH: { id: Role; label: string }[] = [
   { id: 'superadmin', label: 'opndoor admin' },
+  { id: 'opndoor_manager', label: 'opndoor manager' },
   { id: 'management', label: 'Management' },
   { id: 'referrer', label: 'Referrer' },
+  { id: 'developer', label: 'Developer' },
 ];

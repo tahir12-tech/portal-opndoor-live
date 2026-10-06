@@ -1,0 +1,1129 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>opndoor email templates</title>
+<style>
+  :root { --ink:#271d5f; --soft:#5b4d86; --mute:#8676ab; --line:#e7e0ef; --canvas:#f6f3fa; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--canvas); font:15px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; color:var(--ink); }
+  .top { background:#fff; border-bottom:1px solid var(--line); padding:20px 28px; position:sticky; top:0; z-index:5; }
+  .top h1 { margin:0 0 4px; font-size:20px; letter-spacing:-.02em; }
+  .top p { margin:0; color:var(--soft); font-size:13px; }
+  .top nav { margin-top:10px; display:flex; flex-wrap:wrap; gap:6px; }
+  .top nav a { font-size:12px; text-decoration:none; color:#b54de0; border:1px solid var(--line); border-radius:999px; padding:3px 10px; }
+  main { padding:24px 28px 60px; display:grid; gap:24px; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  .card header { padding:16px 20px; border-bottom:1px solid var(--line); }
+  .card h2 { margin:0; font-size:15px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:#b54de0; }
+  .note { margin:4px 0 0; color:var(--soft); font-size:13px; }
+  .subj { margin:8px 0 0; font-size:13px; color:var(--ink); }
+  .panes { display:grid; grid-template-columns:1fr 380px; }
+  @media (max-width:1100px) { .panes { grid-template-columns:1fr; } }
+  .pane { border-left:1px solid var(--line); }
+  .pane:first-child { border-left:0; }
+  .pane-label { font-size:11px; letter-spacing:.06em; color:var(--mute); padding:8px 14px; border-bottom:1px solid var(--line); background:#fcfaff; }
+  iframe { width:100%; height:640px; border:0; display:block; }
+  pre { margin:0; padding:14px; font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--soft); white-space:pre-wrap; height:640px; overflow:auto; }
+</style></head>
+<body>
+  <div class="top">
+    <h1>opndoor email templates</h1>
+    <p>Every one rendered from the shared layout. Change the layout and all of these change together.</p>
+    <nav><a href="#tenant-code">tenant-code</a><a href="#tenant-code-redirected">tenant-code-redirected</a><a href="#password-reset">password-reset</a><a href="#tenant-invite">tenant-invite</a><a href="#payment-link">payment-link</a><a href="#payment-receipt">payment-receipt</a><a href="#deed-to-agent">deed-to-agent</a><a href="#executed-deed-agent">executed-deed-agent</a><a href="#executed-deed-tenant">executed-deed-tenant</a><a href="#payment-reminder">payment-reminder</a><a href="#expiry-reminder">expiry-reminder</a><a href="#staff-invite">staff-invite</a><a href="#weekly-digest">weekly-digest</a><a href="#ops-alert">ops-alert</a></nav>
+  </div>
+  <main>
+  <section class="card" id="tenant-code">
+    <header>
+      <h2>tenant-code</h2>
+      <p class="note">Registration and sign-in. The six-digit code.</p>
+      <p class="subj"><strong>Subject:</strong> 482913 is your opndoor confirmation code</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>482913 is your opndoor confirmation code</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>Your confirmation code</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>Enter this code to confirm your email address and continue your application.</p><table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;>
+      <tr><td style=&quot;background:#f8eff9;border:1px solid #e7e0ef;border-radius:10px;padding:16px 18px;
+        font:700 22px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:.08em;text-align:center;&quot;>482913</td></tr></table><p style=&quot;margin:0 0 12px;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>It lasts ten minutes and can be used once. If you did not ask for this, you can ignore it.</p>
+        
+        
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="tenant-code"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+YOUR CONFIRMATION CODE
+
+Enter this code to confirm your email address and continue your application.
+
+    482913
+
+It lasts ten minutes and can be used once. If you did not ask for this, you can ignore it.
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="tenant-code-redirected">
+    <header>
+      <h2>tenant-code-redirected</h2>
+      <p class="note">The same email, redirected. THE BANNER.</p>
+      <p class="subj"><strong>Subject:</strong> 482913 is your opndoor confirmation code</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>482913 is your opndoor confirmation code</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td style=&quot;padding:0;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#fffbeb;border-bottom:2px solid #f59e0b;&quot;>
+      <tr><td style=&quot;padding:14px 28px;font:600 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#78350f;&quot;>
+        <span style=&quot;display:inline-block;background:#f59e0b;color:#fff;border-radius:4px;padding:2px 8px;font-size:11px;letter-spacing:.04em;margin-right:8px;&quot;>REVIEW COPY</span>
+        This was addressed to <strong>sam.okafor@example.com</strong> and redirected here.
+        Nobody real received it.
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>Your confirmation code</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>Enter this code to confirm your email address and continue your application.</p><table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;>
+      <tr><td style=&quot;background:#f8eff9;border:1px solid #e7e0ef;border-radius:10px;padding:16px 18px;
+        font:700 22px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:.08em;text-align:center;&quot;>482913</td></tr></table><p style=&quot;margin:0 0 12px;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>It lasts ten minutes and can be used once.</p>
+        
+        
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="tenant-code-redirected"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>[REVIEW COPY] This was addressed to sam.okafor@example.com and redirected here. Nobody real received it.
+
+opndoor | Guarantee Referral Portal
+
+YOUR CONFIRMATION CODE
+
+Enter this code to confirm your email address and continue your application.
+
+    482913
+
+It lasts ten minutes and can be used once.
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="password-reset">
+    <header>
+      <h2>password-reset</h2>
+      <p class="note">Reset link. Staff and tenant.</p>
+      <p class="subj"><strong>Subject:</strong> Reset your opndoor password</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>Reset your opndoor password</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>Reset your password</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>We received a request to reset the password on your opndoor account. Choose a new one using the button below.</p><p style=&quot;margin:0 0 12px;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>For your security this link expires in 30 minutes and can be used once. If you did not ask for it, nothing has changed and you can ignore this email.</p>
+        <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:22px 0 6px;&quot;>
+         <tr><td style=&quot;border-radius:999px;background:#d364fb;&quot;>
+           <a href=&quot;http://localhost:5173/apply/reset#token_hash=abc123&amp;type=recovery&quot; style=&quot;display:inline-block;padding:14px 30px;font:700 15px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+              color:#fff;text-decoration:none;border-radius:999px;&quot;>Choose a new password</a>
+         </td></tr>
+       </table>
+        <p style=&quot;margin:12px 0 0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;word-break:break-all;&quot;>
+         If the button does not work, paste this into your browser:<br>
+         <span style=&quot;color:#b54de0;&quot;>http://localhost:5173/apply/reset#token_hash=abc123&amp;type=recovery</span></p>
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="password-reset"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+RESET YOUR PASSWORD
+
+We received a request to reset the password on your opndoor account. Choose a new one using the button below.
+
+For your security this link expires in 30 minutes and can be used once. If you did not ask for it, nothing has changed and you can ignore this email.
+
+Choose a new password: http://localhost:5173/apply/reset#token_hash=abc123&amp;type=recovery
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="tenant-invite">
+    <header>
+      <h2>tenant-invite</h2>
+      <p class="note">Agent referral. Invites the tenant to apply.</p>
+      <p class="subj"><strong>Subject:</strong> Complete your opndoor guarantee application</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>Complete your opndoor guarantee application</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>Your agent has started an application for you</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>Northgate Lettings has referred you to opndoor for a guarantee on the property below. The next step is yours: finish the application and we will take it from there.</p><table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Property</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>12 Bramble Court, Sheffield S7 1FD</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Monthly rent</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>£1,450</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Reference</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>GR-1042</td>
+      </tr></table><p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>Everything saves as you go, so you can stop and come back whenever you like.</p>
+        <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:22px 0 6px;&quot;>
+         <tr><td style=&quot;border-radius:999px;background:#d364fb;&quot;>
+           <a href=&quot;http://localhost:5173/apply/invite?token=abc123&quot; style=&quot;display:inline-block;padding:14px 30px;font:700 15px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+              color:#fff;text-decoration:none;border-radius:999px;&quot;>Continue your application</a>
+         </td></tr>
+       </table>
+        <p style=&quot;margin:12px 0 0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;word-break:break-all;&quot;>
+         If the button does not work, paste this into your browser:<br>
+         <span style=&quot;color:#b54de0;&quot;>http://localhost:5173/apply/invite?token=abc123</span></p>
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="tenant-invite"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+YOUR AGENT HAS STARTED AN APPLICATION FOR YOU
+
+Northgate Lettings has referred you to opndoor for a guarantee on the property below. The next step is yours: finish the application and we will take it from there.
+
+  Property: 12 Bramble Court, Sheffield S7 1FD
+  Monthly rent: £1,450
+  Reference: GR-1042
+Everything saves as you go, so you can stop and come back whenever you like.
+
+Continue your application: http://localhost:5173/apply/invite?token=abc123
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="payment-link">
+    <header>
+      <h2>payment-link</h2>
+      <p class="note">Guarantee fee, one month rent.</p>
+      <p class="subj"><strong>Subject:</strong> Your opndoor guarantee is ready to pay</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>Your opndoor guarantee is ready to pay</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>Your guarantee is approved</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>Good news. Your application has been approved and the guarantee is ready. The last step is the guarantee fee.</p><table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Reference</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>GR-1042</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Property</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>12 Bramble Court, Sheffield</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Guarantee fee</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>£1,450</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Tenancy starts</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>1 September 2026</td>
+      </tr></table><p style=&quot;margin:0 0 12px;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>The fee is one month of rent and is payable once. The Deed of Guarantee is issued as soon as it clears.</p>
+        <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:22px 0 6px;&quot;>
+         <tr><td style=&quot;border-radius:999px;background:#d364fb;&quot;>
+           <a href=&quot;http://localhost:5173/pay?token=abc123&quot; style=&quot;display:inline-block;padding:14px 30px;font:700 15px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+              color:#fff;text-decoration:none;border-radius:999px;&quot;>Pay the guarantee fee</a>
+         </td></tr>
+       </table>
+        <p style=&quot;margin:12px 0 0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;word-break:break-all;&quot;>
+         If the button does not work, paste this into your browser:<br>
+         <span style=&quot;color:#b54de0;&quot;>http://localhost:5173/pay?token=abc123</span></p>
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="payment-link"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+YOUR GUARANTEE IS APPROVED
+
+Good news. Your application has been approved and the guarantee is ready. The last step is the guarantee fee.
+
+  Reference: GR-1042
+  Property: 12 Bramble Court, Sheffield
+  Guarantee fee: £1,450
+  Tenancy starts: 1 September 2026
+The fee is one month of rent and is payable once. The Deed of Guarantee is issued as soon as it clears.
+
+Pay the guarantee fee: http://localhost:5173/pay?token=abc123
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="payment-receipt">
+    <header>
+      <h2>payment-receipt</h2>
+      <p class="note">After payment clears.</p>
+      <p class="subj"><strong>Subject:</strong> Payment received for GR-1042</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>Payment received for GR-1042</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>Thank you, your payment has cleared</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>We have received your guarantee fee. Your Deed of Guarantee is being prepared and will arrive shortly.</p><table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Reference</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>GR-1042</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Amount paid</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>£1,450</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Paid on</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>21 August 2026</td>
+      </tr></table>
+        
+        
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="payment-receipt"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+THANK YOU, YOUR PAYMENT HAS CLEARED
+
+We have received your guarantee fee. Your Deed of Guarantee is being prepared and will arrive shortly.
+
+  Reference: GR-1042
+  Amount paid: £1,450
+  Paid on: 21 August 2026
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="deed-to-agent">
+    <header>
+      <h2>deed-to-agent</h2>
+      <p class="note">Deed of Guarantee to the agent.</p>
+      <p class="subj"><strong>Subject:</strong> Deed of Guarantee issued for GR-1042</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>Deed of Guarantee issued for GR-1042</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>The Deed of Guarantee is ready to sign</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>opndoor has issued a Deed of Guarantee for the tenancy below. It needs signing before it takes effect.</p><table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Reference</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>GR-1042</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Tenant</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>Sam Okafor</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Property</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>12 Bramble Court, Sheffield</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Tenancy starts</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>1 September 2026</td>
+      </tr></table><p style=&quot;margin:0 0 12px;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>opndoor is a professional guarantor service, not insurance, and is not a party to the tenancy agreement. You remain the claim contact.</p>
+        <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:22px 0 6px;&quot;>
+         <tr><td style=&quot;border-radius:999px;background:#d364fb;&quot;>
+           <a href=&quot;https://app.pandadoc.com/s/abc123&quot; style=&quot;display:inline-block;padding:14px 30px;font:700 15px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+              color:#fff;text-decoration:none;border-radius:999px;&quot;>Review and sign</a>
+         </td></tr>
+       </table>
+        <p style=&quot;margin:12px 0 0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;word-break:break-all;&quot;>
+         If the button does not work, paste this into your browser:<br>
+         <span style=&quot;color:#b54de0;&quot;>https://app.pandadoc.com/s/abc123</span></p>
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="deed-to-agent"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+THE DEED OF GUARANTEE IS READY TO SIGN
+
+opndoor has issued a Deed of Guarantee for the tenancy below. It needs signing before it takes effect.
+
+  Reference: GR-1042
+  Tenant: Sam Okafor
+  Property: 12 Bramble Court, Sheffield
+  Tenancy starts: 1 September 2026
+opndoor is a professional guarantor service, not insurance, and is not a party to the tenancy agreement. You remain the claim contact.
+
+Review and sign: https://app.pandadoc.com/s/abc123
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="executed-deed-agent">
+    <header>
+      <h2>executed-deed-agent</h2>
+      <p class="note">Signed deed, to the AGENT. As written today.</p>
+      <p class="subj"><strong>Subject:</strong> Signed Deed of Guarantee for GR-1042</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>Signed Deed of Guarantee for GR-1042</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>The Deed of Guarantee has been signed</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>The Deed of Guarantee for the tenancy below has been signed by all parties. A copy is attached for your records.</p><table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Reference</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>GR-1042</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Tenant</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>Sam Okafor</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Property</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>12 Bramble Court, Sheffield</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Guarantee expires</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>31 August 2027</td>
+      </tr></table><p style=&quot;margin:0 0 12px;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>opndoor remains the guarantor for the term above. You remain the claim contact.</p>
+        
+        
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="executed-deed-agent"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+THE DEED OF GUARANTEE HAS BEEN SIGNED
+
+The Deed of Guarantee for the tenancy below has been signed by all parties. A copy is attached for your records.
+
+  Reference: GR-1042
+  Tenant: Sam Okafor
+  Property: 12 Bramble Court, Sheffield
+  Guarantee expires: 31 August 2027
+opndoor remains the guarantor for the term above. You remain the claim contact.
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="executed-deed-tenant">
+    <header>
+      <h2>executed-deed-tenant</h2>
+      <p class="note">Signed deed, to the TENANT. NEW. No Tenant line: they know who they are.</p>
+      <p class="subj"><strong>Subject:</strong> Your signed Deed of Guarantee for GR-1042</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>Your signed Deed of Guarantee for GR-1042</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>Your Deed of Guarantee has been signed</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>The Deed of Guarantee for your tenancy has been signed by all parties. A copy is attached for your records, and you do not need to do anything else.</p><table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Reference</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>GR-1042</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Property</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>12 Bramble Court, Sheffield</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Guarantee expires</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>31 August 2027</td>
+      </tr></table><p style=&quot;margin:0 0 12px;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>opndoor is your guarantor for the term above. opndoor is a professional guarantor service, not insurance, and is not a party to your tenancy agreement. If anything changes, speak to your letting agent first.</p>
+        
+        
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="executed-deed-tenant"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+YOUR DEED OF GUARANTEE HAS BEEN SIGNED
+
+The Deed of Guarantee for your tenancy has been signed by all parties. A copy is attached for your records, and you do not need to do anything else.
+
+  Reference: GR-1042
+  Property: 12 Bramble Court, Sheffield
+  Guarantee expires: 31 August 2027
+opndoor is your guarantor for the term above. opndoor is a professional guarantor service, not insurance, and is not a party to your tenancy agreement. If anything changes, speak to your letting agent first.
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="payment-reminder">
+    <header>
+      <h2>payment-reminder</h2>
+      <p class="note">Chaser for an unpaid referral.</p>
+      <p class="subj"><strong>Subject:</strong> A reminder about your opndoor guarantee</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>A reminder about your opndoor guarantee</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>Your guarantee is still waiting</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>Your guarantee for the property below is approved and waiting on the fee. It stays open for fifteen days from approval.</p><table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Reference</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>GR-1042</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Guarantee fee</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>£1,450</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Open until</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>5 September 2026</td>
+      </tr></table>
+        <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:22px 0 6px;&quot;>
+         <tr><td style=&quot;border-radius:999px;background:#d364fb;&quot;>
+           <a href=&quot;http://localhost:5173/pay?token=abc123&quot; style=&quot;display:inline-block;padding:14px 30px;font:700 15px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+              color:#fff;text-decoration:none;border-radius:999px;&quot;>Pay the guarantee fee</a>
+         </td></tr>
+       </table>
+        <p style=&quot;margin:12px 0 0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;word-break:break-all;&quot;>
+         If the button does not work, paste this into your browser:<br>
+         <span style=&quot;color:#b54de0;&quot;>http://localhost:5173/pay?token=abc123</span></p>
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="payment-reminder"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+YOUR GUARANTEE IS STILL WAITING
+
+Your guarantee for the property below is approved and waiting on the fee. It stays open for fifteen days from approval.
+
+  Reference: GR-1042
+  Guarantee fee: £1,450
+  Open until: 5 September 2026
+
+Pay the guarantee fee: http://localhost:5173/pay?token=abc123
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="expiry-reminder">
+    <header>
+      <h2>expiry-reminder</h2>
+      <p class="note">Guarantee approaching expiry.</p>
+      <p class="subj"><strong>Subject:</strong> Your opndoor guarantee expires soon</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>Your opndoor guarantee expires soon</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>A guarantee is coming to an end</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>The Deed of Guarantee below expires shortly. If the tenancy is continuing, a new guarantee will be needed.</p><table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Reference</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>GR-1042</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Property</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>12 Bramble Court, Sheffield</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Expires</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>31 August 2027</td>
+      </tr></table>
+        
+        
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="expiry-reminder"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+A GUARANTEE IS COMING TO AN END
+
+The Deed of Guarantee below expires shortly. If the tenancy is continuing, a new guarantee will be needed.
+
+  Reference: GR-1042
+  Property: 12 Bramble Court, Sheffield
+  Expires: 31 August 2027
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="staff-invite">
+    <header>
+      <h2>staff-invite</h2>
+      <p class="note">New portal user.</p>
+      <p class="subj"><strong>Subject:</strong> You have been invited to the opndoor portal</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>You have been invited to the opndoor portal</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>Set up your portal account</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>Northgate Lettings has invited you to the opndoor Guarantee Referral Portal. Choose a password and set up two-factor authentication to get started.</p><p style=&quot;margin:0 0 12px;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Two-factor authentication is required on every sign in. You will need an authenticator app.</p>
+        <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:22px 0 6px;&quot;>
+         <tr><td style=&quot;border-radius:999px;background:#d364fb;&quot;>
+           <a href=&quot;http://localhost:5173/accept-invite#token_hash=abc123&quot; style=&quot;display:inline-block;padding:14px 30px;font:700 15px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+              color:#fff;text-decoration:none;border-radius:999px;&quot;>Set up your account</a>
+         </td></tr>
+       </table>
+        <p style=&quot;margin:12px 0 0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;word-break:break-all;&quot;>
+         If the button does not work, paste this into your browser:<br>
+         <span style=&quot;color:#b54de0;&quot;>http://localhost:5173/accept-invite#token_hash=abc123</span></p>
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="staff-invite"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+SET UP YOUR PORTAL ACCOUNT
+
+Northgate Lettings has invited you to the opndoor Guarantee Referral Portal. Choose a password and set up two-factor authentication to get started.
+
+Two-factor authentication is required on every sign in. You will need an authenticator app.
+
+Set up your account: http://localhost:5173/accept-invite#token_hash=abc123
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="weekly-digest">
+    <header>
+      <h2>weekly-digest</h2>
+      <p class="note">Partner weekly summary.</p>
+      <p class="subj"><strong>Subject:</strong> Your opndoor week: 8 referrals, £11,600 in fees</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>Your opndoor week: 8 referrals, £11,600 in fees</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>Your week at a glance</h1>
+        <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Referrals sent</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>8</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Paid</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>5</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Deeds issued</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>4</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Fees collected</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>£11,600</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Commission earned</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>£2,900</td>
+      </tr></table><h2 style=&quot;margin:26px 0 10px;font:700 16px/1.4 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;&quot;>Climber of the week</h2><p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>Northgate Central, up four places on last week.</p>
+        <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:22px 0 6px;&quot;>
+         <tr><td style=&quot;border-radius:999px;background:#d364fb;&quot;>
+           <a href=&quot;http://localhost:5173/dashboard&quot; style=&quot;display:inline-block;padding:14px 30px;font:700 15px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+              color:#fff;text-decoration:none;border-radius:999px;&quot;>Open the portal</a>
+         </td></tr>
+       </table>
+        <p style=&quot;margin:12px 0 0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;word-break:break-all;&quot;>
+         If the button does not work, paste this into your browser:<br>
+         <span style=&quot;color:#b54de0;&quot;>http://localhost:5173/dashboard</span></p>
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="weekly-digest"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+YOUR WEEK AT A GLANCE
+
+  Referrals sent: 8
+  Paid: 5
+  Deeds issued: 4
+  Fees collected: £11,600
+  Commission earned: £2,900
+
+CLIMBER OF THE WEEK
+
+Northgate Central, up four places on last week.
+
+Open the portal: http://localhost:5173/dashboard
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section>
+
+  <section class="card" id="ops-alert">
+    <header>
+      <h2>ops-alert</h2>
+      <p class="note">Internal. Ops failure alert.</p>
+      <p class="subj"><strong>Subject:</strong> [opndoor] Deed generation failed for GR-1042</p>
+    </header>
+    <div class="panes">
+      <div class="pane">
+        <div class="pane-label">HTML</div>
+        <iframe srcdoc="<!doctype html>
+<html><head><meta charset=&quot;utf-8&quot;><meta name=&quot;viewport&quot; content=&quot;width=device-width,initial-scale=1&quot;>
+<title>[opndoor] Deed generation failed for GR-1042</title></head>
+<body style=&quot;margin:0;padding:0;background:#f6f3fa;&quot;>
+<table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;background:#f6f3fa;&quot;>
+  
+  <tr><td align=&quot;center&quot; style=&quot;padding:28px 16px 40px;&quot;>
+    <table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;max-width:560px;&quot;>
+
+      <tr><td style=&quot;padding:0 0 18px;&quot;>
+        <span style=&quot;font:800 24px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>opndoor</span>
+        <span style=&quot;display:inline-block;margin-left:10px;padding-left:10px;border-left:1px solid #e7e0ef;
+              font:600 10px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;letter-spacing:.08em;vertical-align:middle;&quot;>
+          GUARANTEE<br>REFERRAL PORTAL</span>
+      </td></tr>
+
+      <tr><td style=&quot;background:#fff;border:1px solid #e7e0ef;border-radius:14px;padding:32px 28px;&quot;>
+        <h1 style=&quot;margin:0 0 16px;font:800 24px/1.25 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;letter-spacing:-.02em;&quot;>Something needs a look</h1>
+        <p style=&quot;margin:0 0 14px;font:400 15px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#5b4d86;&quot;>A deed could not be generated and the application is waiting.</p><table role=&quot;presentation&quot; width=&quot;100%&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:0 0 18px;&quot;><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Alert</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>deed_generation_failed</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>Reference</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>GR-1042</td>
+      </tr><tr>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:400 13px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>When</td>
+        <td style=&quot;padding:8px 0;border-bottom:1px solid #e7e0ef;font:600 14px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#271d5f;text-align:right;&quot;>21 August 2026, 10:42</td>
+      </tr></table><p style=&quot;margin:0 0 12px;font:400 13px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>PandaDoc responded 502. The application remains paid and undeeded. It will not retry on its own.</p>
+        <table role=&quot;presentation&quot; cellpadding=&quot;0&quot; cellspacing=&quot;0&quot; style=&quot;margin:22px 0 6px;&quot;>
+         <tr><td style=&quot;border-radius:999px;background:#d364fb;&quot;>
+           <a href=&quot;http://localhost:5173/applications/abc123&quot; style=&quot;display:inline-block;padding:14px 30px;font:700 15px/1 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+              color:#fff;text-decoration:none;border-radius:999px;&quot;>Open the application</a>
+         </td></tr>
+       </table>
+        <p style=&quot;margin:12px 0 0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;word-break:break-all;&quot;>
+         If the button does not work, paste this into your browser:<br>
+         <span style=&quot;color:#b54de0;&quot;>http://localhost:5173/applications/abc123</span></p>
+      </td></tr>
+
+      <tr><td style=&quot;padding:22px 4px 0;&quot;>
+        <p style=&quot;margin:0 0 6px;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          opndoor is a professional guarantor service, not insurance. opndoor is not a party to,
+          or named on, the tenancy agreement.</p>
+        <p style=&quot;margin:0;font:400 12px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:#8676ab;&quot;>
+          Sent by opndoor. Questions? Reply to this email.</p>
+      </td></tr>
+
+    </table>
+  </td></tr>
+</table>
+</body></html>" title="ops-alert"></iframe>
+      </div>
+      <div class="pane">
+        <div class="pane-label">Plain text fallback</div>
+        <pre>opndoor | Guarantee Referral Portal
+
+SOMETHING NEEDS A LOOK
+
+A deed could not be generated and the application is waiting.
+
+  Alert: deed_generation_failed
+  Reference: GR-1042
+  When: 21 August 2026, 10:42
+PandaDoc responded 502. The application remains paid and undeeded. It will not retry on its own.
+
+Open the application: http://localhost:5173/applications/abc123
+
+opndoor is a professional guarantor service, not insurance.
+opndoor is not a party to, or named on, the tenancy agreement.
+Sent by opndoor. Questions? Reply to this email.</pre>
+      </div>
+    </div>
+  </section></main>
+</body></html>

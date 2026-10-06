@@ -11,6 +11,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { getActivity, getActivityFeed, getAwaitingSignature, getUpcomingExpiries, runExpiryReminders, type ActivityFeedItem, type ActivityKind, type ExpiryBand } from '@/data';
+import { orgLabel } from '@/data/agencyOffices';
 import { useSession } from '@/session/SessionContext';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { hydrateFromSupabase } from '@/lib/hydrate';
@@ -23,9 +24,12 @@ import { Pill, type PillVariant } from '@/components/ui/Pill';
 import { Pager } from '@/components/ui/Pager';
 import { useToast } from '@/components/ui/Toast';
 import './Activity.css';
+import { plural, countOf } from '@/lib/plural';
+import { formatDate } from '@/lib/format';
 
 const FEED_PAGE_SIZE = 20;
-const dmy = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+// One format, shared. See lib/format.
+const dmy = formatDate;
 // dd/mm/yyyy · HH:mm — used for real, activity_log-sourced events.
 const dmyTime = (d: Date) => `${dmy(d)} · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
@@ -33,7 +37,7 @@ const KIND_DOT: Record<ActivityKind, string> = { sent: 'var(--sent)', paid: 'var
 const BAND_PILL: Record<ExpiryBand, PillVariant> = { soon: 'danger', warn: 'warn', notice: 'sent', later: 'muted' };
 
 function activityText(kind: ActivityKind, tenant: string) {
-  if (kind === 'paid') return <>Guarantor fee paid for <b>{tenant}</b></>;
+  if (kind === 'paid') return <>Guarantee fee paid for <b>{tenant}</b></>;
   if (kind === 'deed') return <>Deed of Guarantee issued for <b>{tenant}</b></>;
   if (kind === 'withdrawn') return <>Referral withdrawn for <b>{tenant}</b></>;
   if (kind === 'expired') return <>Referral expired for <b>{tenant}</b></>;
@@ -44,31 +48,41 @@ function activityText(kind: ActivityKind, tenant: string) {
 function feedText(kind: string, tenant: string) {
   const t = <b>{tenant}</b>;
   switch (kind) {
-    case 'payment_received': return <>Guarantor fee paid for {t}</>;
-    case 'refunded': return <>Guarantor fee refunded for {t}</>;
+    case 'payment_received': return <>Guarantee fee paid for {t}</>;
+    case 'refunded': return <>Guarantee fee refunded for {t}</>;
     case 'deed_sent': return <>Deed sent to {t} for signature</>;
     case 'deed_viewed': return <>Deed viewed by {t}</>;
     case 'deed_signed': return <>Deed signed by {t}</>;
     case 'deed_issued': return <>Deed of Guarantee issued for {t}</>;
     case 'deed_delivered': return <>Deed of Guarantee delivered to the agent for {t}</>;
+    case 'deed_delivered_landlord': return <>Deed of Guarantee sent to the landlord for {t}</>;
     case 'deed_undelivered': return <>Deed issued for {t}, no agent contact on file</>;
     case 'deed_regenerated': return <>Deed regenerated for {t}</>;
+    /* THE GUARANTEE ENDED. Not "refunded", which is the money: a tenant can
+       be refunded before signing, and then there is no deed to cancel. */
+    case 'deed_cancelled': return <>Deed of Guarantee cancelled for {t} after a refund</>;
+    case 'refund_cascade_started': return <>Refund started for {t} because a co-tenant was refunded</>;
     case 'deed_reissued': return <>Deed reissued for {t}</>;
     case 'tenancy_amended': return <>Tenancy start amended for {t}</>;
+    case 'tenancy_correction_applied': return <>Tenancy start corrected by the agent for {t}</>;
+    case 'renewal_notice_sent': return <>Renewal notice sent for {t}</>;
     default: return <>Referral sent for {t}</>; // referral_created
   }
 }
 function feedDot(kind: string): string {
   if (kind === 'payment_received') return 'var(--paid)';
   if (kind === 'refunded' || kind === 'deed_undelivered') return 'var(--danger, #d64545)';
-  if (kind === 'deed_signed' || kind === 'deed_issued' || kind === 'deed_reissued' || kind === 'deed_regenerated' || kind === 'deed_delivered') return 'var(--deed)';
+  if (kind === 'deed_signed' || kind === 'deed_issued' || kind === 'deed_reissued' || kind === 'deed_regenerated' || kind === 'deed_delivered' || kind === 'deed_delivered_landlord') return 'var(--deed)';
+  // NOT the deed colour. A cancelled guarantee and a delivered one must
+  // not read the same at a glance, which is the whole job of the dot.
+  if (kind === 'deed_cancelled' || kind === 'refund_cascade_started') return 'var(--ink-mute, #7a7a8c)';
   return 'var(--sent)'; // referral_created, deed_sent, deed_viewed, tenancy_amended
 }
 interface FeedRow { id: string; ref: string; dot: string; text: ReactNode; meta: string; }
 function untilText(daysUntil: number): string {
   if (daysUntil <= 0) return 'expires today';
   if (daysUntil === 1) return 'expires tomorrow';
-  return `expires in ${daysUntil} days`;
+  return `expires in ${countOf(daysUntil, 'day')}`;
 }
 
 export function Activity() {
@@ -95,7 +109,7 @@ export function Activity() {
   const feedLoading = SUPABASE_ENABLED && liveFeed === null;
   const feedRows: FeedRow[] = SUPABASE_ENABLED
     ? (liveFeed ?? []).map((f) => ({ id: f.id, ref: f.ref, dot: feedDot(f.kind), text: feedText(f.kind, f.tenant), meta: `${f.ref} · ${f.branch} · ${dmyTime(f.at)}` }))
-    : getActivity({ role, scope: partnerScope }).map((a) => ({ id: a.id, ref: a.ref, dot: KIND_DOT[a.kind], text: activityText(a.kind, a.tenant), meta: `${a.ref} · ${a.branch} · ${dmy(a.at)}` }));
+    : getActivity({ role, scope: partnerScope }).map((a) => ({ id: a.id, ref: a.ref, dot: KIND_DOT[a.kind], text: activityText(a.kind, a.tenant), meta: `${a.ref} · ${orgLabel(a.branch)} · ${dmy(a.at)}` }));
 
   // Feed pagination. Reset to page 1 when the scope changes.
   const [feedPage, setFeedPage] = useState(1);
@@ -113,9 +127,13 @@ export function Activity() {
     if (r.ok) {
       try { const { data } = await sb().auth.getUser(); if (data.user) await hydrateFromSupabase(data.user.id); } catch { /* ignore */ }
       forceRefresh((n) => n + 1);
-      toast(`Expiry reminders (test) for ${r.date}: ${r.fired ?? 0} fired${r.emailed ? `, ${r.emailed} emailed` : ''}${r.emailFailed ? `, ${r.emailFailed} email(s) failed - see admin activity log` : ''}.`);
+      toast(`Expiry reminders (test) for ${r.date}: ${r.fired ?? 0} fired${r.emailed ? `, ${r.emailed} emailed` : ''}${r.emailFailed ? `, ${r.emailFailed} email(s) failed - see admin activity log` : ''}.`, 'error');
     } else {
+<<<<<<< HEAD
       toast(r.error || 'Could not run the expiry reminders.','error');
+=======
+      toast(r.error || 'Could not run the expiry reminders.', 'error');
+>>>>>>> partner-api
     }
     setRunning(false);
   }
@@ -171,7 +189,7 @@ export function Activity() {
                   <div className="lbl">Expires</div>
                   <div className="val">{dmy(e.expiry)}</div>
                 </div>
-                <div className="exp-row__reminders" title={e.remindersSent > 0 ? `${e.remindersSent} expiry reminder${e.remindersSent === 1 ? '' : 's'} sent` : 'No expiry reminders sent yet'}>
+                <div className="exp-row__reminders" title={e.remindersSent > 0 ? `${e.remindersSent} expiry ${plural(e.remindersSent, 'reminder')} sent` : 'No expiry reminders sent yet'}>
                   <Icon name="bell" strokeWidth={1.9} />
                   <span>{e.remindersSent > 0 ? `${e.remindersSent} sent` : 'None sent'}</span>
                 </div>
@@ -206,7 +224,7 @@ export function Activity() {
                   <div className="lbl">Viewed</div>
                   <div className="val">{s.viewedAt ? dmy(s.viewedAt) : 'Not viewed'}</div>
                 </div>
-                <div className="exp-row__pill"><Pill variant={s.viewedAt ? 'warn' : 'danger'}>{s.days} days waiting</Pill></div>
+                <div className="exp-row__pill"><Pill variant={s.viewedAt ? 'warn' : 'danger'}>{countOf(s.days, 'day')} waiting</Pill></div>
               </Link>
             ))}
           </CardBody>

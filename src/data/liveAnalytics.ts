@@ -19,14 +19,61 @@
    commission on fees paid in the period, minus the commission on fees refunded in
    the period. For a single-partner scope this equals feesNet x rate (the Live
    payments block's presentation).
+
+   AND EVERY COMMISSION FIGURE IN HERE ASKS maySeeCommission FIRST.
+   An agency Manager is role 'management' without sees_commission: they read every
+   referral, every branch and the whole team, and they are shown nothing the agency
+   earns. This file is where that has to hold, because it is the MODEL. A screen
+   that hides a figure it was still handed is one refactor away from showing it
+   again, and in the meantime the number is sitting in the page's memory. So a
+   reader the predicate refuses gets commission that was never computed: zero at
+   the row (liveAggregate, groupRows, liveMonths, which are sums of a rate) and an
+   empty settlement or statement (the whole point of which is what is owed).
+   Volumes, conversion, guaranteed value and the FEE THE TENANT WAS CHARGED are
+   untouched: a Manager is supposed to see all of it, and gating those would break
+   the level rather than protect it.
    ===================================================================== */
 import { SUPABASE_ENABLED } from '@/lib/supabase';
+import { addAgencyShare } from './whoPaysTheAgency';
 import type { LeagueRow, LeagueView, PartnerScope, Period, Role } from './types';
-import { ALL_PARTNERS } from './types';
-import { allFull, findRecord, guaranteeExpiry, isHydrated, type FullApp } from './applicationsService';
+import { ALL_PARTNERS, agencyLevelOf, maySeeCommission } from './types';
+import { showsOffices } from './agencyOffices';
+import { allFull, findRecord, guaranteeExpiry, isHydrated, reachedPayment, type FullApp, guaranteedAnnual } from './applicationsService';
 import { getPartners, partnerName } from './partnersService';
-import { contactForApplication } from './orgService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
+import { payeesFor, orgAmountOf, agentAmountOf, agentEarnedOf, supplierAmountOf, supplierLineOf, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
+import { deliveryStateOf } from './deliveryState';
+// Walk fix 21: one rule for the line under a referrer's name.
+import { whereTheyWork, type WhereReader } from './whereTheyWork';
+// Walk fixes 8 and 16 share one rule for what is under guarantee, and when.
+import { partyIsAgency, partyIsOurEstate, partyIsSupplier } from './capabilities';
+import { coverHeldDuring, coverStartsLater } from './inForce';
+import { isDirectRail, isHousePartner } from './channel';
+import { viaSupplier } from './viaSupplier';
+import { routeOf } from './route';
+// Walk fixes 15 and 20: the CUSTOMER is the origin, not the route partner.
+import { ORIGIN_ALL, originOf, originValue, type OriginScope } from './origin';
+import type { CommissionSource } from './types';
+
+/**
+ * Is the viewer looking at the agent rail alone?
+ *
+ * The ESTATE, read off the partner in scope. A manager is pinned to their own
+ * partner, so for Regent's people this is always true and the dashboard drops
+ * every partner-commission figure. An admin on "all partners" is looking at both
+ * rails at once and keeps them.
+ *
+ * Distinct from viewerRunsEligibilityJourney, which asks the OTHER question —
+ * who checks the tenant — and gives Regent the opposite answer.
+ */
+export function agentRailScope(scope: PartnerScope): boolean {
+  if (scope === ALL_PARTNERS) return false;
+  // The partner's own kind, not its referencing mode. A supplier that
+  // references through us is still the supplier rail. `partyIsOurEstate`
+  // rather than `partyIsAgency`, so the direct rail keeps the answer it
+  // had: there is no supplier there to show a share for.
+  return partyIsOurEstate(scope);
+}
 
 const DAY = 86_400_000;
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -61,11 +108,22 @@ function nowRef(): Date {
   return SUPABASE_ENABLED ? new Date() : new Date(2026, 5, 26);
 }
 
-/** Display label for a referring user's actual role (league attribution). */
-function roleLabel(role: Role | null | undefined): string {
-  if (role === 'superadmin') return 'opndoor'; // #112: opndoor-admin actors are labelled honestly as "opndoor", never "Referrer"
-  if (role === 'management') return 'Management';
-  return 'Referrer';
+/** Display label for a referring user, under the name, on League and on Volume
+    by referrer.
+
+    THE THREE LEVELS, as the rest of the product names them. This used to print
+    the internal role words: a Director and a Manager both read "Management",
+    which does not distinguish them and is not a word the client uses, and a
+    Negotiator read "Referrer", which is the role name the level replaced. The
+    Director / Manager split needs the commission bit, because that is the only
+    thing separating them.
+
+    The 'opndoor' arm stays (#112): opndoor-admin actors are labelled honestly
+    rather than as an agency level, and agencyLevelOf answers null for them, so
+    that arm has to be explicit. */
+export function roleLabel(role: Role | null | undefined, seesCommission?: boolean | null): string {
+  if (role === 'superadmin' || role === 'opndoor_manager') return 'opndoor';
+  return agencyLevelOf(role ?? 'referrer', seesCommission === true) ?? 'opndoor';
 }
 
 export interface LiveAgg {
@@ -76,9 +134,34 @@ export interface LiveAgg {
   refundValue: number;
   refundCount: number;
   feesNet: number;
-  guaranteed: number; // annualised rent over deeds issued in the period
+  /** Twelve months' rent for every guarantee the book HOLDS in the period:
+      executed, not cancelled, cover not already over. Includes cover that
+      has not started yet, which `guaranteedNotStarted` names separately. */
+  guaranteed: number;
+  /** The part of `guaranteed` whose tenancy starts after the period ends.
+      Named rather than folded in, because "nothing is running yet" and
+      "nothing is signed" are different answers and the tile must not give
+      the second when the first is true. */
+  guaranteedNotStarted: number;
   partnerCommNet: number;
+  /* COMMISSION PAYABLE TO A REAL SUPPLIER, which is not the same as the
+     partner cut. On the agent rail the "partner" is the house route
+     opndoor-agents, so that cut is opndoor's OWN margin and is not owed to
+     anybody. Summing it under a heading that says payable would state
+     opndoor's revenue as money leaving the business. */
+  supplierCommNet: number;
   agentCommNet: number;
+  /* THE AGENCIES' COMMISSION, SPLIT BY WHO PAYS IT. (q): the supplier's
+     Reporting shows the agencies' share "worded by who pays it (per
+     referral, using the setting frozen on it)".
+
+     `opndoor_pays_agents_at_freeze` is frozen on each application, so a
+     period really can hold both kinds -- an arrangement changed mid-month
+     leaves referrals on either side of it -- and Matt says to show both
+     lines when it does. Two accumulators rather than one and a flag,
+     because a flag cannot represent "both". */
+  agentCommOpndoorPays: number;
+  agentCommSupplierPasses: number;
   partnerCommExcl: number; // commission excluded because the fee was refunded (in period)
   agentCommExcl: number;
   // Current-state operational metrics (whole scoped book, not period-filtered)
@@ -87,51 +170,269 @@ export interface LiveAgg {
   awaiting: number; // deeds awaiting tenant signature
   awaitingAged: number; // ... unsigned more than 7 days
   avgRent: number;
+  /* TENANCY-GRAIN COUNTS, for the ratios whose two halves are counted
+     differently. Only the tenancy LEAD ever reaches Deed Issued — one deed names
+     every tenant — so `deed` is already one per let, while `sent` and `paid`
+     count applicants, because each applicant is sent to and pays for themselves.
+     Dividing one by the other reported a three-person tenancy as 33% converted.
+     These are the honest denominators; `sent` and `paid` keep their own meaning
+     for the counts they head. */
+  sentTenancies: number;
+  paidTenancies: number;
   avgSentToPaidDays: number | null;
   avgPaidToDeedDays: number | null;
   bookSize: number; // scoped applications total
+  /** The distinct rate sources behind agentCommNet, so the headline can name
+      where the money came from instead of asserting a rate is the standard. */
+  sources: CommissionSource[];
+  /** What the period's fees were a basis OF. kind 'none' when none were paid. */
+  feeBasis: FeeBasis;
+  /** True when nothing in the paid set has a partner to pay: the whole period is
+      agent rail, so every partner-commission figure is structurally zero and is
+      hidden rather than shown as £0. */
+  noPartnerCut: boolean;
 }
 
 /** Aggregate the scoped set for a period (event-in-period money/counts + current-state ops). */
+/* WHICH SIDE OF THE AGENCIES' COMMISSION THIS REFERRAL IS ON.
+ *
+ * (q): the agencies' share is "worded by who pays it (per referral, using
+ * the setting frozen on it)".
+ *
+ * THE FROZEN FLAG, NEVER THE PARTNER'S CURRENT ONE. `opndoor_pays_agents`
+ * on the partner is what the arrangement is TODAY; what matters for money
+ * already earned is what it was when the referral was taken, which is why
+ * `opndoor_pays_agents_at_freeze` exists on the row. Reading the live flag
+ * would re-word last month's statement every time somebody changed a
+ * setting.
+ *
+ * NULL FALLS TO "the supplier passes it on", which is the arrangement
+ * before the flag existed and so is what an unfrozen row actually was.
+ * Guessing the other way would tell a supplier opndoor had paid an agency
+ * directly when nobody had.
+ */
+function addAgentSide(a: LiveAgg, app: FullApp, agentComm: number): void {
+  /* THROUGH THE SHARED RULE since 2026-10-05. This was the original
+     implementation and the only one; Matt then reported the same fold
+     missing from the Performance export, the Application export, the
+     League and the statement, with the same two figures each time, and
+     asked for "one shared rule ... used by all six surfaces". So the
+     interpretation of the frozen flag lives in whoPaysTheAgency and
+     this is one of its six readers rather than its home. */
+  const split = { paidDirectByOpndoor: a.agentCommOpndoorPays, passedOnBySupplier: a.agentCommSupplierPasses };
+  addAgencyShare(split, agentComm, app.opndoorPaysAgentsAtFreeze);
+  a.agentCommOpndoorPays = split.paidDirectByOpndoor;
+  a.agentCommSupplierPasses = split.passedOnBySupplier;
+}
+
 export function liveAggregate(role: Role, scope: PartnerScope, period: Period): LiveAgg {
   const [start, end] = periodRange(period);
-  // #2/#13 Withdrawn and Expired are terminal and pre-payment: they leave the
-  // funnel entirely, so they are excluded from every count, conversion denominator,
-  // ops metric and average here (never inside Sent, never in stuck-at-Sent).
-  const set = scopeFull(allFull(), role, scope).filter((x) => !x.withdrawn && !x.expired);
+  // Asked once, outside the loop: whether this reader may be told what the agency
+  // earns does not change from row to row.
+  const seesComm = maySeeCommission(role);
+  /* =====================================================================
+     A REFERRAL COUNTS AS SENT ONCE IT WAS SENT, 2026-10-03.
+
+     Matt: "Reporting 'Referrals sent' ... leaves out referrals that later
+     expired unpaid: Northgate Lettings shows 8 sent on Reporting but has
+     14 applications, 6 of them expired. A referral counts as sent once it
+     was sent to the tenant, whatever happened after. Unfinished direct
+     applications that never reached the tenant being asked to pay are the
+     only ones left out."
+
+     THIS REPLACES #2/#13's `withdrawn || expired`. That rule read the
+     funnel as "what is still alive", so a referral the agent sent, the
+     tenant received and nobody paid simply vanished -- and an agency's
+     own Reporting understated the work it had done. Matt's rule reads it
+     as "what happened": sent is a thing that happened and cannot be
+     undone by what came after.
+
+     AND IT INCLUDES WITHDRAWN, which Matt did not name but his sentence
+     does: "the only ones left out" is exhaustive, and a withdrawn
+     referral was sent to the tenant exactly as an expired one was. Dev
+     holds none, so no figure moves for it today. Flagged to Matt rather
+     than quietly decided either way.
+
+     `reachedPayment` is the applications list's own predicate, shared so
+     the Fee unpaid tab and these figures cannot disagree about which
+     applications were ever real. */
+  const set = scopeFull(allFull(), role, scope).filter(reachedPayment);
   const a: LiveAgg = {
     sent: 0, paid: 0, deed: 0, feesGross: 0, refundValue: 0, refundCount: 0, feesNet: 0,
-    guaranteed: 0, partnerCommNet: 0, agentCommNet: 0, partnerCommExcl: 0, agentCommExcl: 0,
+    guaranteed: 0, guaranteedNotStarted: 0, partnerCommNet: 0, supplierCommNet: 0, agentCommNet: 0,
+    agentCommOpndoorPays: 0, agentCommSupplierPasses: 0, partnerCommExcl: 0, agentCommExcl: 0,
     stuckSent: 0, stuckPaid: 0, awaiting: 0, awaitingAged: 0, avgRent: 0,
     avgSentToPaidDays: null, avgPaidToDeedDays: null, bookSize: set.length,
+    sentTenancies: 0, paidTenancies: 0,
+    sources: [], feeBasis: { kind: 'none', phrase: '' }, noPartnerCut: false,
   };
   let rentSum = 0;
   let s2pSum = 0, s2pN = 0, p2dSum = 0, p2dN = 0;
   const now = nowRef().getTime();
+  // The paid-in-period set, kept so the fee basis and the rate sources are read
+  // off the same rows the money was summed from and cannot drift from them.
+  const paidSet: FullApp[] = [];
+  // Identity for "one let": the tenancy where there is one, else the application
+  // itself, which IS a tenancy of one.
+  const letOf = (x: FullApp) => x.tenancyId ?? `solo:${x.ref}`;
+  const sentLets = new Set<string>();
+  const paidLets = new Set<string>();
+  // The rent belongs to the LET, not to each applicant: every sibling row carries
+  // the whole tenancy's monthly_rent, so adding it per row reported a book of one
+  // £3,000 pair and one £1,500 single as averaging £2,500 instead of £2,250.
+  const rentedLets = new Set<string>();
   for (const app of set) {
+<<<<<<< HEAD
     const r = ratesOf(app);
     rentSum += app.rent;
     if (inRange(app.sentAt, start, end)) a.sent += 1;
+=======
+    // COMMISSION COMES OFF THE LINES. agent_rate is written as their total at
+    // creation and is equal today, but it is a denormalised copy that cannot name
+    // a payee or say where its rate came from, and the statement needs both.
+    //
+    // THE AGENT RAIL HAS NO PARTNER. partner_rate is populated on every row —
+    // resolve_rates fills it whichever rail the referral came in on — so
+    // multiplying by it on one of our own agencies invents a payable that nobody
+    // owes and that no invoice will ever be raised for. Zeroed at the row, not
+    // hidden at the screen, so exports and the dashboard agree.
+    //
+    // AND NEITHER RATE IS APPLIED AT ALL FOR A READER WHO MAY NOT SEE MONEY.
+    // Same technique for the same reason: the four commission totals below are
+    // nothing but sums of these two rates, so zeroing here leaves a Manager's
+    // aggregate with no earnings figure to find. What they could see before: this
+    // aggregate is what fills the dashboard's commission tile (the headline, the
+    // second line and the reversal on refunds) and the commission columns of the
+    // summary export, so the whole of it reached a Manager's Reporting page.
+    /* THE AGENT SIDE IS READ, THE SUPPLIER SIDE IS COMPUTED, and the
+       asymmetry is the data's. Matt, 2026-10-02: "Every export, statement
+       and screen must take commission from the same stored amount, never
+       recalculate and round differently." The agency side has frozen
+       lines with amounts on them -- apportioned across a tenancy by the
+       server, so two tenants' lines sum to the tenancy's commission
+       rather than to two separately-rounded halves -- and
+       `agentAmountOf` reads them. A supplier's cut has no line at any
+       level, so it stays fee x partner_rate here as everywhere else.
+
+       AND SINCE 20261007580000 THE SUPPLIER SIDE IS READ TOO. It had no
+       stored line when the paragraph above was written, which is what
+       that paragraph said; Matt asked for one, so there is one, and
+       both sides are amounts now. The asymmetry is gone and so is the
+       rate variable. */
+    const agentComm = seesComm ? agentAmountOf(app) : 0;
+    const supplierComm = seesComm ? supplierAmountOf(app) : 0;
+    if (!rentedLets.has(letOf(app))) { rentedLets.add(letOf(app)); rentSum += app.rent; }
+    if (inRange(app.sentAt, start, end)) { a.sent += 1; sentLets.add(letOf(app)); }
+>>>>>>> partner-api
     if (inRange(app.paidAt, start, end)) {
+      paidLets.add(letOf(app));
       // A fee is attributed to the period it was PAID; a refunded application
       // earns no net commission (identical to the per-row Application export, so
       // every commission figure reconciles). Refund amount reduces net fees.
       a.paid += 1;
-      a.feesGross += app.rent;
+      paidSet.push(app);
+      a.feesGross += feeBaseFor(app);
       if (app.refunded) {
         a.refundCount += 1;
-        a.refundValue += app.refundedAmount ?? app.rent;
-        a.partnerCommExcl += app.rent * r.partner;
-        a.agentCommExcl += app.rent * r.agent;
+        a.refundValue += app.refundedAmount ?? feeBaseFor(app);
+        a.partnerCommExcl += supplierComm;
+        a.agentCommExcl += agentComm;
+      } else if (app.partiallyRefunded) {
+        /* R2. A PARTIAL REFUND MOVES MONEY, NOT THE GUARANTEE. The deed still
+           stands and the underwriter is still on risk, so this is NOT counted
+           as a refunded application and its commission is NOT excluded --
+           losing the whole commission line over ten pounds is the defect this
+           fixes, measured on dev at GBP 311.54 against a GBP 10 refund.
+
+           But the money that went back is not money kept, so the amount still
+           reduces net fees. Only the AMOUNT, never feeBaseFor: falling back to
+           the whole fee here would silently restore the very behaviour being
+           removed.
+
+           Commission stays on the WHOLE fee rather than being pro-rated down.
+           That is the status quo for any application that was not refunded,
+           and whether a partial refund should reduce it is a commercial
+           decision recorded as NM-I, not one to take in an arithmetic fix. */
+        a.refundValue += app.refundedAmount ?? 0;
+        a.partnerCommNet += supplierComm;
+        if (!isHousePartner(app.partner)) a.supplierCommNet += supplierComm;
+        a.agentCommNet += agentComm;
+        addAgentSide(a, app, agentEarnedOf(app));
       } else {
-        a.partnerCommNet += app.rent * r.partner;
-        a.agentCommNet += app.rent * r.agent;
+        a.partnerCommNet += supplierComm;
+        // Only a genuine supplier is owed the partner cut; a house route's is
+        // opndoor's own margin. isHousePartner is the same test every screen
+        // uses to keep plumbing partners off it.
+        if (!isHousePartner(app.partner)) a.supplierCommNet += supplierComm;
+        a.agentCommNet += agentComm;
+        /* THE EARNED AMOUNT, NOT THE PAYABLE ONE. agentComm is
+           payeesFor's sum, which is zero on a carved referral by
+           design -- opndoor pays the supplier, not the agency. Feeding
+           that to the split meant the carved bucket could never fill,
+           so "Your agencies' share, included above for you to pass on"
+           never drew on exactly the arrangement it describes.
+           agentCommNet keeps the payable sum, which is what every
+           total adds. */
+        addAgentSide(a, app, agentEarnedOf(app));
       }
     }
-    if (inRange(app.deedAt, start, end)) { a.deed += 1; a.guaranteed += app.rent * 12; }
+    /* PER DEED, AND A DEED COVERS A SHARE. This summed the whole tenancy's rent
+       once per deed, so a two-tenant tenancy at £2,000 contributed £48,000 to a
+       figure labelled "total guaranteed rent value" when £24,000 was guaranteed.
+       Every tile, chart and export total that reads this was overstated by the
+       joint share of the book. */
+    if (inRange(app.deedAt, start, end)) a.deed += 1;
+    /* WALK FIX 16. "12 months' rent for each executed deed IN FORCE in the
+       period, counting a joint tenancy once, not once per tenant."
+
+       WAS: summed alongside the deed count above, on the same test -- the
+       deed ISSUED inside the period. That is the right question for "how
+       many deeds did we issue" and the wrong one for "how much rent is
+       under guarantee", and the two had been sharing a line. A guarantee
+       written last year and still running contributed nothing; one written
+       inside the period and already over contributed fully. The two errors
+       move the total in opposite directions, which is how the figure could
+       look plausible while being built from the wrong set.
+
+       The count stays on deeds ISSUED, because that is what it counts.
+
+       inForceDuring is shared with the bordereau (item 8): the same three
+       clauses, so an underwriter's document and this tile cannot disagree
+       about which guarantees exist. "Counting a joint tenancy once" needs
+       no dedupe and never did -- guaranteedAnnual returns the SHARE and the
+       shares sum to the rent. */
+    /* WHAT THE BOOK HOLDS, not what was running. Matt, 2026-10-01: "Total
+       guaranteed rent value shows GBP 0 with five paid tenancies; fix it to
+       show their guaranteed rent." Every one of Regent's four executed deeds
+       is for a tenancy that starts later, so `inForceDuring` -- still the
+       bordereau's rule, and still right for an underwriter -- answered no to
+       all four. coverHeldDuring keeps every other clause and drops the one
+       boundary this tile is not asking about. */
+    if (coverHeldDuring(app, start, end)) {
+      a.guaranteed += guaranteedAnnual(app);
+      if (coverStartsLater(app, end)) a.guaranteedNotStarted += guaranteedAnnual(app);
+    }
     // Current-state operational metrics (not period-filtered).
     if (app.status === 'sent') a.stuckSent += 1;
-    if (app.status === 'paid' && !app.deedAt && !app.refunded) a.stuckPaid += 1;
+    /* (bp)(2) A CANCELLED GUARANTEE IS NOT STUCK, it is over.
+
+       Matt: '"Stuck at Paid (awaiting deed)" says 15 while Reporting
+       says 4 awaiting signature. Check what it counts; refunded and
+       cancelled ones must not be included.'
+
+       MEASURED ON DEV BEFORE CHANGING IT, because "these two counts
+       may not be the same question" was a live possibility:
+
+         status paid, no deed, not refunded                      15
+         ... and deed_state is not 'cancelled'                    4
+         Reporting's awaiting signature                           4
+
+       They ARE the same question, and the eleven are deeds cancelled
+       for a refund whose own refunded_at never landed -- so the
+       refund test alone did not catch them. A cancelled guarantee has
+       nothing to wait for; counting it as stuck sends somebody to
+       chase a deed that was deliberately ended. */
+    if (app.status === 'paid' && !app.deedAt && !app.refunded && app.deedState !== 'cancelled') a.stuckPaid += 1;
     if (app.deedState === 'awaiting_tenant') {
       a.awaiting += 1;
       if (app.deedSentAt && (now - app.deedSentAt.getTime()) / DAY > 7) a.awaitingAged += 1;
@@ -140,20 +441,32 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
     if (app.paidAt && app.deedAt) { p2dSum += (app.deedAt.getTime() - app.paidAt.getTime()) / DAY; p2dN += 1; }
   }
   a.feesNet = a.feesGross - a.refundValue;
-  a.avgRent = set.length ? rentSum / set.length : 0;
+  a.sources = sourcesOf(paidSet.flatMap((x) => linesFor(x)));
+  a.feeBasis = feeBasisOf(paidSet);
+  // "Nothing here has a partner", not "the partner earned nothing": an empty
+  // period answers false, so a screen with no data shows its usual shape.
+  a.noPartnerCut = paidSet.length > 0 && paidSet.every(agentRailApp);
+  a.sentTenancies = sentLets.size;
+  a.paidTenancies = paidLets.size;
+  a.avgRent = rentedLets.size ? rentSum / rentedLets.size : 0;
   a.avgSentToPaidDays = s2pN ? s2pSum / s2pN : null;
   a.avgPaidToDeedDays = p2dN ? p2dSum / p2dN : null;
   return a;
 }
 
-/** Deeds issued (status Deed) with no resolvable claim contact (branch -> agency
-    default) - i.e. the deed could not be delivered to the agent. Surfaced in the
-    dashboard needs-attention row so an undeliverable deed never goes unnoticed. */
+/** Deeds that did not get where they were going, for the needs-attention row.
+
+    WAS "no agent_contacts row", which is the supplier rail's ladder: one of our
+    agencies delivers to its active PEOPLE and has no mailbox, so every estate
+    deed counted here whatever actually happened. Now the same rule the filter
+    and the badge read, so the three cannot disagree. Counts both states, because
+    the needs-attention row is ops and both need working. */
 export function deedsWithoutContact(role: Role, scope: PartnerScope): number {
   const set = scopeFull(allFull(), role, scope);
   let n = 0;
   for (const app of set) {
-    if (app.status === 'deed' && !contactForApplication(app.agency, app.branch).contact) n += 1;
+    const s = deliveryStateOf(app);
+    if (s === 'failed' || s === 'cannot_deliver') n += 1;
   }
   return n;
 }
@@ -175,6 +488,31 @@ export function lapsingWithin14(role: Role, scope: PartnerScope): number {
   return n;
 }
 
+/**
+ * HOW MANY OF EACH THING THE VIEWER'S SCOPE ACTUALLY HOLDS.
+ *
+ * "Volume by agency" over one agency is a single bar labelled with the name
+ * already in the page header, and "Volume by branch" over one branch is the
+ * same chart again. Both were rendered for every viewer because the dashboard
+ * was written for opndoor looking at an estate, where there are always several.
+ * For a single-branch agency the screen was three copies of one number.
+ *
+ * Counted over the WHOLE scoped book rather than the selected period, so a
+ * quiet month does not make a panel appear and disappear; and over the book
+ * rather than over the org tables, because the book is what every other figure
+ * on the page is computed from and cannot disagree with it.
+ */
+export function liveScopeShape(role: Role, scope: PartnerScope): { agencies: number; branches: number } {
+  const set = scopeFull(allFull(), role, scope);
+  const agencies = new Set<string>();
+  const branches = new Set<string>();
+  for (const app of set) {
+    if (app.agency) agencies.add(app.agencyId || app.agency);
+    if (app.branch) branches.add(app.branchId || `${app.agency}/${app.branch}`);
+  }
+  return { agencies: agencies.size, branches: branches.size };
+}
+
 /** Per-group accumulator, emitted as a LeagueRow. */
 interface Group {
   id: string;
@@ -182,8 +520,28 @@ interface Group {
   sub: string;
   partner?: string;
   refs: number; paid: number; deed: number;
+  /** Tenancy-grain denominators; see LiveAgg.sentTenancies for why. */
+  refLets: Set<string>; paidLets: Set<string>;
+  /* WALK FIX 21. Where this person's referrals came from, gathered across
+     their rows: somebody who moved office has two, and the line has to be
+     able to say both rather than pick one. Only filled for referrer rows. */
+  agencies: Set<string>; branches: Set<string>;
+  /* AND THE SUPPLIER THEY WORK FOR, where they work for one. Matt,
+     2026-10-03: "a supplier's own staff are labelled with their supplier
+     ... not with the agency or branch they last referred for." Read off
+     the REFERRER's own partner, not the application's: Kestrel's director
+     referring for a Kestrel agency produces an application on Kestrel's
+     rail whose agency is Frost, and it is the person who is Kestrel's. */
+  suppliers: Set<string>;
   feesGross: number; refundValue: number;
   partnerComm: number; agentComm: number;
+  /* THE AGENT SIDE SPLIT BY WHO PAYS IT. Matt (bp): the breakdown showed
+     "Supplier GBP 947.25 and Agent GBP 378.90" as two payable amounts
+     when the second is inside the first. Carried on the row rather than
+     recomputed by each reader, because the frozen flag is per
+     application and a reader holding only the group total cannot
+     recover the split from it. */
+  agentPaidDirect: number; agentPassedOn: number;
   partnerCommExcl: number; agentCommExcl: number;
 }
 
@@ -197,29 +555,136 @@ function emit(g: Group): LeagueRow {
     fees: g.feesGross, // "Fees collected" is gross; commission below is net of refunds
     paid: g.paid,
     deed: g.deed,
+    // Both applicant-grain. Sent to Deed briefly divided by LETS, which was
+    // right while one deed covered a whole tenancy; each tenant now signs their
+    // own, so `deed` counts people and a let denominator would exceed 100%.
     sp: g.refs ? g.paid / g.refs : 0,
     conv: g.refs ? g.deed / g.refs : 0,
     partnerComm: g.partnerComm, // already net: refunded applications are excluded below
     agentComm: g.agentComm,
+    agentPaidDirect: g.agentPaidDirect,
+    agentPassedOn: g.agentPassedOn,
   };
 }
 
-type GroupKey = 'agency' | 'branch' | 'referrer' | 'month';
+type GroupKey = 'agency' | 'branch' | 'referrer' | 'month' | 'supplier';
 
 /** A stable identity for the group (so distinct entities that share a display
     name — e.g. a "High Street" branch under two agencies — are never merged). */
-function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { id: string; name: string; sub: string; partner: string } | null {
-  const S = ' ';
+function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string, scope: PartnerScope): { id: string; name: string; sub: string; partner: string } | null {
+  /* A separator that cannot occur in an agency or branch name, so two
+     distinct orgs can never collide on one key. Written as an ESCAPE, not
+     as the raw byte it used to be: a literal NUL makes the whole file
+     binary to grep, which then reports no matches instead of an error,
+     and a search tool that silently finds nothing is a trap. */
+  const S = '\u0000';
   const pn = partnerName(app.partner);
-  if (key === 'agency') return { id: `${app.partner}${S}${app.agency}`, name: app.agency || '(unknown agency)', sub: '', partner: pn };
-  if (key === 'branch') return { id: `${app.partner}${S}${app.agency}${S}${app.branch}`, name: app.branch || '(unknown branch)', sub: app.agency || '', partner: pn };
+  /* Q3, ANSWERED. Matt, 2026-09-30: "Direct signups never appear in
+     Volume by branch, Volume by agency or any agency chart (no
+     'Unattached' row)."
+
+     A direct signup is matched to a real agency and branch by the
+     automatic matcher, so somebody can service it, and that is the whole
+     reason it reaches these two groupings at all: `app.agency` is set and
+     looks exactly like a referral that agency made. It did not make it,
+     and the rest of the estate already says so -- `commission_statement_lines`
+     excludes the direct rail, `agency_weekly_digest` excludes it, and
+     `agreement_volume` excludes it so a matched tenant cannot push an
+     agency into a better commission band. The charts were the surface
+     that did not.
+
+     AND THE UNMATCHED ONES ARE THE "Unattached" ROW. A direct signup with
+     no agency yet grouped under `(unknown agency)`, which is a row of
+     Opndoor's own business wearing an agency's clothes.
+
+     THE REFERRER ARM ALREADY DID THIS, three comments below, for the same
+     reason. This is the same rule on the two groupings that were missed.
+
+     BY SLUG, because keyOf runs before anything is hydrated that could
+     answer it any other way, and `isDirectRail` is the client's mirror of
+     `application_channel`'s first arm -- narrower than `isHousePartner`,
+     which would also exclude every real agency referral. */
+  if ((key === 'agency' || key === 'branch') && isDirectRail(app.partner)) return null;
+  /* VOLUME BY SUPPLIER. Matt, 2026-09-30: "Add a 'Volume by supplier'
+     card alongside Volume by agency, same style."
+
+     A REAL SUPPLIER ONLY, which is `isHousePartner` and not
+     `isDirectRail`: the house partner every agency shares is not a
+     supplier, and a chart with one enormous bar called "Agency referral"
+     beside the real suppliers would be the same mistake the Every
+     customer table exists to avoid. The referencing hand-over and the
+     direct rail go with it. */
+  if (key === 'supplier') {
+    if (isHousePartner(app.partner)) return null;
+    return { id: app.partner, name: pn, sub: '', partner: pn };
+  }
+  /* NAMED WITH ITS SUPPLIER WHERE IT HAS ONE. Matt, 2026-10-02: two
+     same-named companies must always be tellable apart. Dev has exactly
+     that -- a Frost Partnership in Opndoor's estate and a Frost
+     Partnership in Kestrel's -- and this chart is one of the few screens
+     that deliberately puts the estates side by side. The ID is untouched:
+     it is the grouping key and it already carries the partner, so the two
+     were always two rows. Only what the reader sees changes. */
+  if (key === 'agency') return { id: `${app.partner}${S}${app.agency}`, name: viaSupplier(scope, app.agency, app.partner) || '(unknown agency)', sub: '', partner: pn };
+  /* NM-P. A SINGLE-OFFICE AGENCY IS NAMED BY THE AGENCY, and its subtitle
+     goes with it -- the sub is the agency, so leaving it would print the
+     same words on both lines of the row.
+
+     THE ID IS UNTOUCHED. It is the grouping key, not a label: two distinct
+     offices that happen to share a display name must still be two rows,
+     and collapsing the key would merge them. Only what the reader SEES
+     changes, which is the whole of Matt's rule. */
+  if (key === 'branch') {
+    const names = showsOffices(app.agency, app.partner);
+    /* THE SUPPLIER GOES ON WHICHEVER LINE NAMES THE COMPANY. A branch row
+       on a multi-office agency reads "Camden" over "Frost Partnership",
+       so the agency line carries it; a single-office agency is named by
+       the agency on the first line, so that one does. Putting it on both
+       would print the supplier twice in one cell. */
+    return {
+      id: `${app.partner}${S}${app.agency}${S}${app.branch}`,
+      name: names ? (app.branch || '(unknown branch)') : (viaSupplier(scope, app.agency, app.partner) || '(unknown agency)'),
+      sub: names ? viaSupplier(scope, app.agency, app.partner) : '',
+      partner: pn,
+    };
+  }
   if (key === 'referrer') {
     // opndoor internal staff never appear in referrer performance rankings (League
     // Referrers, dashboard volume-by-referrer, export breakdown, by-referrer trend).
     // Their applications remain fully real in every other surface (money,
     // settlements, agency/branch groupings, exports).
     if (app.referrerRole === 'superadmin') return null;
-    return { id: `${app.partner}${S}${app.referrer}`, name: app.referrer || '(unknown)', sub: roleLabel(app.referrerRole), partner: '' };
+    /* Nor does an application that nobody referred. A direct signup has no
+       referrer at all (applications.referrer_id is nullable as of
+       20260812090000), and without this it would rank as a referrer whose
+       volume grows every time the direct rail is used.
+
+       WALK FIX 18: ASKED OF THE ID, NOT THE NAME. This tested `!app.referrer`,
+       which is the DISPLAY NAME, and hydrate fills that from
+       `referrer_name ?? joined.full_name ?? '(unknown)'`. Dev's ten direct
+       applications carry referrer_name = 'Direct signup' with a null
+       referrer_id, so the name was always truthy and the guard never fired --
+       the list showed "Direct signup" ranked as a Negotiator, which is what
+       Matt reported.
+
+       And not `referrerRole` either, which is the trap in the obvious fix:
+       it comes from the embedded users row and RLS can withhold that from a
+       reader who can still see the application. Dev has 17 agency
+       applications in that state, and keying on the role would drop real
+       referrals by real people while fixing the direct ones.
+
+       `referrerId === undefined` is the mock path, which has no such column
+       and whose rows all have real referrers; only an explicit null is "no
+       referrer". */
+    if (app.referrerId === null) return null;
+    if (!app.referrer) return null;
+    /* WALK FIX 21. The sub was `roleLabel(...)`: "Negotiator", "Director".
+       Matt: "their level ... which is irrelevant. Show where they work
+       instead." Left EMPTY here and filled in groupRows below, because
+       where somebody works is gathered across their rows and this function
+       sees one row at a time -- a referrer with referrals from two offices
+       has to be able to say so. */
+    return { id: `${app.partner}${S}${app.referrer}`, name: app.referrer || '(unknown)', sub: '', partner: '' };
   }
   // month: bucket by the sent month (drives the referrer "monthly volume" chart)
   if (!app.sentAt) return null;
@@ -227,37 +692,126 @@ function keyOf(app: FullApp, key: GroupKey, monthLabel: (d: Date) => string): { 
   return { id: lbl, name: lbl, sub: '', partner: '' };
 }
 
-/** Group the scoped set into ranked LeagueRows by agency / branch / referrer / month. */
-function groupRows(set: FullApp[], key: GroupKey, start: Date, end: Date): LeagueRow[] {
+/** Group the scoped set into ranked LeagueRows by agency / branch / referrer / month.
+    `seesComm` is the caller's answer to maySeeCommission: false means the rows carry
+    no commission, and the ranking is unaffected because it has never been a
+    commission ranking (fees, then refs, then name). */
+function groupRows(
+  set: FullApp[], key: GroupKey, start: Date, end: Date, seesComm: boolean,
+  /* THE READER'S SCOPE, for the via-label and nothing else. Required, so
+     a new chart cannot get the admin's labels by omission. */
+  scope: PartnerScope,
+  reader: WhereReader = 'opndoor',
+): LeagueRow[] {
   const monthLabel = (d: Date) => `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`;
   const map = new Map<string, Group>();
   const get = (id: string, name: string, sub: string, partner: string): Group => {
     let g = map.get(id);
-    if (!g) { g = { id, name, sub, partner, refs: 0, paid: 0, deed: 0, feesGross: 0, refundValue: 0, partnerComm: 0, agentComm: 0, partnerCommExcl: 0, agentCommExcl: 0 }; map.set(id, g); }
+    if (!g) { g = { id, name, sub, partner, refs: 0, paid: 0, deed: 0, refLets: new Set(), paidLets: new Set(), agencies: new Set(), branches: new Set(), suppliers: new Set(), feesGross: 0, refundValue: 0, partnerComm: 0, agentComm: 0, agentPaidDirect: 0, agentPassedOn: 0, partnerCommExcl: 0, agentCommExcl: 0 }; map.set(id, g); }
     return g;
   };
   for (const app of set) {
-    // #2/#13 Withdrawn and Expired are terminal and excluded from every league/
-    // volume figure (refs, conversion, fees), matching liveAggregate's exclusion.
-    if (app.withdrawn || app.expired) continue;
-    const k = keyOf(app, key, monthLabel);
+    // A referral counts as sent once it was sent; only an application the
+    // tenant was never asked to pay for is out. See liveAggregate.
+    if (!reachedPayment(app)) continue;
+    const k = keyOf(app, key, monthLabel, scope);
     if (!k) continue;
+<<<<<<< HEAD
     const r = ratesOf(app);
+=======
+    // PER-ORG ATTRIBUTION. An agency/branch row earns its OWN lines; a referrer or
+    // month row is not an org, so it carries the whole payout. partnerRate is the
+    // supplier rail and is untouched.
+    /* THE AGENCY SIDE'S EARNING ON THIS APPLICATION, for both org rows.
+       Matt, 2026-10-02: "Breakdown by branch shows £0 agent commission on
+       every branch while the agency rows have commission. Branch rows must
+       carry the commission earned by their own referrals, and add up to the
+       agency row."
+
+       A branch row asked for BRANCH-level lines only, and a rate is almost
+       never set at a branch -- dev holds twelve commission lines and every
+       one of them is at agency level -- so every branch reported zero
+       beside an agency row with the whole figure. It was not a missing
+       number; it was the wrong question.
+
+       BOTH ROWS NOW ASK THE SAME ONE: what does the agency side earn on
+       this application, which is its agency's line plus any line set at
+       the branch that sent it. An application has one branch, so the two
+       expressions are identical per row and the branch rows sum to their
+       agency's by construction, whether or not a branch rate is ever used.
+
+       THE GROUP'S CUT IS STILL OUT, which is what this calculation was
+       written for: under a group taking 2% of a 14% payout the agency
+       earns 12%, and attributing all 14% to its name would double-count
+       the group against it. The whole payout stays where it belongs, on
+       a referrer or month row, which is not an org and carries the lot.
+
+       AND IT IS THE STORED AMOUNT, not the rate multiplied out. Same
+       instruction, same day: GR-20846's line says £265.38 and
+       1061.54 x 0.25 says £265.39. `orgAmountOf` and `agentAmountOf`
+       read what the server wrote. */
+    const agencySide = orgAmountOf(app, 'agency', app.agencyId, app.agency)
+      + orgAmountOf(app, 'branch', app.branchId, app.branch);
+    const agentComm = !seesComm ? 0
+      : key === 'agency' || key === 'branch' ? agencySide : agentAmountOf(app);
+    // Same rule as liveAggregate: an agency of ours has no partner to pay, so it
+    // contributes no partner commission to any ranking or breakdown row. And the
+    // same rule again for a reader who may not see money: LeagueRow.partnerComm /
+    // agentComm are numbers, so "no figure" is zero here, which is the only shape
+    // the row allows. A Manager reading League saw both columns in full, per agency
+    // and per branch, which is the agency's income broken down by office.
+    const supplierComm = !seesComm ? 0 : supplierAmountOf(app);
+>>>>>>> partner-api
     const sentIn = inRange(app.sentAt, start, end);
     const paidIn = inRange(app.paidAt, start, end);
     const deedIn = inRange(app.deedAt, start, end);
     if (!sentIn && !paidIn && !deedIn) continue; // nothing in period for this entity
     const g = get(k.id, k.name, k.sub, k.partner);
-    if (sentIn) g.refs += 1;
+    /* AND WHERE A REFERRER WORKS NAMES THE SUPPLIER TOO, on the agency
+       and not on the branch: the sub reads "Camden, Frost Partnership"
+       and the company is the half that can collide. */
+    if (key === 'referrer') {
+      g.agencies.add(viaSupplier(scope, app.agency, app.partner));
+      g.branches.add(app.branch ?? '');
+      /* THE PERSON'S OWN COMPANY, WHERE IT IS A SUPPLIER. `referrerPartner`
+         is the partner on the referring USER's row, which only a supplier's
+         staff carry: our own estate's people are placed by position and have
+         none. So a value here that is a supplier means this person is that
+         supplier's, whichever of its agencies the referral went to. */
+      const rp = app.referrerPartner;
+      if (rp && partyIsSupplier(rp)) g.suppliers.add(partnerName(rp));
+    }
+    const letId = app.tenancyId ?? `solo:${app.ref}`;
+    if (sentIn) { g.refs += 1; g.refLets.add(letId); }
     if (paidIn) {
       // Same rule as liveAggregate: refunded application earns no net commission.
-      g.paid += 1; g.feesGross += app.rent;
-      if (app.refunded) { g.refundValue += app.refundedAmount ?? app.rent; g.partnerCommExcl += app.rent * r.partner; g.agentCommExcl += app.rent * r.agent; }
-      else { g.partnerComm += app.rent * r.partner; g.agentComm += app.rent * r.agent; }
+      g.paid += 1; g.paidLets.add(letId); g.feesGross += feeBaseFor(app);
+      // The refund is of the FEE, not of the rent. Matches liveAggregate and
+      // livePartnerBreakdown, which both already said feeBaseFor.
+      if (app.refunded) { g.refundValue += app.refundedAmount ?? feeBaseFor(app); g.partnerCommExcl += supplierComm; g.agentCommExcl += agentComm; }
+      else {
+        g.partnerComm += supplierComm;
+        g.agentComm += agentComm;
+        /* AND WHICH SIDE OF THE CARVE IT FALLS, through the shared rule.
+           Only the directly-paid part is money ON TOP of the supplier's;
+           the rest is already inside it. */
+        const sp = { paidDirectByOpndoor: g.agentPaidDirect, passedOnBySupplier: g.agentPassedOn };
+        addAgencyShare(sp, agentComm, app.opndoorPaysAgentsAtFreeze);
+        g.agentPaidDirect = sp.paidDirectByOpndoor;
+        g.agentPassedOn = sp.passedOnBySupplier;
+      }
     }
     if (deedIn) g.deed += 1;
   }
-  const rows = [...map.values()].map(emit);
+  /* WALK FIX 21, and the reader decides what it says. An admin's list spans
+     agencies so it names both; an agency with several offices names the
+     office; a single-office agency gets no line, because every row would
+     say the same thing. `reader` is worked out once per call rather than
+     per row: it is a fact about the book, not about the person. */
+  const rows = [...map.values()].map((g) => (
+    key === 'referrer'
+      ? emit({ ...g, sub: whereTheyWork({ reader, agencies: [...g.agencies], branches: [...g.branches], suppliers: [...g.suppliers] }) })
+      : emit(g)));
   // Months sort chronologically (most recent first); entities sort by fees.
   if (key === 'month') return rows.sort((x, y) => monthOrder(y.name) - monthOrder(x.name));
   return rows.sort((x, y) => y.fees - x.fees || y.refs - x.refs || x.name.localeCompare(y.name)); // #104 fees, then refs, then name
@@ -268,16 +822,191 @@ function monthOrder(label: string): number {
   return Number(yr) * 12 + MONTH_ABBR.indexOf(abbr);
 }
 
+/** What the monthly-volume trend can be measured in. Walk fix 17 added the
+ *  two that are Opndoor's own view of its book. */
+export type TrendMeasure = 'commission' | 'payable' | 'value' | 'count' | 'deeds';
+
+/**
+ * WHICH MEASURES THIS READER IS OFFERED, and in which order. Walk fix 17.
+ *
+ * "Opndoor doesn't earn commission, it pays it. For admin, the trend's
+ * options should be Opndoor's view: fees collected, commission payable,
+ * referrals sent, deeds issued, defaulting to fees collected. 'Commission
+ * earned' stays for agency and supplier users, where it's their money."
+ *
+ * THE OLD SERIES WAS NOT MERELY UNHELPFUL, IT WAS STRUCTURALLY ZERO. The
+ * trend's "commission" is the supplier cut, and `liveMonths` zeroes that on
+ * a house route because a house route's cut is Opndoor's own margin owed to
+ * nobody -- which is right, and is asserted in
+ * our_margin_is_not_theirs.test.sql. So an admin on the house rail could
+ * only ever see twelve bars of zero beside a tile saying GBP 3,232. The
+ * money model was correct and the CHART was offering a reader a series that
+ * cannot apply to them.
+ *
+ * FIRST IS THE DEFAULT, which is why the order is Matt's and not
+ * alphabetical, and why this returns a list rather than a set.
+ *
+ * AND A CUSTOMER IS NEVER OFFERED "payable". It is Opndoor's view of what
+ * leaves the business; an agency reading it would be reading its own income
+ * as an expense.
+ */
+export function trendMeasuresFor(
+  role: Role, seesCommission: boolean,
+): { value: TrendMeasure; label: string }[] {
+  if (role === 'superadmin' || role === 'opndoor_manager') {
+    return [
+      { value: 'value', label: 'Fees collected' },
+      /* AND NOT TO A READER WHO MAY NOT SEE COMMISSION, which on this arm
+         means Opndoor's ops staff. `payable` is what Opndoor owes out, so
+         it is a commission figure by the test RoleOnly's note sets: it
+         would let somebody work out what the estate earns. Migration
+         20261005170000 is explicit that may_see_commission is "never true
+         for opndoor_manager, who is Opndoor operations and has never seen
+         commission."
+
+         THIS WAS LATENT, NOT NEW. The role was named on this arm from the
+         start, but the trend card itself sat behind a RoleOnly allowlist
+         that omitted them, so the option was never drawn. Fixing their
+         blank Reporting page draws the card, which is what turned a dormant
+         line into a live one -- and is the reason the gate belongs here and
+         not in the caller. */
+      ...(maySeeCommission(role) ? [{ value: 'payable' as TrendMeasure, label: 'Commission payable' }] : []),
+      { value: 'count', label: 'Referrals sent' },
+      { value: 'deeds', label: 'Deeds issued' },
+    ];
+  }
+  return [
+    // The measure itself is the commission surface here, so the OPTION is
+    // what gets gated, not the chart it draws.
+    ...(seesCommission ? [{ value: 'commission' as TrendMeasure, label: 'Commission earned' }] : []),
+    { value: 'value' as TrendMeasure, label: 'Fees collected' },
+    { value: 'count' as TrendMeasure, label: 'Referral count' },
+  ];
+}
+
+/**
+ * WHO IS READING, as far as the line under a referrer's name is concerned.
+ * Walk fix 21.
+ *
+ * Three answers, and only one of them is about a role: Opndoor staff read
+ * across agencies, and for everybody else what decides it is the SHAPE of
+ * their own book rather than their permissions. An agency Director and an
+ * agency Negotiator get the same line.
+ *
+ * COUNTED OFF THE SCOPED SET, BEFORE THE PERIOD FILTER. "An agency with more
+ * than one branch" is a fact about the agency, not about what it happened to
+ * refer this month -- counting inside the period would drop the second line
+ * from a two-office agency in a quiet month and put it back in a busy one.
+ */
+function readerFor(role: Role, set: FullApp[]): WhereReader {
+  if (role === 'superadmin' || role === 'opndoor_manager') return 'opndoor';
+  const branches = new Set(set.map((a) => (a.branch ?? '').trim()).filter(Boolean));
+  return branches.size > 1 ? 'multi-branch' : 'one-branch';
+}
+
+/** One customer's line on the estate-wide Reporting table. Walk fixes 15
+ *  and 20. */
+export interface CustomerRow {
+  /** The origin selection this row is, so a click can narrow to it. */
+  key: string;
+  name: string;
+  kind: 'agency' | 'supplier';
+  sent: number;
+  fees: number;
+  deeds: number;
+  /** What Opndoor owes out on this customer's business. Zero for a reader
+   *  who may not see commission, never absent: the column is a number. */
+  payable: number;
+  /** THE AGENCY'S OWN ID, SO THE ROW CAN BE OPENED.
+   *  `key` is `agency:<estate>:<name>`, which is one row per agency RECORD
+   *  rather than per name: Matt's ruling of 2026-08-17 was that an agency
+   *  exists once across partners, and on 2026-10-01 he replaced it with
+   *  two estates that never link, so a Frost in each is two customers. The
+   *  ROUTE is a different question: /agencies/:key resolves against
+   *  `id ?? name`, so a link built from the name alone lands nowhere for
+   *  any agency that has an id -- which on dev is all of them and in the
+   *  mock book is none, so the fixture hid it completely. Absent on a
+   *  supplier row, where the slug in `key` is already the route. */
+  agencyId?: string;
+}
+
+/**
+ * ONE ROW PER CUSTOMER: every supplier and every agency, side by side.
+ * Walk fix 20, and the table at the centre of walk fix 15's answer (NM-F).
+ *
+ * WHY THIS IS NOT livePartnerBreakdown. That groups by `app.partner`, and on
+ * the AGENCY rail every agency of ours is carried by one house partner,
+ * `opndoor-agents`. So it has one row for the whole agency estate, named
+ * after a company that does not exist outside our own schema, and one row
+ * per supplier -- which is why Matt reported "Kestrel appears nowhere" and
+ * "Northgate appears twice" of the same screen. "Per partner" was never
+ * "per customer": on the agency rail the partner is a ROUTE.
+ *
+ * THE CUSTOMER IS THE ORIGIN, which is what origin.ts exists to name. Same
+ * derivation the Applications list column and the scope narrowing use, so
+ * the table cannot disagree with either about who exists or what they are
+ * called.
+ *
+ * AND THE DIRECT RAIL IS NOT A CUSTOMER. It is Opndoor's own business with
+ * no agency or supplier behind it; a row for it would be Opndoor appearing
+ * in its own customer list.
+ *
+ * THE MEASURES ARE OPNDOOR'S FOUR, the same four as walk fix 17's trend, and
+ * on the same event dates as liveAggregate so the table foots to the tiles
+ * above it: sent by sent date, fees and commission by PAYMENT date, deeds by
+ * deed date.
+ */
+export function liveByCustomer(role: Role, scope: PartnerScope, period: Period): CustomerRow[] {
+  const [start, end] = periodRange(period);
+  const set = scopeFull(allFull(), role, scope);
+  /* Commission payable is a commission figure, so the rule that governs
+     every other one governs this: a reader the predicate refuses gets a
+     zero that was never computed rather than a figure to hide. */
+  const seesComm = maySeeCommission(role);
+  const map = new Map<string, CustomerRow>();
+  for (const app of set) {
+    // Same rule as liveAggregate and groupRows: sent is sent.
+    if (!reachedPayment(app)) continue;
+    const o = originOf(app);
+    if (o.kind !== 'agency' && o.kind !== 'supplier') continue;
+    const key = originValue(app);
+    let row = map.get(key);
+    if (!row) { row = { key, name: o.name, kind: o.kind, sent: 0, fees: 0, deeds: 0, payable: 0, agencyId: o.kind === 'agency' ? app.agencyId : undefined }; map.set(key, row); }
+    if (inRange(app.sentAt, start, end)) row.sent += 1;
+    if (inRange(app.deedAt, start, end)) row.deeds += 1;
+    if (inRange(app.paidAt, start, end)) {
+      row.fees += feeBaseFor(app);
+      /* What leaves the business, and only on a fee that stayed. The
+         agency's cut always; a real supplier's too, never a house route's,
+         which is Opndoor's own margin. The same two terms as the trend's
+         `payable` and as the tile's headline. */
+      if (!app.refunded && seesComm) {
+        // The agency's cut is READ (see agentAmountOf); the supplier's is
+        // computed, because a supplier has no stored line at any level.
+        row.payable += agentAmountOf(app);
+        if (!isHousePartner(app.partner)) row.payable += supplierAmountOf(app);
+      }
+    }
+  }
+  // Biggest first: fees, then referrals, then name. The same order the
+  // league uses, so two tables of the same customers agree about who is top.
+  return [...map.values()].sort((a, b) => b.fees - a.fees || b.sent - a.sent || a.name.localeCompare(b.name));
+}
+
 /** Live volume rows for the three dashboard charts (full lists; callers take top-N). */
-export function liveVolume(role: Role, scope: PartnerScope, period: Period): { branches: LeagueRow[]; agencies: LeagueRow[]; referrers: LeagueRow[] } {
+export function liveVolume(role: Role, scope: PartnerScope, period: Period): { branches: LeagueRow[]; agencies: LeagueRow[]; referrers: LeagueRow[]; suppliers: LeagueRow[] } {
   const [start, end] = periodRange(period);
   const set = scopeFull(allFull(), role, scope);
   const isRef = role === 'referrer';
+  const seesComm = maySeeCommission(role);
   return {
-    branches: groupRows(set, 'branch', start, end),
-    agencies: groupRows(set, 'agency', start, end),
+    branches: groupRows(set, 'branch', start, end, seesComm, scope),
+    agencies: groupRows(set, 'agency', start, end, seesComm, scope),
+    /* A FOURTH LIST FROM THE SAME FUNCTION, not a new one, so the two
+       cards cannot disagree about a period or a measure. */
+    suppliers: groupRows(set, 'supplier', start, end, seesComm, scope),
     // A referrer's own third chart is their monthly volume; everyone else's is by referrer.
-    referrers: groupRows(set, isRef ? 'month' : 'referrer', start, end),
+    referrers: groupRows(set, isRef ? 'month' : 'referrer', start, end, seesComm, scope, readerFor(role, set)),
   };
 }
 
@@ -289,65 +1018,186 @@ function leagueKey(r: LeagueRow): string {
   return r.key ?? `${r.name}|${r.sub}|${r.partner ?? ''}`;
 }
 
-export function liveLeague(view: LeagueView, role: Role, scope: PartnerScope, partner: string, period: Period): LeagueRow[] {
+export function liveLeague(view: LeagueView, role: Role, scope: PartnerScope, partner: string, period: Period, branchIds?: string[], sel: OriginScope = ORIGIN_ALL): LeagueRow[] {
   const [start, end] = periodRange(period);
   // opndoor admin's in-page partner filter narrows an all-partners scope to one.
   const effScope: PartnerScope = scope === ALL_PARTNERS && partner ? partner : scope;
-  const set = scopeFull(allFull(), role, effScope);
-  const cur = groupRows(set, view, start, end);
+  /* THE SELECTION IS PASSED TO scopeFull, not applied after it, because
+     that function does isolation FIRST and the selection strictly
+     afterwards. Narrowing a set that was never isolated would be a
+     control that grants access. */
+  let set = scopeFull(allFull(), role, effScope, sel);
+  // Position ladder ("my branch(es) / my brand"): narrow the league (and only the
+  // league — scopeFull, which the dashboard shares, is left alone) to the viewer's
+  // own branch set. An empty list means the caller holds a scope that covers no
+  // branch, so the league is empty rather than the whole partner.
+  if (branchIds) {
+    const allow = new Set(branchIds);
+    set = set.filter((a) => a.branchId != null && allow.has(a.branchId));
+  }
+  /* THE LEAGUE IS RANKED ON FEES, WHICH IS WHY A MANAGER STILL HAS ONE.
+     Ordering here is fees collected, then referrals, then name (see groupRows), and
+     the fee a tenant was charged is the price of the product, not the agency's
+     earnings. So refusing a Manager the commission columns costs them no position
+     and no row: the volume ranking IS the ranking, and it is the same table a
+     Director sees with two columns removed. Nothing to substitute. */
+  const seesComm = maySeeCommission(role);
+  // Walk fix 21: "Same rule anywhere else referrers are listed (League,
+  // exports)." Ignored by groupRows for the agency, branch and month views.
+  const reader = readerFor(role, set);
+  const cur = groupRows(set, view, start, end, seesComm, effScope, reader);
   // #107 Week-over-week movement: rank the SAME table as it stood 7 days ago (the
   // window pulled back a week) and diff positions by entity (on the fly, no store).
   // A period shorter than a week has no comparable prior table, so movement is null.
   const prevEnd = new Date(end.getTime() - 7 * DAY);
   const priorRank = new Map<string, number>();
-  if (prevEnd > start) groupRows(set, view, start, prevEnd).forEach((r, i) => priorRank.set(leagueKey(r), i));
+  if (prevEnd > start) groupRows(set, view, start, prevEnd, seesComm, effScope, reader).forEach((r, i) => priorRank.set(leagueKey(r), i));
   return cur.map((r, i) => {
     const pr = priorRank.get(leagueKey(r));
     return { ...r, movement: pr == null ? null : pr - i };
   });
 }
 
-export interface MonthRow { label: string; refs: number; fees: number; deeds: number; comm: number; }
+export interface MonthRow {
+  label: string; refs: number; fees: number; deeds: number;
+  /** Commission EARNED by the reader: the supplier cut, zero on a house
+      route because a house route's cut is Opndoor's own margin. */
+  comm: number;
+  /* WALK FIX 17. COMMISSION PAYABLE, which is the other side of the same
+     money and is what an Opndoor admin's page is about. `comm` above is
+     structurally zero for an admin looking at the house rail -- correctly,
+     and that is why the trend showed GBP 0 every month while the tile said
+     GBP 3,232. This is what leaves the business: the agency's cut plus a
+     real supplier's, net of refunds, matching the tile's own
+     `agentCommNet + supplierCommNet`. */
+  payable: number;
+}
 
 /** Trailing-12-month buckets: referrals sent, gross fees paid, deeds issued, and
     net partner commission (per-application rates, refunded apps excluded) per
     month. Fees are gross (collected), matching the volume/league basis. */
 export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
   const set = scopeFull(allFull(), role, scope);
+  // `comm` stays at its zero for a reader who may not see money: the trend card's
+  // measure dropdown offered "Commission earned" and OPENED on it, so a Manager's
+  // first sight of Reporting was twelve months of the agency's earnings. The months
+  // themselves, the referrals and the fees collected are theirs and are untouched.
+  const seesComm = maySeeCommission(role);
+  /* THE PARTY, NOT THE READER. partyIsAgency rather than isAgencyUser, for
+     the reason the supplier Reporting fix turned on: an Opndoor admin
+     reading Regent's page under View as is not an agency user, but the
+     figures on the page are Regent's and must be the ones Regent is paid.
+     Asked once, outside the loop. */
+  const agencySide = partyIsAgency(scope);
   const end = nowRef();
   const start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
   const months: (MonthRow & { key: number })[] = [];
   for (let i = 0; i < 12; i++) {
     const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
-    months.push({ label: `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`, key: d.getFullYear() * 12 + d.getMonth(), refs: 0, fees: 0, deeds: 0, comm: 0 });
+    months.push({ label: `${MONTH_ABBR[d.getMonth()]} ${d.getFullYear()}`, key: d.getFullYear() * 12 + d.getMonth(), refs: 0, fees: 0, deeds: 0, comm: 0, payable: 0 });
   }
   const lo = months[0].key, hi = months[11].key;
   const idx = (d: Date) => d.getFullYear() * 12 + d.getMonth();
   const at = (d: Date) => months.find((x) => x.key === idx(d));
   for (const app of set) {
-    if (app.withdrawn || app.expired) continue; // #2/#13 terminal: excluded from trailing-12-month volume/fees
+    if (!reachedPayment(app)) continue; // sent is sent; only never-asked is out
     if (app.sentAt && idx(app.sentAt) >= lo && idx(app.sentAt) <= hi) { const m = at(app.sentAt); if (m) m.refs += 1; }
     if (app.paidAt && idx(app.paidAt) >= lo && idx(app.paidAt) <= hi) {
       const m = at(app.paidAt);
+<<<<<<< HEAD
       if (m) { m.fees += app.rent; if (!app.refunded) m.comm += app.rent * ratesOf(app).partner; }
+=======
+      /* isHousePartner, not agentRailApp. On a HOUSE partner partnerRate is
+         Opndoor's own cut and must never appear as the reader's commission;
+         a NAMED partner configured 'opndoor_referenced' is still owed real
+         commission, and zeroing by referencing mode would wipe a legitimate
+         supplier settlement. :220 already draws the line this way. */
+      if (m) {
+        m.fees += feeBaseFor(app);
+        /* THE READER'S OWN COMMISSION, WHICH FOR AN AGENCY IS NOT THE
+           PARTNER CUT. Matt, 2026-10-01: "Monthly trend: September 2026
+           shows GBP 0 commission earned, but the statement shows GBP
+           1,601.54 paid in September. Make the trend use the same figures
+           as the statement."
+
+           This read the PARTNER rate and zeroed it on a house partner --
+           correct, because a house route's partner cut is opndoor's own
+           margin. But every agency Opndoor onboards is on the house
+           partner, so for an agency reader the measure was structurally
+           zero: twelve months of GBP 0 under "Commission earned", beside a
+           statement that paid them.
+
+           For them the money is the agency-side lines, and it is taken
+           from `payeesFor`, which is where the statement's own figures
+           come from: the frozen amount wins, so a joint tenancy's pennies
+           land exactly as commission_statement_lines has them. A supplier
+           reader keeps the partner cut, which is what THEY are paid.
+
+           Only ever read by those two: trendMeasuresFor offers
+           "Commission earned" on the non-Opndoor arm alone, and Opndoor's
+           own measure is `payable` below. */
+        if (!app.refunded && seesComm) {
+          m.comm += agencySide
+            ? agentAmountOf(app)
+            : (isHousePartner(app.partner) ? 0 : supplierAmountOf(app));
+        }
+        /* WALK FIX 17. What Opndoor owes out on this fee: the agency's cut
+           (totalRate, always) plus a real supplier's (never a house route's,
+           which is Opndoor's own margin). The same two terms the tile's
+           headline adds, and the same refund rule. */
+        /* `seesComm` HERE TOO, which the line above has always had and this
+           one did not. A reader the predicate refuses gets a zero that was
+           never computed rather than a figure the chart is trusted to hide,
+           which is the rule liveByCustomer states for the same measure.
+           Nobody who is OFFERED this measure loses anything: the only arm
+           of trendMeasuresFor that lists it is the Opndoor one, and an
+           admin passes the predicate. */
+        if (!app.refunded && seesComm) {
+          m.payable += agentAmountOf(app);
+          if (!isHousePartner(app.partner)) m.payable += supplierAmountOf(app);
+        }
+      }
+>>>>>>> partner-api
     }
     if (app.deedAt && idx(app.deedAt) >= lo && idx(app.deedAt) <= hi) { const m = at(app.deedAt); if (m) m.deeds += 1; }
   }
-  return months.map((m) => ({ label: m.label, refs: m.refs, fees: Math.round(m.fees), deeds: m.deeds, comm: Math.round(m.comm) }));
+  /* NOT ROUNDED HERE. These were whole pounds, which is right for the only
+     consumer this was written for (the dashboard trend tile, where fmtBig
+     reads "£4.4k" either way) and wrong the moment a second consumer printed
+     them into a money column: September collected £4,430.77 and the export
+     said £4,431.00 beside £4,430.77 on every other surface.
+
+     Rounding belongs at the point of DISPLAY, where the surface knows whether
+     it wants a headline or a figure. A data function that rounds has decided
+     that for every caller it will ever have, including the ones that do not
+     exist yet. The export carried a re-summing workaround for exactly one
+     release; it is gone with this line. */
+  return months.map((m) => ({ label: m.label, refs: m.refs, fees: m.fees, deeds: m.deeds, comm: m.comm, payable: m.payable }));
 }
 
-/* ---------- Tenant initials (privacy-preserving) ----------
-   Settlement statements identify the tenant by INITIALS ONLY, never the full
-   name. FullApp carries no tenant name, so the initials are read from the
-   pseudonymised application record (findRecord) — the same source the live
-   bordereau uses. Empty string when no record/name is resolvable (e.g. mock mode),
-   so the statement falls back to the guarantee reference alone. */
-function nameInitials(n: string): string {
-  return n.trim().split(/\s+/).map((p) => p[0] ?? '').slice(0, 2).join('').toUpperCase();
-}
-function tenantInitialsFor(ref: string): string {
+/* ---------- The tenant on a settlement statement ----------
+ *
+ * Matt (bt): "Supplier settlement statement download: show the tenant's
+ * full name, as on every other statement, not initials ('TK')." And, in
+ * the next breath: "All settlement statement downloads on Reporting
+ * (supplier and agent): show tenants' full names, matching the statements
+ * on each Commission tab and in the monthly emails, not initials."
+ *
+ * IT READ AS A PRIVACY DECISION AND IT WAS NOT ONE. The comment here said
+ * "INITIALS ONLY, never the full name", which is the shape of a rule
+ * somebody agreed -- and if it had been, the answer would have been to
+ * change the other statements rather than this one. It was not: the
+ * Commission tabs and the monthly emails already print the full name to
+ * the same reader, and that reader has already seen it on the referral,
+ * the payment page and the signed deed. Nothing was being protected; one
+ * document out of the set was simply different.
+ *
+ * STILL EMPTY WHEN NOTHING RESOLVES, so a statement in mock mode or
+ * against a record we cannot find falls back to the guarantee reference
+ * alone rather than printing a gap where a name should be. */
+function tenantNameFor(ref: string): string {
   const rec = findRecord(ref);
-  return rec?.name ? nameInitials(rec.name) : '';
+  return rec?.name ?? '';
 }
 
 /* ---------- Partner commission settlement ----------
@@ -355,32 +1205,119 @@ function tenantInitialsFor(ref: string): string {
    per-application net-of-refunds rule) and is settled on the 15th of the
    following month. This answers, for the prior calendar month, exactly what is
    payable to each partner and which applications make it up. */
-export interface SettlementApp { ref: string; agency: string; branch: string; paidAt: Date; rent: number; commission: number; tenantInitials: string; }
+export interface SettlementApp {
+  ref: string; agency: string; branch: string; paidAt: Date;
+  /** The tenancy's monthly rent. NOT what was charged: see `fee`. */
+  rent: number;
+  /** WHAT THIS APPLICANT WAS CHARGED, and the amount the rate applied to.
+      Equal to rent at standard terms and different at every negotiated one, so a
+      statement that prints rent under "Fee" states a price nobody paid and a
+      derived rate nobody agreed. Added because it was doing exactly that. */
+  fee: number;
+  commission: number;
+  /** The tenant's full name, as on every other statement (bt). Empty when
+      no record resolves, and then the line is the reference alone. */
+  tenant: string;
+}
 export interface PartnerSettlement { partner: string; partnerName: string; commission: number; apps: SettlementApp[]; }
-export interface CommissionSettlement { monthLabel: string; settlementDate: Date; partners: PartnerSettlement[]; }
+export interface CommissionSettlement {
+  monthLabel: string;
+  /** THE MACHINE KEY, YYYY-MM. monthLabel is for a human to read; anything
+      that has to ADDRESS the month -- the stored statement reference, above
+      all -- needs this, and parsing the English back out of the label is how
+      a reference ends up depending on a month name. */
+  monthKey: string;
+  settlementDate: Date;
+  partners: PartnerSettlement[];
+}
 
 /** Partner commission payable on the 15th of this month, for the prior calendar
     month (net of refunds), broken down per partner with constituent apps. */
-export function getCommissionSettlement(role: Role, scope: PartnerScope): CommissionSettlement {
+/**
+ * THE TWO WINDOWS A SETTLEMENT CAN BE ABOUT.
+ *
+ * 'prior' is the closed month, payable on the 15th of this one: what is owed.
+ * 'current' is this month to date, payable on the 15th of next: what is
+ * building up. Reporting shows both, because showing only the first said "no
+ * commission is payable for August" over a September that was accruing money,
+ * which reads as "you have earned nothing" and is the opposite of true.
+ *
+ * ONE PLACE, so the two blocks cannot disagree about where a month ends.
+ */
+export type SettlementWindow = 'prior' | 'current';
+
+function settlementWindow(w: SettlementWindow): { bStart: Date; bEnd: Date; settlementDate: Date } {
   const now = nowRef();
-  const bStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-  const bEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999); // last day of prior month
-  const settlementDate = new Date(now.getFullYear(), now.getMonth(), 15); // 15th of this month
+  if (w === 'current') {
+    return {
+      bStart: new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0),
+      // TO DATE, not to the end of the month: money that has not been taken yet
+      // is not accruing, it is forecast, and this figure is read as a fact.
+      bEnd: now,
+      settlementDate: new Date(now.getFullYear(), now.getMonth() + 1, 15),
+    };
+  }
+  return {
+    bStart: new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0),
+    bEnd: new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999),
+    settlementDate: new Date(now.getFullYear(), now.getMonth(), 15),
+  };
+}
+
+export function getCommissionSettlement(role: Role, scope: PartnerScope, window: SettlementWindow = 'prior'): CommissionSettlement {
+  const { bStart, bEnd, settlementDate } = settlementWindow(window);
   const monthLabel = `${MONTH_LONG[bStart.getMonth()]} ${bStart.getFullYear()}`;
+  const monthKey = monthKeyOf(bStart);
+  /* NO PARTNERS AND SO NO MONEY for a reader who may not see commission. A
+     settlement is nothing but what is owed and to whom, so there is no narrower
+     version of it to compute: the month and the settlement date stay, because they
+     are a calendar and not a figure, and every payable line is absent rather than
+     zero. A Manager read this as the bordereau block on Reporting, one line per
+     partner with the amount due and the constituent applications under it. */
+  if (!maySeeCommission(role)) return { monthLabel, monthKey, settlementDate, partners: [] };
   const set = scopeFull(allFull(), role, scope);
   const byPartner = new Map<string, PartnerSettlement>();
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue; // net of refunds: a refunded application earns no commission
+<<<<<<< HEAD
     const commission = a.rent * ratesOf(a).partner;
+=======
+    /* OPNDOOR'S OWN MARGIN IS NOT THE AGENCY'S BUSINESS. Round 6. This was
+       the one commission accumulator in the file with no rail test -- compare
+       the three at :199, :412 and :664 -- so an agency Director's Reporting
+       page carried a line "Agency referral - £X" where X is 25% of their own
+       fees, which is Opndoor's house cut on their book, and added it to what
+       they were owed. A Director divides that line by the fees beside it and
+       reads our margin. Rule 3 makes commercial terms Director-level; it does
+       not make OUR terms theirs. The export path already refused this
+       (exportsService returns an empty export for an agency reader); the
+       screen did not. */
+    /* AND AN AGENCY-SHAPED PARTNER IS NOT A SUPPLIER EITHER, 2026-10-02.
+       `isHousePartner` catches our three plumbing slugs; it does not
+       catch a partner row that is really an agency, which is the same
+       gap Matt reported on the Suppliers list ("Harbour Lets shows as a
+       supplier, but it's an agency") and on the route table. Opndoor
+       owes such a party nothing on a referral from its own estate, and
+       the aggregate and the route breakdown have always said so --
+       this accumulator was the one that did not, so it listed a payee
+       with a figure nobody is invoiced for.
+
+       `agentRailApp` is the same predicate both of those use, and it is
+       also what `supplierAmountOf` answers zero to, so the row would
+       now be a zero. It is skipped instead: a payee owed nothing is not
+       a payee. */
+    if (isHousePartner(a.partner) || agentRailApp(a)) continue;
+    const commission = supplierAmountOf(a);
+>>>>>>> partner-api
     let ps = byPartner.get(a.partner);
     if (!ps) { ps = { partner: a.partner, partnerName: partnerName(a.partner), commission: 0, apps: [] }; byPartner.set(a.partner, ps); }
     ps.commission += commission;
-    ps.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, commission, tenantInitials: tenantInitialsFor(a.ref) });
+    ps.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, fee: feeBaseFor(a), commission, tenant: tenantNameFor(a.ref) });
   }
   const partners = [...byPartner.values()].sort((x, y) => y.commission - x.commission);
   partners.forEach((p) => p.apps.sort((x, y) => y.commission - x.commission));
-  return { monthLabel, settlementDate, partners };
+  return { monthLabel, monthKey, settlementDate, partners };
 }
 
 /* ---------- Per-partner commission breakdown (selected period) ----------
@@ -401,27 +1338,50 @@ export interface PartnerCommissionRow {
 }
 
 export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Period): PartnerCommissionRow[] {
+  /* EVERY COLUMN OF THIS TABLE IS COMMISSION except the paid count and the fees, and
+     it exists to state the split, so it is refused whole rather than thinned out.
+     The #85 ghost-partner padding below would otherwise hand back a row per active
+     partner with zeros in it, which is a commission table with the figures removed
+     and still reads as one. */
+  if (!maySeeCommission(role)) return [];
   const [start, end] = periodRange(period);
   const set = scopeFull(allFull(), role, scope);
   const map = new Map<string, PartnerCommissionRow>();
   for (const app of set) {
     if (!inRange(app.paidAt, start, end)) continue; // commission attributed to the payment period
+<<<<<<< HEAD
     const r = ratesOf(app);
     let row = map.get(app.partner);
+=======
+    // Lines, not the scalar; and no partner cut on the agent rail. Identical to
+    // liveAggregate, so this table foots to the KPIs above it.
+    // Both sides are stored amounts since 20261007580000. See
+    // agentAmountOf and supplierAmountOf.
+    const agentComm = agentAmountOf(app);
+    const supplierComm = supplierAmountOf(app);
+    /* BY ROUTE, NOT BY PARTNER. Matt, 2026-10-02: "Harbour Lets is an
+       agency, so it belongs in 'Agency referral', not listed as its own
+       route. Only real suppliers appear as routes." Grouping on
+       `app.partner` gave a partner row to anything holding one, which on
+       dev is an agency. `routeOf` folds it into the rail it refers on, so
+       its referrals stay in the totals and stop being a route. */
+    const route = routeOf(app.partner);
+    let row = map.get(route.key);
+>>>>>>> partner-api
     if (!row) {
-      row = { partner: app.partner, partnerName: partnerName(app.partner), paid: 0, feesGross: 0, refundValue: 0,
+      row = { partner: route.key, partnerName: route.name, paid: 0, feesGross: 0, refundValue: 0,
         partnerCommGross: 0, partnerCommNet: 0, agentCommGross: 0, agentCommNet: 0 };
-      map.set(app.partner, row);
+      map.set(route.key, row);
     }
     row.paid += 1;
-    row.feesGross += app.rent;
-    row.partnerCommGross += app.rent * r.partner;
-    row.agentCommGross += app.rent * r.agent;
+    row.feesGross += feeBaseFor(app);
+    row.partnerCommGross += supplierComm;
+    row.agentCommGross += agentComm;
     if (app.refunded) {
-      row.refundValue += app.refundedAmount ?? app.rent;
+      row.refundValue += app.refundedAmount ?? feeBaseFor(app);
     } else {
-      row.partnerCommNet += app.rent * r.partner;
-      row.agentCommNet += app.rent * r.agent;
+      row.partnerCommNet += supplierComm;
+      row.agentCommNet += agentComm;
     }
   }
   // #85 Under All-partners scope, list every active partner even with no paid
@@ -429,8 +1389,14 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
   // Paused/onboarding partners with no activity stay hidden (noted in the caption).
   if (scope === ALL_PARTNERS) {
     for (const p of getPartners()) {
-      if (p.status === 'active' && !map.has(p.id)) {
-        map.set(p.id, { partner: p.id, partnerName: p.name, paid: 0, feesGross: 0, refundValue: 0,
+      /* THROUGH routeOf TOO, or the padding would put back exactly the
+         rows the grouping above just folded away: an active agency with a
+         partner row would reappear as an empty route of its own. It also
+         fixes the name, which was `p.name` here and `partnerName(...)`
+         above -- so a house partner padded in named the plumbing. */
+      const route = routeOf(p.id);
+      if (p.status === 'active' && !map.has(route.key)) {
+        map.set(route.key, { partner: route.key, partnerName: route.name, paid: 0, feesGross: 0, refundValue: 0,
           partnerCommGross: 0, partnerCommNet: 0, agentCommGross: 0, agentCommNet: 0 });
       }
     }
@@ -444,19 +1410,102 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
    month accrual on the payment date, net of refunds, payable the 15th, with the
    constituent applications listed. */
 export interface AgentSettlementAgency { agency: string; partner: string; partnerName: string; commission: number; apps: SettlementApp[]; }
-export interface AgentCommissionSettlement { monthLabel: string; settlementDate: Date; agencies: AgentSettlementAgency[]; }
+/** One PAYEE for the period. A group, an agency or a branch may each be one. */
+export interface AgentSettlementPayee extends AgentSettlementAgency {
+  level: 'group' | 'agency' | 'branch';
+  orgId: string | null;
+  /** Stable identity, so a statement addresses a payee rather than a name. */
+  key: string;
+}
+export interface AgentCommissionSettlement {
+  monthLabel: string;
+  /** YYYY-MM. See CommissionSettlement.monthKey. */
+  monthKey: string;
+  settlementDate: Date;
+  /** The agency ROLLUP: agency-level lines only. Kept for every existing reader. */
+  agencies: AgentSettlementAgency[];
+  /** AUTHORITATIVE. One line per payee; the period total is their sum. */
+  payees: AgentSettlementPayee[];
+  /** Sum of every payee line. Use this, not the agencies rollup, for a total. */
+  total: number;
+}
 
-export function getAgentCommissionSettlement(role: Role, scope: PartnerScope): AgentCommissionSettlement {
-  const now = nowRef();
-  const bStart = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0, 0);
-  const bEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-  const settlementDate = new Date(now.getFullYear(), now.getMonth(), 15);
-  const monthLabel = `${MONTH_LONG[bStart.getMonth()]} ${bStart.getFullYear()}`;
-  const set = scopeFull(allFull(), role, scope);
-  const byAgency = new Map<string, AgentSettlementAgency>();
+/* ---------- The statement, and the settlement, from ONE accumulator ----------
+
+   An agency's commission statement and Opndoor's settlement figure have to be
+   the same number, and the way to guarantee that is not to assert it afterwards
+   but to compute it once. accruePayees is the single pass: applications that
+   PAID inside a window, refunds excluded, one line per payee per application.
+
+   getAgentCommissionSettlement is that pass over the prior calendar month, and
+   is unchanged in shape and in every figure it returned before. The statement is
+   the same pass over a month the reader chooses, carrying the per-line detail a
+   statement has to show and a settlement total does not: the tenant, the tenancy,
+   the fee the rate applied to, the share of it this applicant paid, and where the
+   rate came from. settlement-statement.test.ts asserts they foot. */
+
+/** One application's contribution to one payee, with everything a statement
+    line has to name. The frozen line is the authority for the rate AND for its
+    source: neither is recomputed, so a statement issued in May reads the same
+    in November. */
+export interface StatementLine {
+  ref: string;
+  tenant: string;
+  /** Set when this applicant is one of a joint tenancy; null for a tenancy of one. */
+  tenancyId: string | null;
+  /** WHAT KIND OF LET: "Single", or "Joint (3)" with the number of
+   *  tenants on the tenancy. Matt, 2026-10-01. It used to be "2 of 2",
+   *  this applicant's POSITION, which on a commission statement answers
+   *  a question nobody is asking: the payee is reconciling money and
+   *  needs to know whether the fee is a whole let or a share of a joint
+   *  one. Never empty now, so the drop-empty column rule keeps it. */
+  tenancyPlace: string;
+  branch: string;
+  paidAt: Date;
+  /** What THIS applicant paid. On a joint tenancy that is their share of the
+      tenancy fee, which is also the amount their commission is a share of. */
+  fee: number;
+  /** Their share of the tenancy, or null when they are the whole of it. */
+  sharePercent: number | null;
+  rate: number;
+  source: CommissionSource | null;
+  commission: number;
+}
+
+export interface CommissionStatement {
+  /** 'YYYY-MM', the machine key for the month. */
+  monthKey: string;
+  monthLabel: string;
+  payeeKey: string;
+  /* 'supplier' since 2026-10-03. Matt: "include suppliers as payees (e.g.
+     Kestrel Lettings, Level 'Supplier', with its statement), so every payee
+     Opndoor owes for the month is listed." It is a payee of Opndoor like the
+     other three; what differs is which accumulator it comes from. */
+  level: 'group' | 'agency' | 'branch' | 'supplier';
+  orgId: string | null;
+  /** The payee's own name. Never a partner name: on the agent rail the partner
+      is house plumbing and must not appear on a customer's statement. */
+  payeeName: string;
+  lines: StatementLine[];
+  total: number;
+}
+
+const monthKeyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+const monthLabelOf = (d: Date) => `${MONTH_LONG[d.getMonth()]} ${d.getFullYear()}`;
+
+/** THE ONE PASS. Every payee's lines for applications paid inside the window. */
+function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
+  key: string; level: 'group' | 'agency' | 'branch'; orgId: string | null; orgName: string;
+  partner: string; commission: number; apps: SettlementApp[]; lines: StatementLine[];
+}> {
+  const byPayee = new Map<string, {
+    key: string; level: 'group' | 'agency' | 'branch'; orgId: string | null; orgName: string;
+    partner: string; commission: number; apps: SettlementApp[]; lines: StatementLine[];
+  }>();
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue; // net of refunds
+<<<<<<< HEAD
     const commission = a.rent * ratesOf(a).agent;
     // Key by partner + agency so same-named agencies under different partners never merge.
     const key = `${a.partner}${a.agency}`;
@@ -464,20 +1513,217 @@ export function getAgentCommissionSettlement(role: Role, scope: PartnerScope): A
     if (!ag) { ag = { agency: a.agency || '(unknown agency)', partner: a.partner, partnerName: partnerName(a.partner), commission: 0, apps: [] }; byAgency.set(key, ag); }
     ag.commission += commission;
     ag.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, commission, tenantInitials: tenantInitialsFor(a.ref) });
+=======
+    const fee = feeBaseFor(a);
+    const mates = a.tenancyId ? set.filter((x) => x.tenancyId === a.tenancyId).length : 0;
+    // ONE LINE PER PAYEE. A historic row has no split and resolves to a single
+    // agency line at the scalar rate, so it lands exactly where it always did.
+    for (const p of payeesFor(a, fee)) {
+      // Namespaced by partner as well, so same-named orgs under different
+      // partners never merge -- what the old `${a.partner}${a.agency}` key was for.
+      const key = `${a.partner}|${p.key}`;
+      let row = byPayee.get(key);
+      if (!row) {
+        row = { key, level: p.level, orgId: p.orgId, orgName: p.orgName || '(unknown agency)',
+          partner: a.partner, commission: 0, apps: [], lines: [] };
+        byPayee.set(key, row);
+      }
+      row.commission += p.amount;
+      row.apps.push({ ref: a.ref, agency: a.agency, branch: a.branch, paidAt: a.paidAt!, rent: a.rent, fee, commission: p.amount, tenant: tenantNameFor(a.ref) });
+      row.lines.push({
+        ref: a.ref,
+        // The summary store carries the name; a row whose summary has not
+        // loaded falls back to its reference rather than to a blank cell.
+        tenant: findRecord(a.ref)?.name || a.ref,
+        tenancyId: a.tenancyId ?? null,
+        /* THE SAME WORDS THE SQL PRODUCES, because the screen and the
+           attachment are one statement read two ways. `mates` is the
+           count of applications sharing the tenancy; no tenancy row at
+           all is a solo let, which is the common case and used to print
+           a hyphen. */
+        tenancyPlace: a.tenancyId && (mates || 0) > 1 ? `Joint (${mates})` : 'Single',
+        branch: a.branch,
+        paidAt: a.paidAt!,
+        fee,
+        sharePercent: a.sharePercent ?? null,
+        rate: p.rate,
+        source: p.source,
+        commission: p.amount,
+      });
+    }
+>>>>>>> partner-api
   }
-  const agencies = [...byAgency.values()].sort((x, y) => y.commission - x.commission);
-  agencies.forEach((a) => a.apps.sort((x, y) => y.commission - x.commission));
-  return { monthLabel, settlementDate, agencies };
+  return byPayee;
 }
 
-export interface TrendRow { label: string; count: number; fees: number; comm: number; sub?: string; }
+export function getAgentCommissionSettlement(role: Role, scope: PartnerScope, window: SettlementWindow = 'prior'): AgentCommissionSettlement {
+  const { bStart, bEnd, settlementDate } = settlementWindow(window);
+  const monthLabel = monthLabelOf(bStart);
+  const monthKey = monthKeyOf(bStart);
+  /* THE AGENCY'S OWN EARNINGS, which is the figure the Manager level exists to
+     withhold, so this is the one that mattered most: no payees, no rollup and a
+     zero total. A Manager saw it on Reporting as "Your commission" with the amount
+     payable on the 15th and every payee under it. Nothing is substituted, because
+     "what you are owed" has no version that is not money. */
+  if (!maySeeCommission(role)) return { monthLabel, monthKey, settlementDate, agencies: [], payees: [], total: 0 };
+  const acc = accruePayees(scopeFull(allFull(), role, scope), bStart, bEnd);
+  /* THE PAYEE NAMES ITS SUPPLIER. Matt, 2026-10-02, naming settlements,
+     payees and statements among the six surfaces: an admin's settlement
+     run lists every estate at once, so two payees called Frost
+     Partnership would be two amounts owed to what reads as one company.
+
+     ON `agency`, WHICH IS THE DISPLAY NAME, and not on `key`, which is
+     already namespaced by partner and is what the statement download
+     looks a payee up by. Both sides of that lookup read this same field,
+     so the labelled name matches itself. */
+  const payees: AgentSettlementPayee[] = [...acc.values()]
+    .map((r) => ({ key: r.key, level: r.level, orgId: r.orgId, agency: viaSupplier(scope, r.orgName, r.partner),
+      partner: r.partner, partnerName: partnerName(r.partner), commission: r.commission, apps: r.apps }))
+    .sort((x, y) => y.commission - x.commission);
+  payees.forEach((p) => p.apps.sort((x, y) => y.commission - x.commission));
+  const agencies: AgentSettlementAgency[] = payees.filter((p) => p.level === 'agency');
+  const total = payees.reduce((s2, p) => s2 + p.commission, 0);
+  return { monthLabel, monthKey, settlementDate, agencies, payees, total };
+}
+
+/** The months this viewer has anything to state, newest first. Built from the
+    payment dates actually in their book, so a month with no activity is never
+    offered as an empty statement. */
+export function statementMonths(role: Role, scope: PartnerScope): { key: string; label: string }[] {
+  // A list of the months the agency earned in is itself a commission surface: it
+  // says when there was money and how far back the ledger runs, and every month on
+  // it opens a statement. No months for a reader who may not see one.
+  if (!maySeeCommission(role)) return [];
+  const seen = new Map<string, string>();
+  for (const a of scopeFull(allFull(), role, scope)) {
+    if (!a.paidAt || a.refunded) continue;
+    seen.set(monthKeyOf(a.paidAt), monthLabelOf(a.paidAt));
+  }
+  return [...seen.entries()].map(([key, label]) => ({ key, label })).sort((x, y) => (x.key < y.key ? 1 : -1));
+}
+
+/**
+ * The commission statement for one month: one per payee the viewer can see.
+ *
+ * Scoped like everything else — a manager gets their own agency's, an admin
+ * gets one per payee and picks. Over the PRIOR calendar month it returns, payee
+ * for payee, the same totals as getAgentCommissionSettlement, because it is the
+ * same accumulator; settlement-statement.test.ts holds that to account.
+ */
+export function getCommissionStatements(role: Role, scope: PartnerScope, monthKey: string): CommissionStatement[] {
+  // Refused at the model as well as at the panel. The panel (CommissionStatement)
+  // answers the same predicate and shows a sentence instead, which is the right
+  // answer on a screen; this is the answer for anybody who calls the service
+  // directly, now or after the next refactor of that page. Every line carries a
+  // rate, a source and a commission amount: there is no partial statement.
+  if (!maySeeCommission(role)) return [];
+  const [y, m] = monthKey.split('-').map(Number);
+  if (!y || !m) return [];
+  const bStart = new Date(y, m - 1, 1, 0, 0, 0, 0);
+  const bEnd = new Date(y, m, 0, 23, 59, 59, 999);
+  const label = monthLabelOf(bStart);
+  const set = scopeFull(allFull(), role, scope);
+  const acc = accruePayees(set, bStart, bEnd);
+  const agencySide: CommissionStatement[] = [...acc.values()]
+    .map((r) => ({
+      monthKey, monthLabel: label, payeeKey: r.key, level: r.level, orgId: r.orgId,
+      /* NAMED WITH ITS SUPPLIER WHERE IT HAS ONE, 2026-10-03. Matt: "label
+         supplier-estate agencies '(via [supplier])' as elsewhere". This was
+         the one payee surface that did not, so an admin's month listed two
+         payees called Frost Partnership with nothing to say which company
+         each amount was owed to. Gated on the scope like every other
+         caller, so a supplier's own view of its own agencies is unlabelled. */
+      payeeName: viaSupplier(scope, r.orgName, r.partner),
+      /* GUARANTEE REFERENCE ORDER, LOWEST FIRST, the same as the PDF and
+         the CSV. Matt, 2026-10-01. It was paid date first with the
+         reference only as a tiebreak, so the screen and the attachment
+         listed one month two ways. */
+      lines: r.lines.sort((x, y) => x.ref.localeCompare(y.ref)),
+      total: r.commission,
+    }));
+
+  /* =====================================================================
+     AND THE SUPPLIERS, WHICH THIS LIST HAS NEVER HELD.
+
+     Matt, 2026-10-03: "include suppliers as payees (e.g. Kestrel Lettings,
+     Level 'Supplier', with its statement), so every payee Opndoor owes for
+     the month is listed. Totals must match Settlements."
+
+     WHY IT WAS MISSING. `accruePayees` reads `payeesFor`, which reads
+     `linesFor`, which filters the 'supplier' level out -- correctly, because
+     every other caller of it asks about the agency side. So the supplier's
+     own debt had a frozen line, a settlement row and a statement of its own,
+     and no row on the one list headed "every payee Opndoor owes".
+
+     THE SAME ACCUMULATOR AS THE SETTLEMENT, deliberately, which is what makes
+     "totals must match Settlements" true by construction rather than by
+     arithmetic that happens to agree today: getCommissionSettlement skips a
+     house partner and an agency-rail one and reads `supplierAmountOf`, and so
+     does this. `payeesFor` is NOT reused, because under "the supplier pays
+     its own agents" it correctly returns nothing, and the supplier is still
+     owed its own cut. */
+  const bySupplier = new Map<string, CommissionStatement>();
+  for (const a of set) {
+    if (!inRange(a.paidAt, bStart, bEnd)) continue;
+    if (a.refunded) continue;
+    if (isHousePartner(a.partner) || agentRailApp(a)) continue;
+    const amount = supplierAmountOf(a);
+    if (!amount) continue;
+    const key = `${a.partner}|partner:${a.partner}`;
+    let row = bySupplier.get(key);
+    if (!row) {
+      row = {
+        monthKey, monthLabel: label, payeeKey: key, level: 'supplier' as const,
+        orgId: null, payeeName: partnerName(a.partner), lines: [], total: 0,
+      };
+      bySupplier.set(key, row);
+    }
+    row.total += amount;
+    const line = supplierLineOf(a);
+    row.lines.push({
+      ref: a.ref,
+      tenant: findRecord(a.ref)?.name || a.ref,
+      tenancyId: a.tenancyId ?? null,
+      tenancyPlace: a.tenancyId ? 'Joint' : 'Single',
+      branch: a.branch,
+      paidAt: a.paidAt!,
+      fee: feeBaseFor(a),
+      sharePercent: a.sharePercent ?? null,
+      rate: line?.rate ?? a.partnerRate ?? 0,
+      source: line?.source ?? null,
+      commission: amount,
+    });
+  }
+  for (const row of bySupplier.values()) row.lines.sort((x, y) => x.ref.localeCompare(y.ref));
+
+  return [...agencySide, ...bySupplier.values()].sort((x, y) => y.total - x.total);
+}
+
+export interface TrendRow {
+  label: string; count: number; fees: number; comm: number;
+  /** Walk fix 17: Opndoor's own two measures. */
+  deeds: number; payable: number;
+  sub?: string;
+}
 
 /** Live 12-month trend: by-month or an entity breakdown, carrying real net
     partner commission (per-application rates) so it reconciles with the KPIs. */
 export function liveTrend(view: 'month' | 'branch' | 'agency' | 'referrer', role: Role, scope: PartnerScope): TrendRow[] {
-  if (view === 'month') return liveMonths(role, scope).map((m) => ({ label: m.label, count: m.refs, fees: m.fees, comm: m.comm }));
+  // Both paths carry a zero `comm` for a reader the predicate refuses: liveMonths
+  // never adds it, and groupRows never applies a rate.
+  if (view === 'month') return liveMonths(role, scope).map((m) => ({ label: m.label, count: m.refs, fees: m.fees, comm: m.comm, deeds: m.deeds, payable: m.payable }));
   const set = scopeFull(allFull(), role, scope);
   const end = nowRef();
   const start = new Date(end.getFullYear(), end.getMonth() - 11, 1);
-  return groupRows(set, view, start, end).map((r) => ({ label: r.name, count: r.refs, fees: Math.round(r.fees), comm: Math.round(r.partnerComm), sub: r.sub || undefined }));
+  // Unrounded, for the same reason as liveMonths above.
+  return groupRows(set, view, start, end, maySeeCommission(role), scope, readerFor(role, set))
+    .map((r) => ({
+      label: r.name, count: r.refs, fees: r.fees, comm: r.partnerComm,
+      deeds: r.deed,
+      // Walk fix 17: both halves of what leaves the business. LeagueRow's
+      // partnerComm is already zero on a house route, so adding it here is
+      // the supplier cut and nothing else.
+      payable: r.agentComm + r.partnerComm,
+      sub: r.sub || undefined,
+    }));
 }

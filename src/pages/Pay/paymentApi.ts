@@ -5,12 +5,17 @@
    end (and the smoke test passes).
    ===================================================================== */
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { gbpPence } from '@/lib/format';
 
 export interface PaymentConfirmation {
   found: boolean;
   firstName?: string;
   reference?: string;
   amount?: number;
+  /** What is still OWED, present only when the fee is unpaid. `amount` means
+      what was PAID and is 0 before payment, which /pay/retry was rendering under
+      the label "Amount due" to a tenant who owed the full fee. */
+  amountDue?: number;
   paid?: boolean;
   /** Paid and then refunded: terminal, and no signing link is ever minted. */
   refunded?: boolean;
@@ -56,8 +61,14 @@ export async function requestSigningLink(sessionId: string): Promise<string | nu
   }
 }
 
-/** £ amount, pence only when present. */
+/** £ amount, always to the penny.
+ *
+ *  "pence only when present" was the old rule and it is the one Matt has now
+ *  corrected twice: "money always shows two decimal places (£34,545.60, not
+ *  £34,545.6), everywhere" (2026-10-01) and "check every money figure on this
+ *  page and the tenant pages" (2026-10-03). This is what a tenant is asked to
+ *  pay, beside a figure on a statement that is always to the penny. */
 export function fmtAmount(n: number | undefined): string {
   if (n == null) return '';
-  return `£${n.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  return gbpPence(n);
 }
