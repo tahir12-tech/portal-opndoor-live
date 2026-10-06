@@ -314,7 +314,7 @@ export function AgentBranchPicker({ onChange, scopePartner, showErrors = false }
   }, [serverSearch, partnerScope]);
 
   useEffect(() => {
-    if (!serverSearch || partnerScope === ALL_PARTNERS) return;
+    if (!serverSearch) return;
     const q = agentValue.trim();
     if (q.length < PICKER_MIN_QUERY) { setRemote({ rows: [], more: false, forQuery: q }); return; }
     let alive = true;
