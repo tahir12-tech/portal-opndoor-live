@@ -22,10 +22,10 @@ function app(o: Partial<FullApp> & Pick<FullApp, 'ref' | 'rent' | 'status' | 'pa
 
 // Two partners; a refund; some paid in the prior month (May 2026) for settlement.
 const APPS: FullApp[] = [
-  app({ ref: 'R1', partner: 'rightmove', agency: 'Foxglove', rent: 1000, status: 'paid', paidAt: D('2026-05-04') }),
-  app({ ref: 'R2', partner: 'rightmove', agency: 'Marylebone & Co', rent: 2000, status: 'paid', paidAt: D('2026-05-20') }),
-  app({ ref: 'R3', partner: 'rightmove', agency: 'Foxglove', rent: 1500, status: 'paid', paidAt: D('2026-05-10'), refunded: true, refundedAt: D('2026-05-12'), refundedAmount: 1500 }),
-  app({ ref: 'Z1', partner: 'zoopla', agency: 'Northbank Lettings', rent: 3000, status: 'paid', paidAt: D('2026-04-15') }),
+  app({ ref: 'R1', partner: 'northwind', agency: 'Foxglove', rent: 1000, status: 'paid', paidAt: D('2026-05-04') }),
+  app({ ref: 'R2', partner: 'northwind', agency: 'Marylebone & Co', rent: 2000, status: 'paid', paidAt: D('2026-05-20') }),
+  app({ ref: 'R3', partner: 'northwind', agency: 'Foxglove', rent: 1500, status: 'paid', paidAt: D('2026-05-10'), refunded: true, refundedAt: D('2026-05-12'), refundedAmount: 1500 }),
+  app({ ref: 'Z1', partner: 'harbourside', agency: 'Northbank Lettings', rent: 3000, status: 'paid', paidAt: D('2026-04-15') }),
 ];
 
 hydrateFull(APPS);
@@ -44,14 +44,43 @@ describe('livePartnerBreakdown reconciles to the blended summary', () => {
     expect(sumAgentNet).toBeCloseTo(agg.agentCommNet, 6);
   });
 
-  it('gross includes the refunded fee; net excludes it (per partner)', () => {
-    const rm = rows.find((r) => r.partner === 'rightmove')!;
-    const rr = getRatesFor('rightmove');
+  /* BY ROUTE SINCE 2026-10-02, not by partner. Matt: "Harbour Lets is an
+     agency, so it belongs in 'Agency referral', not listed as its own
+     route. Only real suppliers appear as routes." `northwind` is this
+     fixture's estate -- opndoor_referenced, not a house slug -- so it is
+     the same shape as Harbour Lets and folds into the agency rail.
+     Harbourside, which holds no referencingMode, is supplier-shaped and
+     keeps a route of its own.
+
+     THE FIGURES ARE UNCHANGED, which is the point: the rows are grouped
+     differently and every total is the same, and the assertion above
+     this one (every row sums to liveAggregate) is what proves it. */
+  it('gross includes the refunded fee; net excludes it (per route)', () => {
+    const rm = rows.find((r) => r.partner === 'opndoor-agents')!;
+    const rr = getRatesFor('northwind');
     // R1 + R2 + R3(refunded) gross = 4500; net excludes R3 = 3000.
+    expect(rm.partnerName).toBe('Agency referral');
     expect(rm.feesGross).toBe(4500);
-    expect(rm.partnerCommGross).toBeCloseTo(4500 * rr.partner, 6);
-    expect(rm.partnerCommNet).toBeCloseTo(3000 * rr.partner, 6);
     expect(rm.agentCommNet).toBeCloseTo(3000 * rr.agent, 6);
+  });
+
+  it('and an agency-shaped partner is not a route of its own', () => {
+    expect(rows.find((r) => r.partner === 'northwind')).toBeUndefined();
+    expect(rows.filter((r) => r.partnerName === 'Agency referral')).toHaveLength(1);
+  });
+
+  /* THE TWO RAILS, SIDE BY SIDE, in one fixture, which is the only way to tell
+     "partner commission is suppressed" from "partner commission is broken".
+     Northwind is the estate: our agencies, no supplier above them, so nothing is
+     payable to a partner however large partner_rate is on the row. Harbourside
+     hands us finished referrals and is paid exactly as it always was. */
+  it('the estate earns no partner commission and the supplier still does', () => {
+    const estate = rows.find((r) => r.partner === 'opndoor-agents')!;
+    const supplier = rows.find((r) => r.partner === 'harbourside')!;
+    expect(getRatesFor('northwind').partner).toBeGreaterThan(0);
+    expect(estate.partnerCommGross).toBe(0);
+    expect(estate.partnerCommNet).toBe(0);
+    expect(supplier.partnerCommNet).toBeCloseTo(3000 * getRatesFor('harbourside').partner, 6);
   });
 });
 
@@ -60,11 +89,11 @@ describe('getAgentCommissionSettlement (prior month, agency level, net)', () => 
 
   it('settles May 2026 and aggregates by agency, excluding refunds and other months', () => {
     expect(st.monthLabel).toBe('May 2026');
-    // Only Rightmove R1 (Foxglove) and R2 (Marylebone & Co) qualify: R3 refunded,
+    // Only Northwind Property R1 (Foxglove) and R2 (Marylebone & Co) qualify: R3 refunded,
     // Z1 paid in April. So two agencies, no Foxglove double-count of R3.
     const agencies = st.agencies.map((a) => a.agency).sort();
     expect(agencies).toEqual(['Foxglove', 'Marylebone & Co']);
-    const rr = getRatesFor('rightmove');
+    const rr = getRatesFor('northwind');
     const fox = st.agencies.find((a) => a.agency === 'Foxglove')!;
     expect(fox.commission).toBeCloseTo(1000 * rr.agent, 6); // R1 only (R3 refunded)
     expect(fox.apps).toHaveLength(1);

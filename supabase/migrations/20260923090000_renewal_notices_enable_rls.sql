@@ -1,0 +1,16 @@
+-- SECURITY FIX (Supabase advisory rls_disabled_in_public).
+--
+-- guarantee_renewal_notices was created in 20260904230000_renewal_notices.sql
+-- WITHOUT enabling row-level security, so PostgREST exposed it to anon and
+-- authenticated for read/write — a publicly accessible table.
+--
+-- It is a cron ledger: written only by fire_renewal_notices (SECURITY DEFINER,
+-- granted to service_role) and never read by the client. Every sibling reminder
+-- ledger (expiry_reminders, payment_reminders, expiry_cohort_sends,
+-- partner_digest_sends) enables RLS with NO policy, which denies anon/authenticated
+-- every row while leaving the definer function and service_role unaffected. This is
+-- the one that missed that line; enable it now to match.
+--
+-- Additive and off the Rightmove referral path: this only removes public access to
+-- a renewal-notice ledger; the cron that writes it (service_role) is unchanged.
+alter table public.guarantee_renewal_notices enable row level security;

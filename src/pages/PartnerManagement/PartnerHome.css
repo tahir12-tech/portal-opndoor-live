@@ -1,0 +1,266 @@
+/* =====================================================================
+   PartnerHome — the supplier page. Portal brand (indigo ink, heliotrope accent,
+   lilac field, Sora/Manrope), reusing .card / .dt; only the partner-specific
+   layout lives here. Mirrors AgencyHome's structure.
+   ===================================================================== */
+
+.ph-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 700; color: var(--ink-mute); text-decoration: none;
+}
+.ph-back:hover { color: var(--heliotrope-deep); }
+
+.ph-sub.ph-sub { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 8px; }
+.ph-sub span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* KPI strip */
+.ph-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px; }
+.ph-kpi {
+  background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm); padding: 16px 18px;
+}
+.ph-kpi__v { font-family: var(--display); font-size: 24px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); }
+.ph-kpi__l { font-size: 12px; color: var(--ink-mute); margin-top: 4px; text-transform: uppercase; letter-spacing: .04em; }
+
+/* two-up grid for commission + API */
+.ph-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+.ph-grid > * { min-width: 0; }
+
+/* =====================================================================
+   THE COMMISSION TAB IS ONE COLUMN, and it is the only tab that is.
+   Matt, 2026-10-01, numbered the page: who opndoor pays, then what the
+   supplier gets, then what the agencies get, then the agencies on
+   different terms, then the worked example. Two columns deal those out
+   left-right-left and the numbered order is gone -- and because a grid
+   row stretches its cells, the one-sentence card beside the tall
+   question stretched into a tall empty box. Seen in the browser; a
+   render test asserting the text is present passes either way.
+   ===================================================================== */
+.ph-grid--one { grid-template-columns: 1fr; }
+.ph-grid--one > * { grid-column: 1 / -1; }
+
+/* commission */
+.ph-rates { display: flex; gap: 14px; }
+.ph-rate { flex: 1; background: var(--white-lilac); border: 1px solid var(--line); border-radius: var(--r-md); padding: 14px 16px; }
+.ph-rate__v { font-family: var(--display); font-size: 26px; font-weight: 700; color: var(--heliotrope-deep); letter-spacing: -.02em; }
+.ph-rate__l { font-size: 12.5px; font-weight: 700; color: var(--ink); margin-top: 2px; }
+.ph-note { font-size: 12.5px; color: var(--ink-soft); margin: 12px 0 0; line-height: 1.5; }
+.ph-note.muted { color: var(--ink-mute); }
+.ph-note a { color: var(--heliotrope-deep); font-weight: 700; }
+
+/* API access capabilities */
+.ph-caps { display: flex; flex-direction: column; gap: 10px; }
+.ph-cap { display: flex; align-items: center; gap: 9px; font-size: 13.5px; color: var(--ink); }
+.ph-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+.ph-dot--on { background: var(--deed); }
+.ph-dot--off { background: var(--ink-mute); }
+
+/* agencies + branches tree */
+.ph-tree { display: flex; flex-direction: column; }
+.ph-tree__agency { border-bottom: 1px solid var(--line); }
+.ph-tree__agency:last-child { border-bottom: 0; }
+.ph-tree__arow { display: flex; align-items: center; gap: 10px; padding: 14px 22px; flex-wrap: wrap; }
+.ph-tree__ic { color: var(--heliotrope-deep); display: inline-flex; }
+.ph-tree__name { font-family: var(--display); font-weight: 700; font-size: 14.5px; color: var(--ink); text-decoration: none; }
+.ph-tree__name:hover { color: var(--heliotrope-deep); }
+.ph-tree__meta { margin-left: auto; font-size: 12px; color: var(--ink-mute); }
+.ph-tree__branches { padding: 0 22px 8px 30px; }
+.ph-tree__branch { display: flex; align-items: center; gap: 9px; padding: 7px 0; border-top: 1px dashed var(--line); flex-wrap: wrap; }
+.ph-tree__bic { color: var(--ink-mute); display: inline-flex; }
+.ph-tree__bname { font-weight: 600; font-size: 13px; color: var(--ink); text-decoration: none; }
+.ph-tree__bname:hover { color: var(--heliotrope-deep); }
+.ph-tree__barea { font-size: 12px; color: var(--ink-mute); }
+
+.ph-tag {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--warn); background: var(--warn-bg); border-radius: 999px; padding: 1px 7px;
+}
+
+/* users table */
+.ph-table { width: 100%; }
+.ph-table td.soft { color: var(--ink-mute); }
+.ph-user { display: inline-flex; align-items: center; gap: 10px; }
+.ph-user .dt__name { display: block; font-weight: 600; }
+.ph-user .dt__sub { display: block; font-size: 11.5px; color: var(--ink-mute); }
+.ph-viewall { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--heliotrope-deep); text-decoration: none; }
+.ph-empty { padding: 22px; text-align: center; color: var(--ink-mute); font-size: 13px; }
+
+@media (max-width: 860px) {
+  .ph-kpis { grid-template-columns: repeat(2, 1fr); }
+  .ph-grid { grid-template-columns: 1fr; }
+}
+
+/* Status chips on the Referrals tab, matching the agency page's. */
+.ph-st { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--app-bg-2); color: var(--ink-mute); }
+.ph-st.st-live { background: #e8f1ff; color: #1d4ed8; }
+.ph-st.st-ok { background: #e7f7ee; color: #067647; }
+.ph-st.st-wait { background: #fff4e5; color: #b54708; }
+
+/* The agent contact a deed would reach, on the Overview tree. */
+.ph-contact { font-size: 12px; color: var(--ink-mute); display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; }
+.ph-contact--none { color: #b54708; font-weight: 700; }
+.ph-contact__inh { font-size: 11px; background: var(--app-bg-2); border-radius: 999px; padding: 1px 6px; margin-left: 4px; }
+/* "Contacts are set per branch" is a statement of fact, not a problem, so it
+   takes the muted colour of a resolved contact and not the amber of a missing
+   one. It replaced an amber "No agent contact" that was wrong whenever the
+   contacts were organised the usual way. */
+.ph-contact--perbranch { font-style: italic; }
+
+/* Monthly statement addresses. A list of addresses and one row to add another;
+   the same borders and spacing as the rate cards beside it, so the Commission
+   tab reads as one thing. */
+.sr-list { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.sr-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--app-bg);
+}
+.sr-row__who { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sr-row__who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sr-row__name { color: var(--ink-mute); font-size: 12px; }
+/* The add-an-address row. The two boxes are .field now (label above, the
+   portal's bordered input), so the row aligns them on their BASELINE
+   rather than their centres: a labelled field is taller than the button
+   beside it, and centring put the button halfway up the labels. */
+.sr-add { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.sr-add__f { flex: 1 1 180px; min-width: 0; }
+.sr-add .btn { margin-bottom: 1px; }
+
+/* Supplier commission. Two boxes, the subtraction they imply said out loud,
+   the switch that decides who Opndoor pays, and the tiers read-only. */
+.sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.sc-sum {
+  margin: 14px 0 0; padding: 10px 12px; border-radius: 8px;
+  background: var(--app-bg); color: var(--ink-soft); font-size: 13px; line-height: 1.55;
+  display: flex; gap: 8px; align-items: flex-start;
+}
+.sc-sum--bad { background: var(--danger-bg); color: var(--danger); }
+.sc-switch { display: flex; gap: 10px; align-items: flex-start; margin: 14px 0 0; cursor: pointer; }
+.sc-switch input { margin-top: 3px; flex: none; }
+.sc-switch__note { display: block; margin-top: 3px; color: var(--ink-mute); font-size: 12.5px; line-height: 1.55; }
+.sc-tiers { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
+.sc-tiers__head { font-family: var(--display); font-weight: 700; font-size: 13.5px; margin-bottom: 8px; }
+.sc-tierlist { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.sc-tierlist li {
+  display: flex; justify-content: space-between; gap: 12px; font-size: 13px;
+  padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--app-bg);
+}
+.sc-actions { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+@media (max-width: 560px) { .sc-grid { grid-template-columns: 1fr; } }
+
+/* The Settings tab. One column of fields, the same ones the Add form
+   renders, with the section rules Manage used to draw inline. */
+.ss-form { display: grid; gap: 14px; max-width: 520px; }
+.ss-sect { border-top: 1px solid var(--line); padding-top: 16px; }
+.ss-sect__head { font-family: var(--display); font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+.ss-sect__note { font-size: 12.5px; color: var(--ink-mute); line-height: 1.55; margin: 0 0 12px; }
+.ss-sect__note--tight { margin: 6px 0 0; }
+.ss-actions { display: flex; align-items: center; gap: 10px; margin-top: 18px; }
+
+/* The API access switch: the state on the left, the action on the right. */
+.apisw { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.apisw__state { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--ink-soft); }
+.apisw__keys { color: var(--ink-mute); font-size: 12.5px; }
+
+/* A supplier's deal, said in a sentence. */
+.sd-summary { margin: 0 0 8px; font-size: 14px; line-height: 1.6; color: var(--ink); }
+
+/* =====================================================================
+   SEVERAL AGENTS'-SHARE DEALS, AND WHO IS ON EACH.
+   Matt, 2026-10-01. The list is read down the page: the deal's terms in
+   one sentence, then the agencies it applies to. A member row is a name
+   with its audit line under it, not a table, because the only column
+   that would ever have a second value is the date.
+   ===================================================================== */
+/* THE HEADING SPANS, or the two-column grid puts it in the left column
+   while the deals it heads sit in the right and it reads as a stray
+   paragraph. Seen in the browser, not in a test: a render test asserting
+   the text is present passes either way. The same goes for the add row
+   and the worked example, which belong to the whole section. */
+.sd-sharehead, .sd-addrow, .sd-worked { grid-column: 1 / -1; }
+.sd-sharehead { margin: 22px 0 -4px; }
+.sd-sharehead__t {
+  margin: 0; font-family: var(--display); font-weight: 700; font-size: 17px;
+  letter-spacing: -0.01em; color: var(--ink);
+}
+.sd-sharehead__s { margin: 4px 0 0; font-size: 13px; line-height: 1.55; color: var(--ink-mute); }
+
+.sd-members { margin-top: 10px; }
+.sd-memberlist { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.sd-member {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  padding: 7px 10px; border-radius: 8px; background: var(--app-bg-2);
+}
+.sd-member__name { font-size: 13.5px; font-weight: 600; color: var(--ink); }
+.sd-member__when { font-size: 11.5px; color: var(--ink-mute); }
+/* The move sits at the end of the row it moves, and is quiet: it is an
+   adjustment, not the thing the row is for. */
+.sd-member__off {
+  margin-left: auto; border: 0; background: none; padding: 0; cursor: pointer;
+  font: inherit; font-size: 12px; color: var(--heliotrope-deep); text-decoration: underline;
+}
+.sd-member__off:disabled { opacity: 0.5; cursor: default; }
+.sd-addrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 2px 2px 0; }
+
+/* =====================================================================
+   THE WORKED EXAMPLE, AND THE AGENCIES PICKED FOR A DEAL.
+   Matt, 2026-10-01: "A worked example that updates live: 'On a GBP 1,000
+   fee: opndoor pays Kestrel Lettings GBP 250 and the agency GBP 100.
+   Total GBP 350.'"
+   ===================================================================== */
+/* IT READS AS A QUOTED FIGURE, not as help text: it is the arithmetic
+   somebody is about to agree, and the two rates above it are only
+   checkable through it. */
+.sd-worked {
+  margin: 14px 0 0; padding: 11px 13px; border-radius: 10px;
+  background: var(--app-bg-2); border-left: 3px solid var(--heliotrope-deep);
+  font-size: 13.5px; line-height: 1.6; color: var(--ink);
+}
+.sd-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; padding: 0; }
+.sd-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 6px 4px 10px; border-radius: 999px;
+  background: var(--app-bg-2); border: 1px solid var(--line);
+  font-size: 12.5px; font-weight: 600; color: var(--ink);
+}
+.sd-chip__x {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border: 0; border-radius: 999px; padding: 0;
+  background: none; cursor: pointer; color: var(--ink-mute);
+}
+.sd-chip__x:hover { background: var(--line); color: var(--ink); }
+
+/* THE SUPPLIER'S API KEYS, one row each with its Revoke. A list rather
+   than a table: three facts and an action do not need column rules, and
+   the name has to be able to wrap without dragging a header with it. */
+.ph-keys { display: flex; flex-direction: column; }
+.ph-key {
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  padding: 12px 16px;
+}
+.ph-key + .ph-key { border-top: 1px solid var(--line); }
+.ph-key__main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ph-key__name { font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.ph-key__meta { font-size: 12.5px; color: var(--ink-mute); }
+@media (max-width: 560px) {
+  .ph-key { flex-direction: column; align-items: flex-start; }
+}
+
+/* THE CONTACT LINE IN THE TREE. The "Add email" control that sits on it
+   took its styles to AddContactEmail.css on 2026-10-02, when
+   Reconciliation started drawing the same component: a shared control
+   whose look lives in one page's stylesheet is unstyled on the second
+   page that uses it, and the second page then grows a copy. */
+.ph-tree__contact { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* The Overview's one-line answers and its warning block. */
+.ph-lede { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink); }
+.ph-warn { display: flex; gap: 10px; align-items: flex-start; }
+/* AND THE ICON CANNOT GROW. `flex: none` stops it being stretched by the
+   flex line and says nothing about its intrinsic size: an <Icon> with no
+   `size` prop renders an SVG with no width or height, and a browser then
+   gives it the default replaced-element box -- which is how one warning
+   icon came to fill the card and squash its text into a column. The call
+   site passes a size; this is so the next one that forgets cannot. */
+.ph-warn > :first-child { color: var(--warn); flex: none; margin-top: 2px; width: 16px; height: 16px; }
+.ph-warn b { display: block; color: var(--ink); font-size: 14px; }
+.ph-warn .ph-note { margin: 4px 0 8px; }

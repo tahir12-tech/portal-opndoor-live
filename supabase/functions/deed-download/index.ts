@@ -33,15 +33,33 @@ Deno.serve(async (req) => {
       .select("id, executed_pdf_path")
       .eq("guarantee_ref", ref)
       .maybeSingle();
-    if (error) return json({ ok: false, error: error.message }, 400);
+    if (error) {
+      return json({ ok: false, error: "Could not open the deed download." }, 400);
+    }
     if (!app) return json({ ok: false, error: "Application not found, or you do not have access to it." }, 404);
     if (!app.executed_pdf_path) return json({ ok: false, error: "The deed has not been issued yet." }, 400);
+
+    /* THE PATH IS THE APPLICATION'S OWN FOLDER. Round 7, B.
+       The RLS read above authorises the APPLICATION; it says nothing about
+       what is at the end of the path stored on it. The bucket was already
+       pinned, and 20261006660000 closed the half that mattered most -- until
+       it, `executed_pdf_path` was one of 79 columns `authenticated` could
+       write, so a caller could point their own row at any object in the deeds
+       bucket and have the service key sign it for them.
+
+       Pinned here as well, because a grant is not a shape: every deed is
+       stored at `<application id>/<ref>.pdf` and nothing else should ever be
+       signed by this endpoint, whatever writes the column in future. */
+    const expected = `${app.id}/`;
+    if (!app.executed_pdf_path.startsWith(expected) || app.executed_pdf_path.includes("..")) {
+      return json({ ok: false, error: "Could not generate the download link." }, 500);
+    }
 
     const service = createClient(SUPABASE_URL, SERVICE);
     const { data: signed, error: sErr } = await service.storage.from("deeds").createSignedUrl(app.executed_pdf_path, 300);
     if (sErr || !signed) return json({ ok: false, error: "Could not generate the download link." }, 500);
     return json({ ok: true, url: signed.signedUrl });
   } catch (e) {
-    return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error." }, 500);
+    return json({ ok: false, error: "Could not open the deed download." }, 500);
   }
 });

@@ -1,0 +1,171 @@
+# Where we are
+
+**One file. Read this to know the state of everything; follow the links for why.**
+Kept current as work happens, not written up afterwards.
+
+Last updated **2026-09-02**, re-verified against the live dev project itself
+(`functions list`, `secrets list`, a SQL snapshot of the database), not the docs.
+
+---
+
+## The shape, in one paragraph
+
+Opndoor guarantees rent for tenants who fail referencing. Applications arrive
+four ways: a tenant direct, an agent referring in the portal, a partner pushing
+through the API, and a referencing provider handing over. Rails 1 and 2 we check
+eligibility ourselves; rails 3 and 4 arrive already checked. There are two fee
+points: a **£20 application fee** on rails 1 and 2, and the **guarantee fee**
+(one month's rent) on all four. Only the tenant signs.
+
+---
+
+## Since 19 August, re-verified live on the database (2026-09-02)
+
+Read off the dev project `nfufwcpgrhfgwtphegca`, not the runbooks. What moved:
+
+- **Card payments settle.** The £20 eligibility fee has cleared six times and one
+  application has paid the guarantee fee (`stripe_events` 5, one app `paid`).
+  `STRIPE_WEBHOOK_SECRET` is set and live-mode events verify against the
+  `livemode = true` applications, so the old "dev cannot complete a card payment"
+  trap no longer holds.
+- **Email delivers**, but every recipient is redirected to one review inbox:
+  `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL` and `EMAIL_REVIEW_ADDRESS` are all set,
+  and the review address equals `OPS_ALERT_ADDRESS`. Codes, invites and reset links
+  are sent and land in that inbox; no real tenant or agent is contacted.
+- **All 28 edge functions are deployed and active.** The "14 of 27 never deployed"
+  cutover state is gone.
+
+What has NOT moved:
+
+- **Deed execution has not happened** on the dev database: every `deed_state` is
+  null and `pandadoc_events` is 0. Payment reaches `paid`; the deed has not issued.
+- **Rail 4 (Lettings in a Box) is still uncredentialed**: no `REFERENCING_API_*`
+  secrets, no inbound token seeded, `referencing_inbound_events` 0.
+- **The reminder, digest and cohort crons are not scheduled.** `cron.job` holds only
+  `hubspot-sync` and `rate-limit-cleanup`; those ledgers are empty. `partner-webhooks`
+  is deployed but unscheduled, so four deliveries sit undelivered.
+- **HubSpot has no token** (`hubspot_sync_events` 0), and the address-lookup key is
+  still unset.
+- **The decision inbound on rails 1 and 2 is still the gap** (below).
+
+---
+
+## Works, and verified against a real database
+
+| | Verified |
+| - | -------- |
+| **The referral path** (rail 3, Rightmove): sent → paid → deed, payment link, chasers, 15-day lapse, deed issue, executed-deed delivery | REGRESSION A, and F proves the new work has not moved it |
+| **Partner API v1**: key auth, scopes, idempotency, rate limits, error contract, outbound webhooks with retries and dead-lettering | REGRESSION B |
+| **Sandbox as a mode**: `opnd_test_` vs `opnd_live_`, per-mode credentials, sandbox invisible outside the Dev Centre | REGRESSION B, F |
+| **Dev Centre**: monitoring, redacted logs, webhook replay, test events, docs, OpenAPI 3.1 | REGRESSION E |
+| **Route attribution**: `partner_id` means the route an application arrived by, not who owns the agency | F4, verified live |
+| **Org sharing**: one agency reachable by several partners; **sharing an agency never shares a contact book** | G, 11 checks live |
+| **Tenant identity**: applicants are not staff, and a tenant JWT reads nothing from PostgREST | H5, verified live |
+| **Tenant journey**: register, six-digit code, the whole form, autosave and resume, uploads, the submission gate | H5–H10, verified live |
+| **Email codes**: 10-minute life, 5 attempts, single use, 5 issues an hour, all four proven under concurrency | H10, verified live |
+| **Eligibility criteria** in SQL, one implementation for the prequalification and the screened rail | Verified live, 9 rules |
+| **Groups and positions**: a group above the agency, rate resolution, scope expansion | Verified live, 9 checks |
+| **Position UI**: a director sets what somebody sees; the invite ladder follows position | Built; SQL refuses a branch manager regardless of the screen |
+| **Agent referral form**: middle name, share as % and £ deriving from each other | Built, 8 tests on the arithmetic |
+| **CRM attribution**: channel derived from the route, brand and group as properties | Verified live on four applications |
+| **Three doors on /login**: tenant signs in on the tab, supplier is a real staff sign-in, agent unchanged | REGRESSION H15, 8 tests, both defects reintroduced and caught |
+| **No supplier name in the browser**: banned-list grep over `dist/` including static assets | REGRESSION H16, run and clean |
+| **Agent or supplier**: ownership recorded, form depth counted, four shapes verified live | REGRESSION H17, 202 tests |
+| **API: an agent may omit its own agency name** | H17.13-H17.18, all six outcomes run against the database |
+| **agency_groups is no longer world readable** | H18, RLS on, anon revoked, verified live |
+| **Sign-in page**: Agent and Supplier only, every variable-height block a grid stack | REGRESSION H19.3k and H20, measured in a real browser |
+| **Rate resolution across a group**: agency override beats partner default, group override beats both | Verified live on the Meridian fixture, 0.30 against 0.25 |
+
+## Half built
+
+| What | State | Where |
+| ---- | ----- | ----- |
+| **Rail 4 (provider hand-over)** | Receiver and callback built and deployed; **no token seeded and no credentials**, so nothing can arrive | `TENANT-PLATFORM.md` 6.2 |
+| **Joint tenancies** | Schema, group test and one-deed-per-tenancy built. The group test cannot be trusted until we know whether the provider assesses against the share or the full rent | HANDOVER 26 |
+| **Agent referrals end to end** | Form, hierarchy, positions and attribution built, and now walkable: `supabase/fixtures/agency-group.sql` builds a group over two brands on different rates. The invite fork is now walkable too: dev sends mail (Resend is set), redirected to the review inbox, so the invite link is read there rather than pulled out of `tenant_invites` by hand | `supabase/fixtures/README.md` |
+| **Tenant journey's later tabs** | Documents fully live. ID check and Financials have a working manual upload; the vendor path needs credentials | `TENANT-PLATFORM.md` 6.1 |
+| **HubSpot** | Syncs applicants and companies, cursor now per partner. **One pipeline, `channel` hardcoded to "Partner Referral"** | HANDOVER, HubSpot items |
+
+## Specified, not built
+
+| What | Where it is specified |
+| ---- | --------------------- |
+| The eligibility **decision inbound** on rails 1 and 2 | Nowhere. **This is the gap** |
+| Provider masking, `reference_provider_events`, the adapter boundary | `PARTNER-API.md` §15 |
+| `pre_referenced_screened` acceptance at the API | Criteria now exist in SQL; the 501 branch is still there |
+| Agent referrals in the admin view and their own HubSpot pipeline | Agreed, not built |
+
+## Waiting on whom
+
+| On | What | Blocks |
+| -- | ---- | ------ |
+| **The developer** | **How the pass/fail decision reaches us on rails 1 and 2. ASKED TWICE, STILL UNANSWERED** | The entire second half of the tenant journey |
+| The developer | The per-agency tokens themselves (shape confirmed, values to follow) | Rail 4 |
+| The developer | Yoti credentials and check ids; the Lettings endpoint that returns Kreditz data | Guided ID check, bank connection |
+| The provider | **Affordability against the share or the full rent. Still unanswered**: they confirmed there is no capacity NUMBER, which was the other half | Joint tenancies |
+| **Matt** | Whether a group's brands can be on different commercial terms | **Answered: yes, rate sits at the agency** |
+| Ops | An address-lookup key. `APP_URL`, Resend and the Stripe webhook are all set now, so reset links, tenant codes and card payments are unblocked; mail lands in the review inbox | Address lookup only |
+
+**Answered 2026-08-19** by the developer: sandbox is `https://lettingsinabox.xyz`;
+`agency_secret_token` is **per agency**, created by the Lettings admin;
+`table_id` never expires and nothing happens if we never call back; they return
+a verdict and condition, **never a capacity number**; they do **not** deduplicate
+applicants across channels, so that is ours to detect. He also corrected the
+Yoti and Kreditz architecture: see `TENANT-PLATFORM.md` 6.1, which was rebuilt
+on his account rather than the derived specification.
+
+**He did not answer the blocking question.** It has now been asked twice.
+One clarification is owed back to him, on inbound retries and deduplication.
+
+Asks are in `docs/ASK-THE-DEVELOPER.md`.
+
+---
+
+## Known traps
+
+Things that have cost time once and will again.
+
+- **Nothing is pushed.** The branch is 130-odd commits ahead of `origin/main`,
+  which has 65 migrations ending 5 July and no partner API at all.
+- **`npm test` exists** and is byte-identical to `npm run smoke`. 231 tests.
+- **`tsc -p tsconfig.json` checks nothing** (`"files": []`). Use `tsconfig.app.json`.
+- **A new column on `applications` needs its own `grant select`** or it is
+  silently invisible to the client.
+- **A hook below an early return is a white page.** There is no ESLint here, so
+  `react-hooks/rules-of-hooks` is not watching. REGRESSION H14 catches it.
+- **Card payments settle on dev now.** `STRIPE_WEBHOOK_SECRET` is set and live-mode
+  events verify against the `livemode = true` applications, so the old test-key
+  mismatch no longer blocks payment: the £20 fee has cleared six times and one
+  application has paid the guarantee fee. Deed execution has not followed
+  (`deed_state` null, `pandadoc_events` 0).
+- **Every outbound email is redirected to one review inbox** (`EMAIL_REVIEW_ADDRESS`),
+  so no real tenant or agent is contacted on dev even though mail is being sent.
+- **The reminder, digest and cohort crons are not scheduled** in `cron.job` (only
+  `hubspot-sync` and `rate-limit-cleanup` are), so nothing chases a payment or an
+  expiry automatically until they are added by hand.
+- **Deploy `hubspot-sync` with the migrations**, not after: `20260812030000`
+  drops the signature the deployed one calls.
+
+## Cutover
+
+[CUTOVER.md](CUTOVER.md) is the list of everything that lives in a dashboard
+rather than in code, with a verify step for each. It exists because `db push`
+finishing tells you nothing about whether any of it is done, and because the
+worst items fail silently: mail redirected away from every tenant, partners
+never notified, a Resend domain that looks verified when you test it against
+your own inbox.
+
+## The documents
+
+| File | What it is |
+| ---- | ---------- |
+| `START-HERE.md` | The entry point for somebody new |
+| `STATE.md` | This file: where we are |
+| `BUILD-LOG.md` | What was built, in order, and what was retracted |
+| `HANDOVER.md` | The estate and its open items |
+| `TENANT-PLATFORM.md` | The tenant journey's design record |
+| `TENANT-PLATFORM-SETUP.md` | The runbook for standing it up |
+| `PARTNER-API.md` / `PARTNER-DOCS.md` | Internal design record / what partners are given |
+| `REGRESSION.md` | The test plan, sections A to H |
+| `DEFECTS.md` | 19 defects, 15 fixed here |
+| `docs/ASK-THE-DEVELOPER.md` | The outstanding questions |

@@ -402,6 +402,117 @@ Verified by the proofs above.
 
 ---
 
+### C9. Commission rates are confidential (`partner_rate` / `agent_rate`)
+
+Commission rates are commercially confidential. The rule: **opndoor admin** reads
+every partner's, a partner's **own Management** reads theirs, and a **Referrer reads
+none** — not their partner's live rate, and not the snapshot on their own
+applications. Before migrations `20260904120000` (RPC masking + the grant helper),
+`20260904120500` (the column cut-over) and `20260904130000` (the two governed
+readers) both rate columns were reachable by any partner staff member at AAL2 (`partners_select` allows `id = app_partner()`,
+`applications_select` allows `referrer_id = auth.uid()`), so a Referrer could read
+what opndoor pays their partner with one hand-written query. RLS is row-level and
+cannot hide a **column**, so the fix is a column privilege plus a governed read path.
+
+**1. The privilege itself** (no impersonation needed):
+
+```sql
+select grantee, table_name, string_agg(column_name, ',' order by column_name) as rate_cols
+from information_schema.column_privileges
+where table_schema = 'public' and table_name in ('partners','applications')
+  and column_name in ('partner_rate','agent_rate')
+  and grantee in ('anon','authenticated')
+group by 1, 2;
+```
+
+Invariant: **zero rows** — neither app role holds any privilege on either rate
+column. (`service_role` still does; it is the trusted server key.)
+
+**2. A Referrer (Priya, AAL2) cannot read or write a rate by any client route:**
+
+```sql
+begin;
+select set_config('request.jwt.claims', json_build_object('sub',
+  (select id from public.users where email='priya.nair@brackenhouse.co.uk'),
+  'role','authenticated','aal','aal2')::text, true);
+set local role authenticated;
+
+do $$
+begin
+  begin execute 'select partner_rate from public.partners limit 1';
+    raise notice 'partners rate READ: ALLOWED (!)';
+  exception when insufficient_privilege then raise notice 'partners rate READ: DENIED (correct)'; end;
+
+  begin execute 'select partner_rate, agent_rate from public.applications limit 1';
+    raise notice 'applications rate READ: ALLOWED (!)';
+  exception when insufficient_privilege then raise notice 'applications rate READ: DENIED (correct)'; end;
+
+  -- applications_update lets a referrer edit their OWN Sent row, so the rate
+  -- snapshot has to be protected by privilege, not by policy.
+  begin execute 'update public.applications set partner_rate = 0.9 where referrer_id = auth.uid()';
+    raise notice 'applications rate WRITE: ALLOWED (!)';
+  exception when insufficient_privilege then raise notice 'applications rate WRITE: DENIED (correct)'; end;
+end $$;
+
+select (select count(*) from public.commission_rates_for_partners())     as partner_rate_rows,
+       (select count(*) from public.commission_rates_for_applications()) as app_rate_rows;
+
+reset role;
+rollback;
+```
+
+Invariant: all three notices read **DENIED (correct)**, and both reader counts are
+**0** — the governed readers hand a Referrer nothing. They return an empty set
+rather than raising, because the client treats an error on this load as a failed
+sign-in.
+
+**3. Masked RPC return values.** A function's return value is *not* filtered by
+column privileges, so every referrer-callable RPC that returns a whole
+`applications` row masks the two fields. Still as Priya, inside the same
+`begin; … rollback;`:
+
+```sql
+select partner_rate is null as rate_masked, agent_rate is null as agent_masked
+from public.mark_withdrawn(
+  (select guarantee_ref from public.applications where referrer_id = auth.uid() and status = 'sent' limit 1),
+  'duplicate', null);
+```
+
+Invariant: **both true**. The same masking applies to `create_referral` and
+`amend_tenancy_start` (`public.mask_commission_rates`); the row stored in the table
+keeps its real snapshot — only the copy handed to the caller withholds it.
+
+**4. Management (Tom, Rightmove, AAL2) reads its own partner's rates and no other:**
+
+```sql
+begin;
+select set_config('request.jwt.claims', json_build_object('sub',
+  (select id from public.users where email='tom.sefton@brackenhouse.co.uk'),
+  'role','authenticated','aal','aal2')::text, true);
+set local role authenticated;
+select
+  (select count(*) from public.commission_rates_for_partners())                             as partner_rate_rows,
+  (select count(*) from public.commission_rates_for_partners() where slug <> 'rightmove')   as foreign_partner_rates,
+  (select count(*) from public.commission_rates_for_applications())                         as app_rate_rows,
+  (select count(*) from public.commission_rates_for_applications() a
+     join public.partners p on p.id = a.partner_id where p.slug <> 'rightmove')       as foreign_app_rates;
+reset role;
+rollback;
+```
+
+Invariant: `partner_rate_rows = 1`, `foreign_partner_rates = 0`,
+`foreign_app_rates = 0`; `app_rate_rows` equals Rightmove's application count.
+
+**5. The AAL2 gate still applies.** The readers are `SECURITY DEFINER`, which
+bypasses the restrictive `require_aal2` policy on the base tables, so each one
+re-asserts `is_aal2()` itself. Re-run block 4 with `'aal','aal1'` (or as Maya at
+AAL1):
+
+Invariant: **0 rows from both readers** — a password-only session reads no rate,
+whatever the role.
+
+---
+
 ## Summary
 
 - MFA is required for all users and enforced at the database (AAL2 restrictive
@@ -413,6 +524,10 @@ Verified by the proofs above.
   convenience; the database is the boundary.
 - The amend and send permission rules, and contact writes, are enforced in the
   database (C6, C7), matching `canAmendTenancyStart` / `canSendDeed`.
+- Commission rates (`partner_rate` / `agent_rate`) are confidential: a Referrer
+  cannot read them on their partner or on their own applications, cannot write
+  them, and receives them from no RPC (C9). Management reads only its own
+  partner's; opndoor admin reads all.
 
 ---
 
@@ -442,6 +557,7 @@ what actually enforce access.
 | `amend_tenancy_start(...)` | Invoked by the `amend-tenancy-start` Edge Function **as the caller** (user JWT). | AAL2 + ownership/role (`is_admin` / management-in-partner / referrer-owns) + `can_amend_tenancy_start` (C6). |
 | `send_deed_to_agent(...)` | Called **directly** by the client. | AAL2 + ownership/role + `can_send_deed`; **referrers may not pass a recipient or save a contact** (C6 recipient path), and the recipient email is format-validated. |
 | `set_application_status(...)` | Manual admin utility (real transitions run via service-role Stripe/PandaDoc RPCs). | AAL2 + **`is_admin()` only** — tightened this pass (migration `20260703143224`); management can no longer flip status by hand. |
+| `commission_rates_for_partners()`, `commission_rates_for_applications()` | Called **directly** by the client at sign-in: they are the only route to the confidential rate columns, which `authenticated` has no privilege on (`20260904120500`). Definer rights are the mechanism. | AAL2 **and** (`is_admin()` OR management-of-that-partner), filtering rows, not raising: a Referrer gets an empty set. Proven in C9. |
 | `admin_reset_user_mfa(...)` | Called **directly** by the client (User management → Reset 2FA). Deletes the target's `auth.mfa_factors` + `auth.sessions` and audits `reset_mfa`. | AAL2 + **`is_admin()` OR management for a non-superadmin user at their own partner** — never cross-partner, never on opndoor staff. Proven live (C8). |
 
 No `authenticated` EXECUTE grants needed revoking: none of the above are
@@ -469,4 +585,25 @@ briefly removes `net.http_post` — the function the two scheduled `cron.job`
 reminder rows call. Because the practical exposure is nil and the scheduler
 depends on it, this is **deferred to a maintenance window** rather than risked
 mid-service. Remediation, when taken, must run outside the 07:00/08:00 UTC cron
-firings and be re-verified with `select net.http_post(...)`.
+### `security_definer_view` — raised, then designed out
+
+The first cut of the confidential-rate read path (`20260904120000`) used two
+owner-rights views, `partner_commission_rates` and `application_commission_rates`.
+The advisor flagged both as `security_definer_view` (0010), and its only suggested
+remedy — `security_invoker = on` — cannot apply here: the invoker is precisely the
+role holding **no column privilege** on `partners.partner_rate/agent_rate` or
+`applications.partner_rate/agent_rate` (`20260904120500`), so an invoker-rights
+view would return nothing to anybody. The views were therefore replaced
+(`20260904130000`) by two `SECURITY DEFINER` functions carrying the identical
+gate — `commission_rates_for_partners()` and `commission_rates_for_applications()`
+— and dropped. The finding is gone; the privileged read now sits in the
+definer-function category audited above, and both functions are listed there.
+
+Worth recording for whoever revisits this: the Table Editor also showed those
+views with an **UNRESTRICTED** badge ("Data is publicly accessible via API as this
+is a Security definer"). That was the same finding in Studio's words — RLS
+policies exist only on tables, so a view can never carry one, and Studio printed
+the badge for any owner-rights view without inspecting what it returned. It was
+never a sign the rates were reachable: `anon` held no privilege and would have
+failed the `is_aal2()` gate regardless. If a future change reintroduces a
+privileged view here, expect both messages again, and prefer a function.

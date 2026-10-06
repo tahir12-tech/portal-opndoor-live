@@ -202,6 +202,16 @@
   color: #fff;
   margin-left: auto;
 }
+/* The part of the guaranteed total that has not started yet. Under the
+   figure rather than beside it: it qualifies the number, and a second
+   number on the same line would read as another measure. */
+.hero-kpi__note {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.62);
+  position: relative;
+}
 
 /* Folded gross / less refunds / net presentation on the dark hero KPI (live mode). */
 .hero-kpi__split {
@@ -219,6 +229,14 @@
 
 /* Needs-attention row — compact stat-lines at the top of the dashboard. */
 .needs-attn { display: flex; flex-wrap: wrap; gap: 12px; }
+/* THE SECTION SAYS IT IS NOT OF THE PERIOD. Full width so it reads as a
+   caption for the block rather than as one more stat beside them. */
+.na-note {
+  flex: 1 0 100%;
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin: -2px 0 2px;
+}
 .na-stat {
   flex: 1 1 240px;
   display: flex; align-items: center; gap: 10px;
@@ -475,3 +493,36 @@
   margin-top: 1px;
 }
 
+
+/* Agent-rail journey funnel: a compact strip of the nine stages, scrollable when
+   the card is narrow. Neutral tiles; no accent competes with the KPIs. */
+.afunnel { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; }
+.afunnel__tile { flex: 0 0 auto; min-width: 96px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.afunnel__n { font-weight: 700; font-size: 20px; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.afunnel__l { font-size: 12px; color: var(--ink-mute); margin-top: 5px; }
+.afunnel__sub { font-size: 10.5px; color: var(--ink-mute); margin-top: 3px; }
+
+/* SETTLEMENTS AS TWO BLOCKS: what is owed, and what is building up. */
+.settle__block { display: flex; flex-direction: column; gap: 12px; }
+.settle__block-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.settle__block-amt { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.settle__split { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 10px; }
+.settle__split .settle__row { font-size: 13px; }
+
+/* NM-M. "VIEWING AS X", AND THE WAY OUT.
+   Quiet, one line, above the page: it is a statement about the page rather
+   than a control on it, and a loud banner on every admin visit to a
+   customer's report would wear out fast. The stop button is the only
+   affordance because it is the only thing there is to do here. */
+.viewas-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  margin: 0 0 18px;
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ink);
+  border-radius: 10px;
+  background: var(--paper, #fff);
+}
+.viewas-bar__t { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-soft); }
+.viewas-bar__t b { color: var(--ink); }

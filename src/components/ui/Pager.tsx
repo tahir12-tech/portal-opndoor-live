@@ -13,19 +13,30 @@ interface PagerProps {
   onPage: (page: number) => void;
   /** Noun for the range label, e.g. "applications" or "events". */
   noun?: string;
+  /** How many pages there REALLY are, when they are not uniform.
+      The applications list never splits a joint tenancy across a boundary, so a
+      page may run a row or two over pageSize and the count cannot be got by
+      dividing — done that way, the last page becomes unreachable and its rows
+      simply vanish from the screen. Defaults to the division, so every other
+      caller is unchanged. */
+  pageCount?: number;
+  /** The 1-based range actually on this page, for the same reason. */
+  range?: [number, number];
 }
 
-export function Pager({ page, pageSize, total, onPage, noun = 'rows' }: PagerProps) {
-  if (total <= pageSize) return null;
-  const pages = Math.ceil(total / pageSize);
+export function Pager({ page, pageSize, total, onPage, noun = 'rows', pageCount, range }: PagerProps) {
+  const pages = pageCount ?? Math.ceil(total / pageSize);
+  // Unchanged for a uniform pager: ceil(total / pageSize) <= 1 is exactly
+  // total <= pageSize.
+  if (pages <= 1) return null;
   const current = Math.min(Math.max(1, page), pages);
-  const from = (current - 1) * pageSize + 1;
-  const to = Math.min(current * pageSize, total);
+  const from = range ? range[0] : (current - 1) * pageSize + 1;
+  const to = range ? range[1] : Math.min(current * pageSize, total);
 
   return (
     <div className="pager">
       <div className="pager__info">
-        Showing <b>{from.toLocaleString('en-GB')}–{to.toLocaleString('en-GB')}</b> of{' '}
+        Showing <b>{from.toLocaleString('en-GB')}-{to.toLocaleString('en-GB')}</b> of{' '}
         <b>{total.toLocaleString('en-GB')}</b> {noun}
       </div>
       <div className="pager__nav">

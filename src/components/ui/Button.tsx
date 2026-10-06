@@ -21,7 +21,11 @@ interface CommonProps {
 
 type AsButton = CommonProps & { to?: undefined; href?: undefined } & ButtonHTMLAttributes<HTMLButtonElement>;
 type AsLink = CommonProps & { to: string } & { onClick?: () => void; title?: string; form?: string };
-type AsAnchor = CommonProps & { href: string; target?: string; rel?: string; title?: string };
+type AsAnchor = CommonProps & {
+  href: string; target?: string; rel?: string; title?: string;
+  /** Saves the href rather than navigating to it. The string is the filename. */
+  download?: string;
+};
 
 export type ButtonProps = AsButton | AsLink | AsAnchor;
 
@@ -54,9 +58,9 @@ export function Button(props: ButtonProps) {
     );
   }
   if ('href' in props && props.href != null) {
-    const { href, target, rel, title } = props as AsAnchor;
+    const { href, target, rel, title, download } = props as AsAnchor;
     return (
-      <a className={cls} href={href} target={target} rel={rel} title={title} style={style}>
+      <a className={cls} href={href} target={target} rel={rel} title={title} download={download} style={style}>
         {inner}
       </a>
     );

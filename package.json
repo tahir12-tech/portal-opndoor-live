@@ -3,13 +3,19 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "opndoor Guarantee Referral Portal — production-ready React front end. A back end replaces the src/data service layer.",
+  "description": "opndoor Guarantee Referral Portal \u2014 production-ready React front end. A back end replaces the src/data service layer.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "smoke": "vitest run --environment jsdom"
+    "test": "vitest run --environment jsdom",
+    "smoke": "vitest run --environment jsdom",
+    "test:db": "supabase test db",
+    "test:db:dev": "python3 scripts/pgtap-against-dev.py supabase/tests/*.test.sql",
+    "drift": "node scripts/schema-drift.mjs",
+    "schema:final": "node scripts/schema-final-state.mjs",
+    "check:functions": "bash scripts/deno-check-functions.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.0",

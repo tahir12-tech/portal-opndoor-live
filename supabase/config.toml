@@ -1,0 +1,141 @@
+# =============================================================================
+# Supabase CLI configuration.
+#
+# This file did not exist. Everything the CLI needed came from the link in
+# supabase/.temp, and every per-function setting came from whatever flag the
+# last person happened to type. That is how a correctly signed Stripe webhook
+# came back 401: the deploy default is verify_jwt = true, nothing recorded the
+# exceptions, and Stripe cannot send a Supabase JWT.
+#
+# It is deliberately minimal. The CLI supplies its own defaults for anything
+# absent, and this repo's database configuration lives in migrations, not here.
+# =============================================================================
+
+project_id = "portal-opndoor"
+
+# -----------------------------------------------------------------------------
+# Functions that must NOT require a Supabase JWT.
+#
+# THESE ARE NOT UNAUTHENTICATED. Each carries a check stronger than a JWT:
+#
+#   stripe-webhook, pandadoc-webhook     a provider signature over the raw body
+#   the cron set                          x-ops-secret, matched against the edge
+#                                         secret OR the ops_secrets mirror
+#   tenant-auth, payment-page,            public by design and rate limited;
+#   payment-confirmation                  a tenant has no session at these points
+#   referencing-inbound                   a per-agency bearer token
+#
+# verify_jwt = true would reject the caller BEFORE any of those checks run, so
+# the strong check never gets a chance and the failure is a 401 nobody sees.
+#
+# A flag on a deploy command is a thing somebody forgets. This is not.
+# -----------------------------------------------------------------------------
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.pandadoc-webhook]
+verify_jwt = false
+
+[functions.payment-page]
+verify_jwt = false
+
+[functions.payment-confirmation]
+verify_jwt = false
+
+[functions.send-password-reset]
+verify_jwt = false
+
+[functions.tenancy-correction]
+verify_jwt = false
+
+[functions.tenant-auth]
+verify_jwt = false
+
+[functions.expiry-reminders]
+verify_jwt = false
+
+# Cron-invoked like the reminders above: authenticated by the shared
+# x-reminders-secret header, which it can only check if the JWT gate lets the
+# request reach it.
+[functions.commission-statements]
+verify_jwt = false
+
+[functions.expiry-cohorts]
+verify_jwt = false
+
+# The deed sweep is a cron like the reminders, and authenticates the same way:
+# x-reminders-secret, or an opndoor-admin JWT for a manual { test: true } run.
+[functions.deed-sweep]
+verify_jwt = false
+
+[functions.payment-reminders]
+verify_jwt = false
+
+[functions.renewal-notices]
+verify_jwt = false
+
+[functions.ops-alert]
+verify_jwt = false
+
+[functions.weekly-digest]
+verify_jwt = false
+
+[functions.hubspot-sync]
+verify_jwt = false
+
+[functions.referencing-inbound]
+verify_jwt = false
+
+[functions.referencing-callback]
+verify_jwt = false
+
+# -----------------------------------------------------------------------------
+# THE FIVE THIS FILE WAS WRITTEN TO CATCH, AND DID NOT.
+#
+# Added 26 September, after reconciling this file against what is actually
+# deployed to dev. Fifteen functions were recorded on 21 August, sixteen when
+# renewal-notices landed and seventeen when commission-statements did. These five
+# were deployed with a typed --no-verify-jwt and never written down, which is the
+# precise drift the note above says this file exists to prevent: "a flag on a
+# deploy command is a thing somebody forgets".
+#
+# Nothing here CHANGES a deployment. Each line records the flag the function is
+# already running with, so that `supabase functions deploy` with no arguments
+# stops being the thing that breaks them.
+# -----------------------------------------------------------------------------
+
+# A partner API key in the Authorization header, not a Supabase JWT. Its own
+# header comment has said "verify_jwt = FALSE, required" since it was written,
+# and adds "there is no config.toml in this repo", which stopped being true on
+# 21 August. This is the dangerous one: verify_jwt = true rejects every
+# third-party partner integration with a 401 before a line of it runs.
+[functions.partner-api]
+verify_jwt = false
+
+# x-ops-secret, like the cron set above.
+[functions.partner-webhooks]
+verify_jwt = false
+
+# Called from the browser by a tenant who has no portal session. It reads the
+# Authorization header and resolves the caller itself, and it answers its own
+# CORS preflight. The platform check runs BEFORE either, so verify_jwt = true
+# fails the preflight and the tenant sees a dead page rather than a 401.
+[functions.tenant-portal]
+verify_jwt = false
+
+# Both of these are called from the browser by a signed-in portal user, do their
+# own getUser() and return their own 401, and answer their own OPTIONS preflight.
+# They are deployed without JWT verification and this records that.
+#
+# WORTH RESOLVING DELIBERATELY, and not by me changing it here: the header
+# comment at the top of each of these two says "verify_jwt = true", so the source
+# and the deployment have disagreed for as long as both have existed. The
+# deployment is what runs, so the deployment is what this file records. Whoever
+# settles it should decide whether the platform check is wanted in front of the
+# function's own, and fix the losing side rather than leaving them contradictory.
+[functions.create-referral]
+verify_jwt = false
+
+[functions.invite-user]
+verify_jwt = false

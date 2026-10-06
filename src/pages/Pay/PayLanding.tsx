@@ -9,9 +9,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { PayFrame } from './PayFrame';
-import { getPayPage, startCheckout, declineApplication, type PayPageData } from './paymentPageApi';
+import { requestSigningLinkByToken, getPayPage, startCheckout, declineApplication, type PayPageData } from './paymentPageApi';
+import { referralIntro } from '@/data/referralIntro';
 import { Icon } from '@/components/ui/Icon';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { countOf } from '@/lib/plural';
 
 type Phase = 'loading' | 'ready' | 'paid' | 'closed' | 'invalid' | 'declined';
 
@@ -38,17 +40,72 @@ function Faq({ q, a }: { q: string; a: React.ReactNode }) {
 }
 
 export function PayLanding() {
-  useDocumentTitle('Your guarantor fee');
+  useDocumentTitle('Your guarantee fee');
   const [params] = useSearchParams();
   const token = params.get('token') ?? '';
   const utm = params.get('utm_source') || 'confirmation_page';
+  /* STRAIGHT TO SIGNING. Matt (be): the "Sign your Deed of Guarantee" button
+     in the tenant's email must "open the signing page directly, not the
+     'This fee has been paid / Sign your deed now' page first".
+
+     MY OWN DOING, FROM (ai) THIS EVENING. I pointed that button at
+     `/pay?token=` because the token is the door that survives 90 days in an
+     inbox and this page already knows how to mint a session. What I gave
+     them was the PAYMENT landing, which tells a tenant their fee is paid --
+     which they know -- and offers a second button. Every extra press is
+     tenants who do not sign.
+
+     A PARAMETER RATHER THAN A SECOND ROUTE, because the resolution is
+     identical: the same token, the same RPC, the same three outcomes. A
+     second route would be a second place for them to diverge. */
+  const wantsSign = params.get('sign') === '1';
 
   const [phase, setPhase] = useState<Phase>('loading');
   const [data, setData] = useState<PayPageData | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   // #14 decline sub-flow: null (not started) -> confirm form -> submitting
+  /* THE SIGNING TRIP, which only a paid-and-unsigned link ever takes. Its own
+     state rather than reusing `busy`: that one disables the Pay button, and
+     these two states cannot both be on screen. */
+  const [signing, setSigning] = useState(false);
+  const [signErr, setSignErr] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
+  /* WITH THE OTHER HOOKS, ABOVE EVERY EARLY RETURN. This sat down beside the
+     branch that uses it, which React refuses: `phase` gates several returns
+     above, so the hook count changed between renders and the page died with
+     "Rendered more hooks than during the previous render".
+
+     MINTED ON DEMAND, and opened in this tab. Matt: "show the 'Sign your deed
+     now' button."
+
+     THE SAME TAB, not a new one: a popup blocker eats a window opened from an
+     async callback, and the tenant is finished with this page either way.
+
+     A FAILURE SAYS WHAT HAPPENS NEXT rather than what went wrong. The deed is
+     emailed to them regardless, so the honest message is that the link is
+     coming, which is also true. */
+  const onSignFromLink = useCallback(async () => {
+    if (!token || signing) return;
+    setSigning(true);
+    setSignErr(false);
+    const r = await requestSigningLinkByToken(token);
+    if (r.signingUrl) { window.location.href = r.signingUrl; return; }
+    setSigning(false);
+    setSignErr(true);
+  }, [token, signing]);
+
+  /* RESOLVED BEFORE ANYTHING IS DRAWN, so the intermediate page does not
+     flash past on the way. Only when the deed is actually signable: an
+     already-signed one gets Matt's sentence below, and one still being
+     prepared gets the honest "it is coming", because sending either of them
+     to a signing session would fail in front of the tenant. */
+  useEffect(() => {
+    if (!wantsSign || phase !== 'paid' || !data) return;
+    if (data.deedSigned || data.deedReady !== true) return;
+    void onSignFromLink();
+  }, [wantsSign, phase, data, onSignFromLink]);
+
   const [declineReason, setDeclineReason] = useState('another_guarantor');
 
   const load = useCallback(async () => {
@@ -77,7 +134,7 @@ export function PayLanding() {
     setBusy(true); setErr('');
     const r = await declineApplication(token, declineReason);
     setBusy(false);
-    if (!r.ok) { setErr(r.error || 'Could not record that. Please contact hello@opndoor.co.'); return; }
+    if (!r.ok) { setErr(r.error || 'Could not record that. Please contact support@opndoor.co.'); return; }
     // Idempotent: if it was already paid meanwhile, reflect that instead.
     if (r.status === 'paid' || r.status === 'deed') { setPhase('paid'); return; }
     setPhase('declined');
@@ -92,17 +149,93 @@ export function PayLanding() {
       <PayFrame>
         <div className="pay__icon pay__icon--warn"><Icon name="alert" /></div>
         <h1 className="pay__title">This link is not valid</h1>
-        <p className="pay__lead">This payment link may have expired or been mistyped. Please use the most recent email we sent you, or contact us at <a href="mailto:hello@opndoor.co">hello@opndoor.co</a>.</p>
+        <p className="pay__lead">This payment link may have expired or been mistyped. Please use the most recent email we sent you, or contact us at <a href="mailto:support@opndoor.co">support@opndoor.co</a>.</p>
       </PayFrame>
     );
   }
 
   if (phase === 'paid') {
+    /* =====================================================================
+       WHERE THEY ACTUALLY ARE, not where they were when the email was sent.
+
+       Matt, 2026-10-03: "Tenant payment link opened after payment: reflect
+       where they actually are. If the deed is signed: 'Your guarantee fee is
+       paid and your Deed of Guarantee is signed. Nothing more is needed. A
+       copy was emailed to you.' If paid but not yet signed: show the 'Sign
+       your deed now' button."
+
+       THE SAVED LINK IS THE COMMON CASE, not the edge. The payment email is
+       the one the tenant keeps, so the SECOND time they open it is the
+       ordinary journey, and this page told all of them the same thing: "your
+       Deed of Guarantee will be sent to you to sign" -- to somebody who had
+       already signed it, and to somebody whose deed was sitting there waiting
+       with no way to reach it from here.
+
+       THE SAME THREE STATES THE POST-CHECKOUT PAGE DRAWS, deliberately
+       worded the same way, because they are one journey reached by two doors
+       and a tenant comparing them should not find two answers. */
+    const signedOff = data?.deedSigned === true;
+    const readyToSign = data?.deedReady === true;
+
+    /* ARRIVED FROM THE SIGNING BUTTON AND ALREADY SIGNED. Matt (be): show
+       "Your deed is already signed. Nothing more to do."
+
+       A DIFFERENT SENTENCE FROM "You are all set", and deliberately so. That
+       one answers somebody who reopened their PAYMENT link and is being told
+       where they are. This one answers somebody who pressed a button saying
+       "sign" and needs to know why nothing opened. The question is different,
+       so the answer is. */
+    if (signedOff && wantsSign) {
+      return (
+        <PayFrame>
+          <div className="pay__icon pay__icon--ok"><Icon name="check" /></div>
+          <h1 className="pay__title">Your deed is already signed</h1>
+          <p className="pay__lead">Nothing more to do{data?.ref ? <> (reference <b>{data.ref}</b>)</> : null}. A copy was emailed to you.</p>
+        </PayFrame>
+      );
+    }
+
+    /* AND WHILE THE SESSION IS BEING MINTED, rather than the payment page
+       flashing past on the way to PandaDoc. The effect above has already
+       started it. */
+    if (wantsSign && readyToSign) {
+      return (
+        <PayFrame>
+          <div className="pay__icon pay__icon--ok"><Icon name="edit" /></div>
+          <h1 className="pay__title">Opening your deed</h1>
+          <p className="pay__lead">One moment, we are opening your Deed of Guarantee to sign.</p>
+          {signErr && (
+            <>
+              <button className="pay__btn pay__btn--primary" onClick={() => void onSignFromLink()} disabled={signing}>
+                <Icon name="edit" strokeWidth={2} /> {signing ? 'Opening…' : 'Try again'}
+              </button>
+              <p className="pay__muted">We couldn&rsquo;t open the signing session just now. We&rsquo;ll email your signing link shortly.</p>
+            </>
+          )}
+        </PayFrame>
+      );
+    }
+
     return (
       <PayFrame>
         <div className="pay__icon pay__icon--ok"><Icon name="check" /></div>
-        <h1 className="pay__title">This fee has been paid</h1>
-        <p className="pay__lead">Thank you, your guarantor fee has been paid and nothing more is needed. Your Deed of Guarantee will be sent to you to sign electronically{data?.ref ? <> (reference <b>{data.ref}</b>)</> : null}.</p>
+        <h1 className="pay__title">{signedOff ? 'You are all set' : 'This fee has been paid'}</h1>
+        {signedOff ? (
+          <p className="pay__lead">Your guarantee fee is paid and your Deed of Guarantee is signed. Nothing more is needed. A copy was emailed to you{data?.ref ? <> (reference <b>{data.ref}</b>)</> : null}.</p>
+        ) : readyToSign ? (
+          <>
+            <p className="pay__lead">Thank you, your guarantee fee has been paid{data?.ref ? <> (reference <b>{data.ref}</b>)</> : null}. Your Deed of Guarantee is ready to sign.</p>
+            <button className="pay__btn pay__btn--primary" onClick={() => void onSignFromLink()} disabled={signing}>
+              <Icon name="edit" strokeWidth={2} /> {signing ? 'Opening…' : 'Sign your deed now'}
+            </button>
+            {signErr && <p className="pay__muted">We couldn&rsquo;t open the signing session just now. We&rsquo;ll email your signing link shortly.</p>}
+          </>
+        ) : (
+          /* STILL BEING PREPARED, which is a real state and is nobody's
+             fault: the deed is generated after payment. The old sentence is
+             the right one here and nowhere else. */
+          <p className="pay__lead">Thank you, your guarantee fee has been paid and nothing more is needed. Your Deed of Guarantee will be sent to you to sign electronically{data?.ref ? <> (reference <b>{data.ref}</b>)</> : null}.</p>
+        )}
       </PayFrame>
     );
   }
@@ -112,7 +245,7 @@ export function PayLanding() {
       <PayFrame>
         <div className="pay__icon pay__icon--ok"><Icon name="check" /></div>
         <h1 className="pay__title">Thanks for letting us know</h1>
-        <p className="pay__lead">No payment is needed. If this changes, contact us at <a href="mailto:hello@opndoor.co">hello@opndoor.co</a>{data?.ref ? <> quoting <b>{data.ref}</b></> : null} and we'll help.</p>
+        <p className="pay__lead">No payment is needed. If this changes, contact us at <a href="mailto:support@opndoor.co">support@opndoor.co</a>{data?.ref ? <> quoting <b>{data.ref}</b></> : null} and we'll help.</p>
       </PayFrame>
     );
   }
@@ -123,7 +256,7 @@ export function PayLanding() {
       <PayFrame>
         <div className="pay__icon pay__icon--warn"><Icon name="info" /></div>
         <h1 className="pay__title">This referral is closed</h1>
-        <p className="pay__lead">No payment is needed for this referral. If you think this is a mistake, contact us at <a href="mailto:hello@opndoor.co">hello@opndoor.co</a>{data?.ref ? <> quoting <b>{data.ref}</b></> : null}.</p>
+        <p className="pay__lead">No payment is needed for this referral. If you think this is a mistake, contact us at <a href="mailto:support@opndoor.co">support@opndoor.co</a>{data?.ref ? <> quoting <b>{data.ref}</b></> : null}.</p>
       </PayFrame>
     );
   }
@@ -154,27 +287,99 @@ export function PayLanding() {
     );
   }
 
+  /* ONE TENANCY, A SHARE EACH. Everything below that states a figure has to say
+     whether it is the tenancy's or this tenant's, because on a joint tenancy they
+     are different numbers and the tenant is being asked to pay one of them. */
+  const joint = (d.tenantCount ?? 1) > 1;
+
   return (
     <PayFrame>
-      <h1 className="pay__title">Your guarantor fee, {d.addr1}</h1>
-      <p className="pay__lead">You've been referred via {d.partnerName} for opndoor's professional guarantor service, for your tenancy at {d.propFull}.</p>
-      <p className="pay__lead">opndoor stands as your professional guarantor: we provide a Deed of Guarantee in favour of the property, covering 12 months from your tenancy start, so your tenancy can proceed.</p>
+      <h1 className="pay__title">Your guarantee fee, {d.addr1}</h1>
+      {/* WHO ARRANGED THIS, in the words that are true of this referral.
+
+          Two things were wrong on one line. It said "referred via {partnerName}",
+          and partnerName is partners.name: the ROUTE partner, the group above the
+          agency. A Regent tenant read the name of a holding company they have
+          never dealt with, on the page where they hand over a card, having just
+          been emailed a sentence that correctly named Regent's Lettings. And it
+          asserted that opndoor stands as their guarantor as though opndoor had
+          taken a view of them, which on a pre-referenced referral it never did:
+          the agency decided and arranged it.
+
+          So the agency-arranged case names the agency and says what opndoor is
+          actually doing, and every other rail keeps the approved wording, which
+          is correct there because opndoor did make the decision. */}
+      {d.agencyArranged && d.agencyName ? (
+        <>
+          <p className="pay__lead">{d.agencyName} has arranged an opndoor guarantee for your tenancy at {d.propFull}.</p>
+          <p className="pay__lead">opndoor provides a Deed of Guarantee in favour of the property, covering 12 months from your tenancy start, so your tenancy can proceed.</p>
+        </>
+      ) : (
+        <>
+          {/* THE AGENCY FIRST, THE SUPPLIER AS THE ROUTE. Matt (bi): "Test
+              Lettings asda has referred you, through Kestrel Lettings, for
+              opndoor's professional guarantor service".
+
+              THIS SAID "referred via Kestrel Lettings", which asks a tenant
+              to recognise a company they have never dealt with, at the
+              moment they are being asked for a month's rent. The agency is
+              who they know. The supplier still appears, because the agency
+              may not be able to answer a question about the guarantee.
+
+              FALLS BACK TO THE OLD SENTENCE where we can name nobody --
+              referredByPhrase returns null rather than hedging, and the
+              direct rail has no referrer at all. */}
+          <p className="pay__lead">{referralIntro({ agencyName: d.agencyName, supplierName: d.partnerName, propertyAddr: d.propFull })
+            ?? `You've been referred for opndoor's professional guarantor service, for your tenancy at ${d.propFull}.`}</p>
+          <p className="pay__lead">opndoor stands as your professional guarantor: we provide a Deed of Guarantee in favour of the property, covering 12 months from your tenancy start, so your tenancy can proceed.</p>
+        </>
+      )}
 
       {expiredNote && (
         <p className="pay__note">This link had lapsed, so we've refreshed it for you. You can still pay below, your referral will pick up right where it left off.</p>
       )}
 
       <div className="pay__receipt">
-        <Row k="Tenant" v={d.tenantName || '—'} />
-        <Row k="Property" v={d.propFull || '—'} />
-        <Row k="Tenancy start" v={d.tenancyStart || '—'} />
+        <Row k="Tenant" v={d.tenantName || '-'} />
+        <Row k="Property" v={d.propFull || '-'} />
+        <Row k="Tenancy start" v={d.tenancyStart || '-'} />
         <Row k="Monthly rent" v={`£${(d.monthlyRent ?? 0).toLocaleString('en-GB')}`} />
+        {/* A JOINT TENANT PAYS A SHARE, so the rent their fee is measured against
+            is not the rent on the line above. Printing only the tenancy rent beside
+            a share of the fee made the page contradict its own arithmetic: £346.15
+            under £1,000 reads as a discount or a mistake. Shown only when the two
+            actually differ, so a sole tenant gains no row. */}
+        {d.rentShare != null && d.monthlyRent != null && d.rentShare !== d.monthlyRent && (
+          <Row k="Your share of the rent" v={`£${d.rentShare.toLocaleString('en-GB')}`} />
+        )}
       </div>
 
       <div className="pay__fee">
-        <div className="pay__fee-k">Guarantor fee</div>
+        {/* A SHARE IS NOT THE FEE. On a joint tenancy the figure below is this
+            tenant's share of a fee the tenancy was charged once, so labelling it
+            "Guarantee fee" and stating the tenancy's basis under it asks the reader
+            to reconcile two numbers that do not divide into one another. */}
+        <div className="pay__fee-k">{joint ? 'Your share of the guarantee fee' : 'Guarantee fee'}</div>
         <div className="pay__fee-v">{d.feeGBP}</div>
-        <div className="pay__fee-s">One month's rent. One-off payment. Reference {d.ref}.</div>
+        {/* The fee is not always one month's rent: an agency on a negotiated
+            basis pays weeks of it, and one tenant of a joint tenancy pays a
+            share. The amount above is authoritative either way, so the line
+            under it must not contradict it.
+
+            It used to say nothing at all, which was the reported defect on this
+            page: the right figure, and no statement of what it was measured
+            against, two lines under a rent it does not equal. payment-page has
+            returned feeBasis all along and the contract this page renders from
+            did not declare it, so the value arrived and was thrown away. When the
+            basis genuinely cannot be worked out the sentence stays as it was
+            rather than guessing the commonest answer. */}
+        <div className="pay__fee-s">
+          {d.feeBasis
+            ? (joint
+                ? `The fee is ${d.feeBasis}, split between ${countOf(d.tenantCount ?? 0, 'tenant')}. `
+                : `${d.feeBasis}. `)
+            : ''}One-off payment. Reference {d.ref}.
+        </div>
       </div>
 
       <div className="pay__after">
@@ -184,16 +389,23 @@ export function PayLanding() {
 
       {err && <p className="pay__err">{err}</p>}
       <button type="button" className="pay__btn pay__btn--primary" disabled={busy} onClick={() => void pay()}>
-        {busy ? 'Starting secure payment…' : 'Pay the guarantor fee'}
+        {busy ? 'Starting secure payment…' : 'Pay the guarantee fee'}
       </button>
       <p className="pay__secure"><Icon name="lock" /> Payment is secure and handled by Stripe.</p>
 
-      <p className="pay__fine">Spot something wrong in your details? Contact us at <a href="mailto:hello@opndoor.co">hello@opndoor.co</a> quoting {d.ref} before paying, and we'll put it right.</p>
+      <p className="pay__fine">Spot something wrong in your details? Contact us at <a href="mailto:support@opndoor.co">support@opndoor.co</a> quoting {d.ref} before paying, and we'll put it right.</p>
 
       <div className="pay__faqs">
         <Faq q="What is a Deed of Guarantee?" a={<>It's a legal deed in which opndoor acts as your professional guarantor, in favour of the property. It lets your tenancy proceed when you can't provide your own guarantor. It's a professional guarantor service, not insurance.</>} />
-        <Faq q="What does it cover?" a={<>It supports your obligations under the tenancy, such as rent, for 12 months from your tenancy start. If there's ever a claim, your letting agent is the point of contact with opndoor.</>} />
-        <Faq q="When does the guarantee take effect?" a={<>Your Deed of Guarantee is in force from your tenancy start date, {d.tenancyStart}, and covers 12 months from then. The guarantor fee is non-refundable from your tenancy start date. If your circumstances change before then, contact us at <a href="mailto:hello@opndoor.co">hello@opndoor.co</a> quoting {d.ref}.</>} />
+        {/* WHAT THE DEED ACTUALLY COVERS, which on a joint tenancy is this tenant's
+            SHARE of the rent and not the whole of it. Each tenant signs their own
+            deed for their own share (see the per-tenant deed ruling), so a page
+            that says "your obligations under the tenancy" without naming the share
+            overstates what this tenant has signed up to. */}
+        <Faq q="What does it cover?" a={joint && d.rentShare != null
+          ? <>Your own Deed of Guarantee covers your share of the rent, £{d.rentShare.toLocaleString('en-GB')} a month, for 12 months from your tenancy start. Each tenant signs their own deed for their own share. If there's ever a claim, your letting agent is the point of contact with opndoor.</>
+          : <>It supports your obligations under the tenancy, such as rent, for 12 months from your tenancy start. If there's ever a claim, your letting agent is the point of contact with opndoor.</>} />
+        <Faq q="When does the guarantee take effect?" a={<>Your Deed of Guarantee is in force from your tenancy start date, {d.tenancyStart}, and covers 12 months from then. The guarantee fee is non-refundable from your tenancy start date. If your circumstances change before then, contact us at <a href="mailto:support@opndoor.co">support@opndoor.co</a> quoting {d.ref}.</>} />
       </div>
 
       <button type="button" className="pay__decline" onClick={() => { setDeclineOpen(true); setErr(''); }}>

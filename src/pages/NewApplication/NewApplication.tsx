@@ -9,12 +9,32 @@
    Property entry is postcode-first when an address-lookup provider is
    configured (see addressService), and falls back to manual entry otherwise.
    Manual entry is always available via a toggle.
+
+   ONE OFFICE, NOTHING ABOUT THE OFFICE. An agency user whose whole scope is one
+   office is not asked which office and is not told which office either. The
+   section, its number in the rail, its card and the line that once stated the
+   fact under Tenancy have all gone: somebody filing from their only office knows
+   where they work. See `oneOffice` below.
+
+   MORE THAN ONE TENANT. A joint tenancy is one let over one property with a
+   deed per tenant over that tenant's share (20261005110000), and
+   the form says so: the same tenant fields repeat, the Tenancy section grows a
+   share row per tenant, and the fee is shown at the count actually entered
+   BEFORE anything is sent. A sole tenant sees none of it — no share fields, no
+   rows, no repeat card — because a sole tenant carries 100% and should not have
+   to say so.
    ===================================================================== */
-import { useState, type ClipboardEvent, type FormEvent } from 'react';
+import { gbpPence } from '@/lib/format';
+import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { addressLookupAvailable, ALL_PARTNERS, createReferral, findActiveReferralByTenantProperty, lookupAddresses, type AddressOption, type DuplicateMatch } from '@/data';
+import { mayAddAnotherTenant } from './jointAllowed';
+import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, rebalanceShares, shareSumError } from './shareMath';
+import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, newApplicationSectionCopy, type OrgShape, isOpndoorStaff } from '@/data';
 import { Modal } from '@/components/ui/Modal';
-import { TITLE_OPTIONS, validateReferral, parseFlexibleDate, toISODate, type ReferralValues } from '@/lib/validation';
+import { useMissingFields } from '@/lib/useMissingFields';
+import { MissingFields } from '@/components/ui/MissingFields';
+import { partyIsSupplier } from '@/data/capabilities';
+import { TITLE_OPTIONS, validateReferral, validateTenant, parseFlexibleDate, toISODate, type ReferralValues, type TenantErrors, type TenantValues } from '@/lib/validation';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -24,15 +44,33 @@ import { Field } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 import { AgentBranchPicker } from '@/components/AgentBranchPicker';
+import { getPartners } from '@/data/partnersService';
 import './NewApplication.css';
+import { plural, countOf } from '@/lib/plural';
 
 const Req = () => <span className="req" aria-hidden="true">*</span>;
 
+const money = gbpPence;
+
 const EMPTY: ReferralValues = {
-  title: '', first: '', last: '', dob: '', email: '', phone: '',
+  title: '', first: '', middle: '', last: '', dob: '', email: '', phone: '',
   addr1: '', addr2: '', city: '', county: '', postcode: '',
   rent: '', tenancyStart: '', agency: '', branch: '',
+  // 100%: one applicant responsible for the whole rent is the common case by a
+  // distance, and a sole tenant should not have to say so.
+  sharePercent: String(DEFAULT_SHARE_PERCENT), shareAmount: '',
 };
+
+const EMPTY_TENANT: TenantValues = { title: '', first: '', middle: '', last: '', dob: '', email: '', phone: '' };
+
+/* Extra tenants carry an id of their own.
+   Keying their fields by array index means removing the middle of three shifts
+   every one below it: React reuses the DOM node, and the "you have touched this
+   field" flags — which are keyed by the same index — light up validation errors
+   against a tenant whose box nobody has been near. */
+let tenantSeq = 0;
+type ExtraTenant = TenantValues & { key: string };
+const newTenant = (): ExtraTenant => { tenantSeq += 1; return { ...EMPTY_TENANT, key: `t${tenantSeq}` }; };
 
 export function NewApplication() {
   usePageMeta('new', 'New application', ['Home', 'Applications', 'New']);
@@ -41,14 +79,124 @@ export function NewApplication() {
   const toast = useToast();
 
   const [values, setValues] = useState<ReferralValues>(EMPTY);
+  // Tenants 2 and up. Empty is the overwhelmingly common case and is what makes
+  // the sole-tenant path identical: no shares, no rows, the same RPC.
+  const [extra, setExtra] = useState<ExtraTenant[]>([]);
+  // Every tenant's share of the rent as a percentage, index 0 being tenant 1.
+  // Held as strings because a half-typed "3" must not become 3%.
+  const [percents, setPercents] = useState<string[]>([String(DEFAULT_SHARE_PERCENT)]);
   const [touched, setTouched] = useState<Set<string>>(new Set());
   const [submitted, setSubmitted] = useState(false);
   const [formError, setFormError] = useState('');
   const [busy, setBusy] = useState(false);
   const [dupWarn, setDupWarn] = useState<DuplicateMatch | null>(null); // #5 duplicate soft warning
+  const [fee, setFee] = useState<FeePreview | null>(null);
+  // THE RAIL the selected origin runs on. A joint tenancy needs an agency for
+  // the tenancy to sit under, which is what this asks. It is NOT the old
+  // "agent rail only" rule: since 20261006970000 create_joint_referral
+  // refuses only the two house routes, opndoor-direct and
+  // referencing-partner, because a direct signup is one person applying for
+  // themselves and has no staff referrer to create it.
+  //
+  // Three states, not two, and the difference matters: "no origin chosen yet"
+  // and "asked, and the answer is not the agent rail" must not be confused,
+  // because only the second is grounds for throwing away tenants somebody typed.
+  const [estate, setEstate] = useState(false);
+  const [railState, setRailState] = useState<'none' | 'loading' | 'ready'>('none');
+  /* WHICH JOURNEY, which is a different question from which rail. The rail is who
+     we are (one of our agencies, or a supplier's); the mode is who checked the
+     tenant. Regent is one of ours AND pre-referenced, so the two disagree for them,
+     and the middle-name helper below is copy that depends on the MODE. null until
+     resolved, and the copy then says the thing that is true either way. */
+  const [refMode, setRefMode] = useState<string | null>(null);
+  // Said once, when adding a tenant stops being possible and tenants were
+  // already entered. Silence would be worse than the interruption.
+  const [railNote, setRailNote] = useState('');
 
   // On-the-fly org creation extras from the AgentBranchPicker (contact capture
   // and, for an admin, the target partner the referral lands under).
+  // The shape the picker resolved. Held here only so the section heading can
+  // ask the right question: a supplier is telling us whose property this is, an
+  // agent is telling us which of their own offices it is.
+  // UNRESOLVED, not FULL_PICKER. This drives the section 4 heading, and
+  // FULL_PICKER's heading is the SUPPLIER's question ("Which agency is letting
+  // this property... You can add either on the fly"), which is the wrong thing to
+  // print at an agency user for even one frame. See orgShapeService.
+  /* Declared here rather than beside Referred by below, because the section
+     copy and the one-office collapse both read it.
+
+     EVERY OPNDOOR STAFF MEMBER, NOT ONLY AN ADMIN. Matt (cn): "opndoor
+     manager New application is not the admin form. It has no 'Referred
+     by' step, and the Agency picker is one long list of every agency on
+     every route, with two indistinguishable 'Frost Partnership's (ours
+     and Kestrel's) ... A referral could be booked on the wrong route,
+     paying commission to the wrong party."
+
+     THIS ONE LINE WAS THE WHOLE OF IT. `isAdminForm` drives the Referred
+     by section, the section numbering, the one-office collapse and --
+     through `scopePartner` on AgentBranchPicker -- whether the agency
+     list is narrowed to a route at all. A manager fell to the agency
+     user's form, which has no route to narrow by, so it listed every
+     agency on every rail.
+
+     IT IS THE SECOND HALF OF (bb), WHICH I LEFT UNDONE. I gave managers
+     the /new-application ROUTE and did not check which form they land
+     on. create_referral already admits them (20261008180000), so the
+     server was ready and the screen was not. */
+  const isAdminForm = isOpndoorStaff(role);
+  const [orgShape, setOrgShape] = useState<OrgShape>(UNRESOLVED);
+  /* WALK FIX 28. An admin is not asking any of the shape's questions, and
+     my_org_shape returns no row for them at all, so the section used to sit
+     on "Your office / Working out which office this referral is against"
+     for ever. See newApplicationSectionCopy. */
+  const orgCopy = newApplicationSectionCopy(isAdminForm, orgShape);
+  /* ONE OFFICE: THE SECTION GOES, AND SO DOES THE FACT.
+     A section heading, a number in the rail and a bordered card, all to tell
+     somebody the name of the only office they work at. That furniture went first
+     and the fact followed it: the one-line note under Tenancy is withdrawn too,
+     so this flag now only decides what is NOT drawn. The picker still mounts
+     (below) because it is
+     what resolves the office and reports it back through onChange, and it mounts
+     in the SAME PLACE either way: giving it two positions, one per branch of this
+     flag, put the form in a remount loop. The long note at the section's JSX has
+     the whole story, and it is worth reading before touching that markup.
+
+     Read off the picker's own shape, from my_org_shape, and not off
+     viewerShape: see the note at the top of AgentBranchPicker. One counts the
+     org, the other counts the book, and only the first can tell a quiet new
+     branch from no branch.
+
+     Still keyed on the NAME and not only the counts, even with nothing printed:
+     a shape claiming one office without saying which one has not resolved the
+     office, and collapsing on it would file the referral against whatever the
+     picker happened to settle on. The picker makes the same call on the same
+     field. */
+  /* WALK FIX 29, and never for an admin. "After choosing Supplier, Kestrel
+     Lettings, then an agency and branch, the choices disappear and the only
+     way to correct a wrong agency or branch is to cancel and start again."
+     That is this collapse: it hides the whole section once the org resolves
+     to a single office, which is right for somebody who works at one office
+     and has nothing to choose, and wrong for an admin, who is choosing
+     somebody ELSE's agency and branch and must be able to change it. */
+  const oneOffice = !isAdminForm
+    && orgShape.collapseAgency && orgShape.collapseBranch && !!orgShape.onlyAgencyName;
+
+  /* WALK FIX 27. "The section numbers repeat (Tenant and Property are both
+     '2'). Number the sections in order."
+
+     They were literals: Referred by 1, Tenant `isAdminForm ? 2 : 1`,
+     Property 2, Tenancy 3, the office section 4. So the admin form read
+     1, 2, 2, 3, 4 and the agency form read 1, 2, 3, 4 with Referred by
+     absent. Two of the five already knew about isAdminForm and three did
+     not, which is the whole of the bug -- and renumbering the literals
+     would leave the next conditional section to break it again.
+
+     Counted in render order instead. `sectionNo()` is called once per
+     section HEAD as the JSX is built, so a section that is not drawn takes
+     no number. Deliberately reset on each render, because a component
+     renders many times and a counter that survived would climb. */
+  let sectionCount = 0;
+  const sectionNo = () => { sectionCount += 1; return sectionCount; };
   const [org, setOrg] = useState({
     agencyNew: false, branchNew: false,
     agencyContactEmail: '', agencyContactName: '', agencyContactPhone: '', branchContactEmail: '',
@@ -62,25 +210,124 @@ export function NewApplication() {
   const [lookupResults, setLookupResults] = useState<AddressOption[]>([]);
   const [lookupBusy, setLookupBusy] = useState(false);
   const [lookupMsg, setLookupMsg] = useState('');
+  const [editedShares, setEditedShares] = useState<Set<number>>(new Set());
+
+  const joint = extra.length > 0;
+  const tenantCount = 1 + extra.length;
+  /* REFERRED BY, section 1, admin only.
+     Q-06 item H: "First field is Supplier or Agency, required, no default."
+     Everything below it used to be inferred from the branch AFTER the fact --
+     the rail, the route and the fee -- which cannot answer the one question
+     that decides them for an agency a supplier introduced. */
+  const [referredBy, setReferredBy] = useState<'' | 'supplier' | 'agency'>('');
+  const [routeSupplier, setRouteSupplier] = useState('');
+  /* Complete means: a non-admin has nothing to answer, and an admin has
+     answered. A supplier choice is not complete until the supplier is named. */
+  const referredByDone = !isAdminForm
+    || referredBy === 'agency'
+    || (referredBy === 'supplier' && !!routeSupplier);
+
+  /* A JOINT TENANCY NEEDS AN AGENCY FOR THE TENANCY TO SIT UNDER, which is
+     the ESTATE question: not the journey, and not the rail the form drew
+     last. Where an admin has said the referral came through a SUPPLIER the
+     answer is YES and is known before the server is asked, because the admin
+     has just told us the route. That is the half the probe cannot answer: it
+     answers about the BRANCH, and the route and the branch are exactly what
+     disagree for an agency a supplier introduced. */
+  /* WALK FIX 26 REVERSED THIS. It read `estate && referredBy !== 'supplier'`,
+     which was Q-06 item H's rule: "single tenant (no Add another tenant)" on
+     the supplier path. Batch 16 says the opposite and is newer.
+
+     ONE PREDICATE, IN ITS OWN FILE, because the same question is asked by
+     the effect below that DROPS tenants already typed -- and that one still
+     read `estate`. Changing only the button would have left the two
+     disagreeing, so the moment the rail probe settled it would have wiped
+     the tenants an admin had just added on the one path this opens. See
+     jointAllowed.ts. */
+  const jointAllowed = mayAddAnotherTenant({
+    referredBy, routeSupplier, railState, estate,
+    /* The viewer's OWN party, not the origin's: a supplier's staff refer
+       within their own estate, and an admin is handled by the arm above. */
+    viewerIsSupplier: !isOpndoorStaff(role) && partyIsSupplier(partnerScope),
+  });
+  const rentNum = Number(values.rent);
+  const pctNums = percents.map((p) => Number(p));
 
   const errors = validateReferral(values);
+  // Every additional applicant is checked by the same function tenant 1 is.
+  const extraErrors: TenantErrors[] = extra.map((t) => validateTenant(t, values.tenancyStart));
+  const allEmails = [values.email, ...extra.map((t) => t.email)];
+  const dupIdx = duplicateEmailIndex(allEmails);
+  const shareErr = joint ? shareSumError(pctNums) : null;
+
   // A newly-created agency must capture a contact email (its default contact).
   const agencyEmailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(org.agencyContactEmail);
   const orgContactError = org.agencyNew && !agencyEmailOk;
   // An admin fly-creating an agency must choose the partner it lands under (#66).
-  const orgPartnerError = org.agencyNew && role === 'superadmin' && !org.partner;
+  // (cn) An opndoor MANAGER fly-creating an agency must choose the partner
+  // too: the field is drawn by the same isAdminForm gate above, so keying
+  // the error off superadmin alone would draw a required field nothing
+  // enforces.
+  const orgPartnerError = org.agencyNew && isOpndoorStaff(role) && !org.partner;
   // A new agency must answer the single-office question before submit (#74).
   const orgOfficeError = org.agencyNew && org.singleOffice === null;
-  const isValid = Object.keys(errors).length === 0 && !orgContactError && !orgPartnerError && !orgOfficeError;
+  const isValid = Object.keys(errors).length === 0
+    && extraErrors.every((e) => Object.keys(e).length === 0)
+    && dupIdx < 0 && !shareErr
+    && !orgContactError && !orgPartnerError && !orgOfficeError;
+
   const set = (k: keyof ReferralValues, v: string) => setValues((prev) => ({ ...prev, [k]: v }));
+  const setExtraField = (i: number, k: keyof TenantValues, v: string) =>
+    setExtra((prev) => prev.map((t, j) => (j === i ? { ...t, [k]: v } : t)));
+
+  /* ---- adding and removing tenants ------------------------------------
+     Adding a tenant RE-SPREADS the shares equally, because the agent who just
+     said "there are two of them" means an even split until they say otherwise;
+     leaving tenant 1 on 100% and the new one on 0% would be a form that starts
+     invalid. Removing does the same, so the shares are never left summing to
+     something nobody chose. */
+  function addTenant() {
+    const n = tenantCount + 1;
+    setExtra((prev) => [...prev, newTenant()]);
+    setPercents(equalSharePercents(n).map(String));
+    setEditedShares(new Set());
+  }
+  function removeTenant(i: number) {
+    const n = tenantCount - 1;
+    setExtra((prev) => prev.filter((_, j) => j !== i));
+    setPercents(equalSharePercents(n).map(String));
+    setEditedShares(new Set());
+  }
+  /* WHICH SHARES THE AGENT HAS TYPED INTO. Auto-balance spreads the remainder
+     over the ones they have NOT, so this is the list it needs. Cleared whenever
+     the tenant count changes, because adding or removing somebody re-spreads
+     everything anyway and the old marks would be about a different form. */
+  function setPercent(i: number, v: string) {
+    setPercents((prev) => rebalanceShares(prev.map(Number), i, Number(v), editedShares)
+      .map((n, j) => (j === i ? v : String(n))));
+    setEditedShares((prev) => (prev.has(i) ? prev : new Set(prev).add(i)));
+  }
+  /** The £ field writes back through the percentage, so there is one stored fact,
+      and auto-balance therefore behaves identically in either box. */
+  function setShareAmount(i: number, v: string) {
+    const p = percentFromAmount(rentNum, Number(v));
+    if (p !== null) setPercent(i, String(p));
+  }
+
   // #103 Native date inputs reject pasted text in common formats; parse it and
   // normalise to yyyy-mm-dd so Rightmove's copy-paste workflow just works.
   const onPasteDate = (field: 'dob' | 'tenancyStart') => (e: ClipboardEvent<HTMLInputElement>) => {
     const parsed = parseFlexibleDate(e.clipboardData.getData('text'));
     if (parsed) { e.preventDefault(); set(field, toISODate(parsed)); }
   };
+  const onPasteExtraDob = (i: number) => (e: ClipboardEvent<HTMLInputElement>) => {
+    const parsed = parseFlexibleDate(e.clipboardData.getData('text'));
+    if (parsed) { e.preventDefault(); setExtraField(i, 'dob', toISODate(parsed)); }
+  };
   const markTouched = (k: string) => setTouched((t) => new Set(t).add(k));
   const err = (k: keyof ReferralValues) => ((submitted || touched.has(k)) ? errors[k] : undefined);
+  const errX = (i: number, key: string, k: keyof TenantValues) =>
+    ((submitted || touched.has(`${key}.${k}`)) ? extraErrors[i]?.[k] : undefined);
 
   // Native date-input bounds (dd/mm/yyyy display in en-GB; value is yyyy-mm-dd).
   const isoOf = (dd: Date) => `${dd.getFullYear()}-${String(dd.getMonth() + 1).padStart(2, '0')}-${String(dd.getDate()).padStart(2, '0')}`;
@@ -89,6 +336,76 @@ export function NewApplication() {
   const dobMin = isoOf(new Date(nowD.getFullYear() - 100, nowD.getMonth(), nowD.getDate()));
   const startMin = isoOf(new Date(nowD.getFullYear(), nowD.getMonth(), nowD.getDate() - 7));
   const startMax = isoOf(new Date(nowD.getFullYear() + 2, nowD.getMonth(), nowD.getDate()));
+
+  /* ---- the price, at the count actually entered -------------------------
+     Asked of the server, because the agreement, the band and the penny-exact
+     split all live there and a second implementation here is how the form and
+     the invoice come to disagree. Debounced: this changes on every keystroke in
+     the rent box. */
+  /* ---- which rail the chosen origin runs on ----------------------------
+     Asked of the server in live mode (origin_referencing_mode), which resolves
+     through the very functions create_joint_referral uses, so the form cannot
+     offer a button the RPC would refuse. */
+  useEffect(() => {
+    let live = true;
+    if (!values.agency || !values.branch) { setEstate(false); setRailState('none'); return; }
+    setRailState('loading');
+    const partnerArg = org.partner || (partnerScope === ALL_PARTNERS ? undefined : partnerScope);
+    void originIsAgentEstate(values.agency, values.branch, partnerArg)
+      .then((v: boolean) => { if (live) { setEstate(v); setRailState('ready'); } });
+    // Asked beside the rail, off the same origin, so the two cannot describe
+    // different referrals. Its own promise: the tenant button must not wait on
+    // copy, and the copy must not wait on the button.
+    void originReferencingMode(values.agency, values.branch, partnerArg)
+      .then((m) => { if (live) setRefMode(m); });
+    return () => { live = false; };
+  }, [values.agency, values.branch, org.partner, partnerScope]);
+
+  /* The origin can change AFTER tenants have been added — section 4 sits below
+     section 1 — and then the form would be carrying tenants the RPC will refuse.
+     They are dropped, and the reason is said out loud.
+
+     ONLY ON A SETTLED ANSWER. Typing in the Branch box clears the picker's
+     selection on every keystroke, so keying on "not allowed" threw away
+     everything the moment somebody touched that field to correct a typo. The
+     tenants survive an incomplete or in-flight origin and are removed only when
+     the rail has actually come back as something that cannot carry them.
+
+     WALK FIX 26 CHANGED WHAT "CANNOT CARRY THEM" MEANS, and this is where
+     the reversal would have done real damage if it had been missed: the
+     test was `estate`, which is false for a supplier, so the moment the
+     rail probe came back it would have silently WIPED the tenants an admin
+     had just added on the supplier route -- the one path the fix exists to
+     open. It asks `jointAllowed` now, which is the same question the button
+     asks, so the two cannot disagree about whether a second tenant is
+     allowed to exist.
+
+     Still only on a settled answer: `jointAllowed` is false while the
+     agency path's probe is in flight, so the guard above it stays. */
+  useEffect(() => {
+    if (railState !== 'ready') return;
+    if (jointAllowed) { setRailNote(''); return; }
+    if (extra.length === 0) return;
+    setExtra([]);
+    setPercents([String(DEFAULT_SHARE_PERCENT)]);
+    setRailNote('This referral covers one tenant, so the additional tenants were removed.');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [railState, jointAllowed]);
+
+  const pctKey = percents.join(',');
+  useEffect(() => {
+    let live = true;
+    if (!values.agency || !values.branch || !(rentNum > 0)) { setFee(null); return; }
+    const t = setTimeout(() => {
+      void previewReferralFee({
+        agency: values.agency, branch: values.branch,
+        partner: org.partner || (partnerScope === ALL_PARTNERS ? undefined : partnerScope),
+        rent: rentNum,
+        sharePercents: pctKey.split(',').map(Number),
+      }).then((p) => { if (live) setFee(p); });
+    }, 350);
+    return () => { live = false; clearTimeout(t); };
+  }, [values.agency, values.branch, org.partner, partnerScope, rentNum, pctKey]);
 
   async function runLookup() {
     setLookupBusy(true);
@@ -113,7 +430,17 @@ export function NewApplication() {
     e.preventDefault();
     setSubmitted(true);
     setFormError('');
-    if (!isValid || busy) return;
+    if (!isValid || busy) {
+      /* GO TO THE FIRST MISSING FIELD. Matt, 2026-10-03: "when Send is pressed
+         with required fields missing, scroll to the first missing field."
+
+         AFTER THE PAINT, not now. `setSubmitted(true)` is what reveals the
+         errors, and React has not re-rendered yet, so at this moment the DOM
+         holds no `.field.is-invalid` at all and the scroll would find nothing.
+         One frame later it holds every one of them, in order. */
+      jumpToMissing();
+      return;
+    }
     // #5 Soft duplicate guard: warn (never block) if an active referral already
     // exists for this tenant + property. Continue anyway proceeds unconditionally.
     const dup = findActiveReferralByTenantProperty({ role, scope: partnerScope }, values.email.trim(), values.postcode.trim());
@@ -125,16 +452,40 @@ export function NewApplication() {
     if (busy) return;
     setBusy(true);
     try {
+      const tenants = [
+        {
+          title: values.title, firstName: values.first.trim(), lastName: values.last.trim(),
+          middleName: values.middle.trim() || undefined,
+          dob: values.dob.trim(), email: values.email.trim(), phone: values.phone.trim(),
+          sharePercent: pctNums[0],
+          shareAmount: amountFromPercent(rentNum, pctNums[0]) ?? undefined,
+        },
+        ...extra.map((t, i) => ({
+          title: t.title, firstName: t.first.trim(), lastName: t.last.trim(),
+          middleName: t.middle.trim() || undefined,
+          dob: t.dob.trim(), email: t.email.trim(), phone: t.phone.trim(),
+          sharePercent: pctNums[i + 1],
+          shareAmount: amountFromPercent(rentNum, pctNums[i + 1]) ?? undefined,
+        })),
+      ];
       const res = await createReferral({
-        title: values.title, firstName: values.first.trim(), lastName: values.last.trim(),
-        dob: values.dob.trim(), email: values.email.trim(), phone: values.phone.trim(),
+        ...tenants[0],
+        dob: values.dob.trim(),
         addr1: values.addr1.trim(), addr2: values.addr2.trim(), city: values.city.trim(),
         county: values.county.trim(), postcode: values.postcode.trim(),
-        rent: Number(values.rent), tenancyStart: values.tenancyStart.trim(),
+        rent: rentNum, tenancyStart: values.tenancyStart.trim(),
         agency: values.agency, branch: values.branch,
+        // Only ever sent where a joint tenancy is real. createReferral drops a
+        // single-entry array anyway, so a sole tenant takes the untouched path.
+        tenants: jointAllowed ? tenants : [tenants[0]],
         agencyNew: org.agencyNew, branchNew: org.branchNew,
         agencyContactEmail: org.agencyContactEmail, agencyContactName: org.agencyContactName,
         agencyContactPhone: org.agencyContactPhone, branchContactEmail: org.branchContactEmail,
+        /* THE ROUTE, STATED. Only an admin can have chosen one, and the
+           server refuses a supplier the branch does not sit under
+           (20261006800000). On the agency path nothing is stated and the
+           route resolves exactly as it always has. */
+        route: referredBy === 'supplier' ? routeSupplier : undefined,
         // The partner the referral belongs to, resolved by the picker (the
         // chosen agency's own partner, or the admin's selected partner for a
         // fly-created agency). Server ignores it for partner users, whose own
@@ -142,23 +493,113 @@ export function NewApplication() {
         partner: org.partner || (partnerScope === ALL_PARTNERS ? undefined : partnerScope),
       });
       await refresh();
-      toast(res.emailSent
-        ? 'Application sent. The tenant payment email was delivered to the review address.'
-        : `Application created. Tenant email not sent${res.emailError ? ': ' + res.emailError : '.'}`);
+      if (res.tenancy?.length) {
+        const sent = res.tenancy.filter((t) => t.emailSent).length;
+        toast(sent === res.tenancy.length
+          ? `Tenancy created. All ${countOf(res.tenancy.length, 'tenant')} have been emailed.`
+          : `Tenancy created. ${sent} of ${countOf(res.tenancy.length, 'tenant')} were emailed${res.emailError ? ': ' + res.emailError : '.'}`);
+      } else {
+        toast(res.emailSent
+          ? 'Application sent. The tenant payment email was delivered to the review address.'
+          : `Application created. Tenant email not sent${res.emailError ? ': ' + res.emailError : '.'}`);
+      }
       navigate(`/applications/${res.ref}`);
     } catch (e2) {
       const msg = e2 instanceof Error ? e2.message : 'Could not send the application.';
       setFormError(msg);
-      toast(msg);
+      toast(msg, 'error');
     } finally {
       setBusy(false);
     }
   }
 
+  /* THE BUTTON STAYS PRESSABLE, which is the half of Matt's instruction that
+     is not copy. It used to go dead the moment it had been pressed once on an
+     invalid form (`submitted && !isValid`), so a reader who fixed one of three
+     fields had no way to ask again and no way to find the other two. Pressing
+     Send on an incomplete form is now how you find out what is left: it says
+     how many, and takes you to the first. */
+  const disabled = busy;
 
+  /* HOW MANY FIELDS ARE SHOWING AS MISSING, counted off the DOM rather than
+     off `errors`, for the reason in lib/missingFields: the DOM is what the
+     reader is looking at, it is already in their order, and it includes the
+     fields this component does not own -- the picker's, and every extra
+     tenant's. Recounted after each render, which is when the answer can have
+     changed. */
+  const { formRef, count: missingCount, jump: jumpToMissing } = useMissingFields<HTMLFormElement>(submitted);
 
+  /* ---- one tenant's fields, used for every tenant ----------------------
+     The same markup for the first applicant and the fourth, so a rule added to
+     one is added to all of them. */
+  function tenantFields(opts: {
+    idPrefix: string;
+    v: TenantValues;
+    onField: (k: keyof TenantValues, val: string) => void;
+    onBlurField: (k: keyof TenantValues) => void;
+    fieldError: (k: keyof TenantValues) => string | undefined;
+    onPasteDob: (e: ClipboardEvent<HTMLInputElement>) => void;
+    emailError?: string;
+  }) {
+    const { idPrefix: p, v, onField, onBlurField, fieldError, onPasteDob, emailError } = opts;
+    return (
+      <div className="form-grid">
+        <Field label={<>Title <Req /></>} htmlFor={`${p}-title`} style={{ maxWidth: 140 }} error={fieldError('title')}>
+          <select id={`${p}-title`} name={`${p}-title`} value={v.title} onChange={(e) => onField('title', e.target.value)} onBlur={() => onBlurField('title')}>
+            <option value="" disabled>Select…</option>
+            {TITLE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </Field>
+        <div className="field span-2" style={{ gridColumn: '2 / 3' }} />
+        <Field label={<>First name <Req /></>} htmlFor={`${p}-first`} error={fieldError('first')}>
+          <input id={`${p}-first`} type="text" placeholder="Jane" value={v.first} onChange={(e) => onField('first', e.target.value)} onBlur={() => onBlurField('first')} />
+        </Field>
+        <Field label="Middle name" htmlFor={`${p}-middle`} hint={middleNameHint}>
+          <input id={`${p}-middle`} type="text" placeholder="Anne" value={v.middle} onChange={(e) => onField('middle', e.target.value)} />
+        </Field>
+        <Field label={<>Last name <Req /></>} htmlFor={`${p}-last`} error={fieldError('last')}>
+          <input id={`${p}-last`} type="text" placeholder="Smith" value={v.last} onChange={(e) => onField('last', e.target.value)} onBlur={() => onBlurField('last')} />
+        </Field>
+        <Field label={<>Date of birth <Req /></>} htmlFor={`${p}-dob`} error={fieldError('dob')}>
+          <input id={`${p}-dob`} type="date" min={dobMin} max={dobMax} value={v.dob} onChange={(e) => onField('dob', e.target.value)} onPaste={onPasteDob} onBlur={() => onBlurField('dob')} />
+        </Field>
+        <Field label={<>Email <Req /></>} htmlFor={`${p}-email`} error={emailError ?? fieldError('email')}>
+          <input id={`${p}-email`} type="email" placeholder="jane@example.com" value={v.email} onChange={(e) => onField('email', e.target.value)} onBlur={() => onBlurField('email')} />
+        </Field>
+        <Field label={<>Phone <Req /></>} htmlFor={`${p}-phone`} error={fieldError('phone')}>
+          <input id={`${p}-phone`} type="tel" placeholder="07700 900000" value={v.phone} onChange={(e) => onField('phone', e.target.value)} onBlur={() => onBlurField('phone')} />
+        </Field>
+      </div>
+    );
+  }
 
-  const disabled = busy || (submitted && !isValid);
+  /* THE MIDDLE NAME HELPER FOLLOWS THE JOURNEY.
+     It read "If they have one. The eligibility check runs against their legal
+     name." on every referral, and on a PRE-REFERENCED one there is no eligibility
+     check to run: the agency already referenced this tenant and opndoor takes no
+     view of them. Telling a Regent negotiator that our check runs against the
+     name describes a step that does not happen on their journey, and invites them
+     to worry about a spelling for a reason that does not exist. What does matter
+     there is that the name matches the identity document the deed will name.
+     Unresolved mode gets the half that is true of both. */
+  const middleNameHint = refMode === null
+    ? 'If they have one.'
+    : refMode === 'opndoor_referenced'
+      ? 'If they have one. The eligibility check runs against their legal name.'
+      : 'If they have one. As it appears on their ID.';
+
+  const tenantNames = [values.first.trim() || 'Tenant 1', ...extra.map((t, i) => t.first.trim() || `Tenant ${i + 2}`)];
+
+  /* One element, two homes: inside section 4 where there is a question to ask,
+     and bare in the form where there is not. Written once so the two cannot
+     drift on what the form does with the answer. */
+  const picker = (
+    <AgentBranchPicker showErrors={submitted} scopePartner={referredBy === 'supplier' ? routeSupplier : null} onChange={(v) => {
+      setOrgShape(v.shape);
+      setValues((prev) => ({ ...prev, agency: v.agency, branch: v.branch }));
+      setOrg({ agencyNew: v.agencyNew, branchNew: v.branchNew, agencyContactEmail: v.agencyContactEmail, agencyContactName: v.agencyContactName, agencyContactPhone: v.agencyContactPhone, branchContactEmail: v.branchContactEmail, partner: v.partner, singleOffice: v.singleOffice });
+    }} />
+  );
 
   return (
     <>
@@ -171,48 +612,226 @@ export function NewApplication() {
         <div className="page-head__actions">
           <Button variant="ghost" size="sm" to="/applications">Cancel</Button>
           <Button variant="primary" size="sm" type="submit" form="na-form" arrow disabled={disabled}>{busy ? 'Sending…' : 'Send application'}</Button>
+          {/* "3 fields still need filling in", beside the button that did
+              nothing. The field errors are already on screen and, on a form
+              this long, a screen and a half above the thing just pressed. */}
+          <MissingFields count={missingCount} onJump={jumpToMissing} />
         </div>
       </div>
 
       <div className="na-grid">
-        <form className="na-form" id="na-form" onSubmit={submit} noValidate>
-          {/* 1. TENANT */}
-          <section className="card sec" id="sec-tenant">
-            <div className="sec__head"><span className="sec__num">1</span><div><div className="sec__title">Tenant</div><div className="sec__sub">The tenant being referred</div></div></div>
+        <form className="na-form" id="na-form" ref={formRef} onSubmit={submit} noValidate>
+          {/* 0. REFERRED BY — admin only.
+              Q-06 item H, and Matt's answer of 2026-09-29: "'Admin view only'
+              on Referred by means that section only; agencies keep their own
+              form as it is." So there is no route guard here and no change
+              at all for an agency's negotiator: the section simply is not
+              drawn for them, and every existing caller resolves the route the
+              way it always did. */}
+          {isAdminForm && (
+            <section className="card sec" id="sec-referredby">
+              <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div>
+                <div className="sec__title">Referred by</div>
+                {/* WALK FIX 30, in Matt's own words. "Rail" and "route" are
+                    internal vocabulary: a rail is which of the three kinds of
+                    referral this is, a route is the partner record carrying
+                    it, and nobody outside this codebase has ever used either. */}
+                <div className="sec__sub">Who sent us this tenant. This decides the price and who is paid commission. Nothing below can be filled in until it is answered.</div>
+              </div></div>
+              <CardBody>
+                <div className="form-grid">
+                  <div className="field span-2">
+                    <label htmlFor="na-refby">Supplier or Agency <span className="req" aria-hidden="true">*</span></label>
+                    <select
+                      id="na-refby"
+                      aria-label="Referred by"
+                      value={referredBy}
+                      onChange={(e) => {
+                        const v = e.target.value as '' | 'supplier' | 'agency';
+                        setReferredBy(v);
+                        /* CHANGING IT CLEARS WHAT IT SCOPED. Matt: "changing
+                           the supplier clears both". The agency and branch
+                           belonged to the previous answer, and leaving them
+                           is how a referral ends up filed under a supplier
+                           that has never met the agency named on it. */
+                        setRouteSupplier('');
+                        setValues((prev) => ({ ...prev, agency: '', branch: '' }));
+                      }}
+                    >
+                      {/* NO DEFAULT. Matt's words. A default here is a
+                          decision taken for the admin by the form. */}
+                      <option value="">Choose…</option>
+                      <option value="supplier">Supplier</option>
+                      <option value="agency">Agency</option>
+                    </select>
+                    <span className="hint">
+                      {referredBy === 'supplier'
+                        ? 'A supplier referral pays supplier commission, at the fee that supplier’s own deal sets.'
+                        : referredBy === 'agency'
+                        ? 'An agency referral goes on the agent rail with agency commission, even where a supplier introduced the agency.'
+                        : 'Required. Everything below stays closed until this is answered.'}
+                    </span>
+                  </div>
+
+                  {referredBy === 'supplier' && (
+                    <div className="field span-2">
+                      <label htmlFor="na-route">Supplier <span className="req" aria-hidden="true">*</span></label>
+                      <select
+                        id="na-route"
+                        aria-label="Supplier"
+                        value={routeSupplier}
+                        onChange={(e) => {
+                          setRouteSupplier(e.target.value);
+                          setValues((prev) => ({ ...prev, agency: '', branch: '' }));
+                        }}
+                      >
+                        <option value="">Choose a supplier…</option>
+                        {/* REAL SUPPLIERS ONLY. getPartners() strips the house
+                            routes, which is exactly Matt's "never a house
+                            partner". */}
+                        {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </select>
+                      <span className="hint">Agency and Branch below will search only this supplier’s.</span>
+                    </div>
+                  )}
+                </div>
+              </CardBody>
+            </section>
+          )}
+
+          {/* THE OFFICE IS CHOSEN FIRST. Matt, 2026-10-01: "'Add another
+              tenant' is disabled until an office is chosen, but the office
+              section is last on the form. Move the office/agent section to
+              the top as step 1, so it's chosen before tenants ... Never
+              leave a disabled button whose reason is further down the
+              page."
+
+              It was last because it reads like paperwork: who this is
+              for, after what it is about. But the rail the office sits on
+              decides whether a tenancy can have two tenants in it, so the
+              Tenants section could not be finished until it was answered,
+              and the reason for the disabled button was six hundred pixels
+              below the button. */}
+          <section className={oneOffice ? 'sec-quiet' : 'card sec'} id="sec-branch">
+            {!oneOffice && (
+              <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div><div className="sec__title">{orgCopy.title} <Req /></div><div className="sec__sub">{orgCopy.sub}</div></div></div>
+            )}
             <CardBody>
-              <div className="form-grid">
-                <Field label={<>Title <Req /></>} htmlFor="t-title" style={{ maxWidth: 140 }} error={err('title')}>
-                  <select id="t-title" name="title" value={values.title} onChange={(e) => set('title', e.target.value)} onBlur={() => markTouched('title')}>
-                    <option value="" disabled>Select…</option>
-                    {TITLE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
-                  </select>
-                </Field>
-                <div className="field span-2" style={{ gridColumn: '2 / 3' }} />
-                <Field label={<>First name <Req /></>} htmlFor="t-first" error={err('first')}>
-                  <input id="t-first" type="text" placeholder="Amelia" value={values.first} onChange={(e) => set('first', e.target.value)} onBlur={() => markTouched('first')} />
-                </Field>
-                <Field label={<>Last name <Req /></>} htmlFor="t-last" error={err('last')}>
-                  <input id="t-last" type="text" placeholder="Hartley" value={values.last} onChange={(e) => set('last', e.target.value)} onBlur={() => markTouched('last')} />
-                </Field>
-                <Field label={<>Date of birth <Req /></>} htmlFor="t-dob" error={err('dob')}>
-                {/* <input id="t-dob" type="date" inputMode="numeric" placeholder="dd/mm/yyyy" maxLength={10}
-                        value={dobDisplay} onChange={(e) => { const f = formatDateInput(e.target.value); setDobDisplay(f); const d = parseFlexibleDate(f); set('dob', d ? toISODate(d) : ''); }}
-                          onPaste={onPasteDate('dob')} onBlur={() => markTouched('dob')} /> */}
-                  <input id="t-dob" type="date" min={dobMin} max={dobMax} value={values.dob} onChange={(e) => set('dob', e.target.value)} onPaste={onPasteDate('dob')} onBlur={() => markTouched('dob')} />
-                </Field>
-                <Field label={<>Email <Req /></>} htmlFor="t-email" error={err('email')}>
-                  <input id="t-email" type="email" placeholder="amelia@example.com" value={values.email} onChange={(e) => set('email', e.target.value)} onBlur={() => markTouched('email')} />
-                </Field>
-                <Field label={<>Phone <Req /></>} htmlFor="t-phone" error={err('phone')}>
-                  <input id="t-phone" type="tel" placeholder="07700 900000" value={values.phone} onChange={(e) => set('phone', e.target.value)} onBlur={() => markTouched('phone')} />
-                </Field>
-              </div>
+              {/* THE PICKER SAYS ITS OWN ERRORS NOW, 2026-10-04.
+
+                  Matt: "pressing Send shows the messages ... only in the
+                  sections above, so from the bottom of the page nothing seems
+                  to happen."
+
+                  FOUR PARAGRAPHS STOOD HERE and every one of them was the
+                  same mistake: an error about a control inside the picker,
+                  printed underneath it, in a `<p>` that no `Field` owns. The
+                  count and the jump read `.field.is-invalid`, so none of the
+                  four was counted and the jump stepped over all of them --
+                  on the one form where this section is step 1 and the Send
+                  button is at the bottom of the page.
+
+                  The picker is told when to show them (`showErrors`) and
+                  marks its own controls, so the error is on the thing that
+                  has to be fixed and the mechanism finds it like any other
+                  field. Two statements of one problem is how they drift. */}
+              {picker}
+            </CardBody>
+          </section>
+          {/* Outside the hidden section, because it has to be readable. The
+              reader cannot fix this and still has to be told: with the section
+              gone there is no field to hang an error on, and a Send button that
+              quietly does nothing is the worse failure. */}
+          {oneOffice && submitted && (errors.agency || errors.branch) && (
+            <p className="na-form-error">We could not work out which office this referral is against. Reload the page, and tell us if it happens again.</p>
+          )}
+
+
+          {/* 1. TENANTS */}
+          <section className="card sec" id="sec-tenant" aria-disabled={!referredByDone}
+            style={referredByDone ? undefined : { opacity: 0.45, pointerEvents: 'none' }}>
+            <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div>
+              <div className="sec__title">{joint ? 'Tenants' : 'Tenant'}</div>
+              {/* "ONE GUARANTEE" WAS TRUE UNTIL 20261005110000 and then was
+                  not. Matt, 2026-10-04: say "2 tenants on one tenancy. Each
+                  signs their own Deed of Guarantee for their share."
+
+                  IT MATTERS MORE THAN A HEADER USUALLY WOULD, because this is
+                  the sentence an agent reads immediately before telling a
+                  tenant what they are about to sign. An agent who has read
+                  "one guarantee" will say so, and the tenant then gets a deed
+                  for a share. */}
+              <div className="sec__sub">{joint ? `${countOf(tenantCount, 'tenant')} on one tenancy. Each signs their own Deed of Guarantee for their share.` : 'The tenant being referred'}</div>
+            </div></div>
+            <CardBody>
+              {joint && <div className="tn-label">Tenant 1</div>}
+              {tenantFields({
+                idPrefix: 't',
+                v: values,
+                onField: (k, val) => set(k as keyof ReferralValues, val),
+                onBlurField: (k) => markTouched(k),
+                fieldError: (k) => err(k as keyof ReferralValues),
+                onPasteDob: onPasteDate('dob'),
+                emailError: dupIdx === 0 ? 'Two tenants cannot share an email address.' : undefined,
+              })}
+
+              {extra.map((t, i) => (
+                <div className="tn-extra" key={t.key}>
+                  <div className="tn-label">
+                    <span>Tenant {i + 2}</span>
+                    <button type="button" className="tn-remove" onClick={() => removeTenant(i)}>Remove</button>
+                  </div>
+                  {tenantFields({
+                    idPrefix: `x${i}`,
+                    v: t,
+                    onField: (k, val) => setExtraField(i, k, val),
+                    onBlurField: (k) => markTouched(`${t.key}.${k}`),
+                    fieldError: (k) => errX(i, t.key, k),
+                    onPasteDob: onPasteExtraDob(i),
+                    emailError: dupIdx === i + 1 ? 'Two tenants cannot share an email address.' : undefined,
+                  })}
+                </div>
+              ))}
+
+              {/* MULTI-TENANT IS OFFERED ONLY WHERE A JOINT TENANCY IS REAL.
+                  On a pre-referenced rail the references are done before the
+                  referral reaches us and each one covers a single tenant, so
+                  the control is not offered rather than offered and refused.
+                  Before an origin is chosen the rail is not yet knowable, so the
+                  control is present but disabled and says what is missing. */}
+              {jointAllowed ? (
+                <button type="button" className="tn-add" onClick={addTenant}>
+                  <Icon name="plus" /> Add another tenant
+                </button>
+              ) : (
+                <div className="tn-gate">
+                  <button type="button" className="tn-add" disabled aria-describedby="tn-gate-why">
+                    <Icon name="plus" /> Add another tenant
+                  </button>
+                  <p className="tn-gate__why" id="tn-gate-why">
+                    {/* WALK FIX 26: the supplier line is gone with the rule
+                        it explained. "This partner sends them one tenant at a
+                        time" beside a button that now works would teach a
+                        rule the product no longer has. What is left is the
+                        agency path, where the answer really does depend on a
+                        branch nobody has chosen yet. */}
+                    {referredBy === 'supplier'
+                      ? 'Choose the supplier first.'
+                      : railState === 'none'
+                      ? 'Choose the agency and office first: whether a referral can cover more than one tenant depends on who it is for.'
+                      : railState === 'loading'
+                        ? 'Checking this agent\u2026'
+                        : 'This supplier sends us referrals one tenant at a time. Refer each tenant separately.'}
+                  </p>
+                </div>
+              )}
+              {railNote && <p className="tn-gate__why" role="status">{railNote}</p>}
             </CardBody>
           </section>
 
           {/* 2. PROPERTY */}
           <section className="card sec" id="sec-property">
-            <div className="sec__head"><span className="sec__num">2</span><div><div className="sec__title">Property</div><div className="sec__sub">The address being let</div></div></div>
+            <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div><div className="sec__title">Property</div><div className="sec__sub">The address being let</div></div></div>
             <CardBody>
               {addrMode === 'lookup' ? (
                 <div className="addr-lookup">
@@ -267,37 +886,127 @@ export function NewApplication() {
 
           {/* 3. TENANCY */}
           <section className="card sec" id="sec-tenancy">
-            <div className="sec__head"><span className="sec__num">3</span><div><div className="sec__title">Tenancy</div><div className="sec__sub">Rent and start date</div></div></div>
+            <div className="sec__head"><span className="sec__num">{sectionNo()}</span><div><div className="sec__title">Tenancy</div><div className="sec__sub">Rent{joint ? ', shares' : ''} and start date</div></div></div>
             <CardBody>
               <div className="form-grid">
-                <Field label={<>Monthly rent (£) <Req /></>} htmlFor="ty-rent" error={err('rent')}>
-                  <input id="ty-rent" type="number" min="1" step="1" placeholder="2450" value={values.rent} onChange={(e) => set('rent', e.target.value)} onBlur={() => markTouched('rent')} />
+                <Field label={<>Monthly rent (£) <Req /></>} htmlFor="ty-rent" error={err('rent')}
+                  hint={joint ? 'The whole property. Each tenant’s share is set below.' : undefined}>
+                  <input id="ty-rent" type="number" min="1" step="1" placeholder="2450" value={values.rent}
+                    onChange={(e) => set('rent', e.target.value)}
+                    onBlur={() => markTouched('rent')} />
                 </Field>
                 <Field label={<>Tenancy start date <Req /></>} htmlFor="ty-start" error={err('tenancyStart')}>
-        
                   <input id="ty-start" type="date" min={startMin} max={startMax} value={values.tenancyStart} onChange={(e) => set('tenancyStart', e.target.value)} onPaste={onPasteDate('tenancyStart')} onBlur={() => markTouched('tenancyStart')} />
                 </Field>
               </div>
-            </CardBody>
-          </section>
 
-          {/* 4. AGENT & BRANCH */}
-          <section className="card sec" id="sec-branch">
-            <div className="sec__head"><span className="sec__num">4</span><div><div className="sec__title">Agent &amp; branch <Req /></div><div className="sec__sub">Select the agent this referral belongs to, then the branch. You can add a new agent or branch on the fly.</div></div></div>
-            <CardBody>
-              <AgentBranchPicker onChange={(v) => {
-                setValues((prev) => ({ ...prev, agency: v.agency, branch: v.branch }));
-                setOrg({ agencyNew: v.agencyNew, branchNew: v.branchNew, agencyContactEmail: v.agencyContactEmail, agencyContactName: v.agencyContactName, agencyContactPhone: v.agencyContactPhone, branchContactEmail: v.branchContactEmail, partner: v.partner, singleOffice: v.singleOffice });
-              }} />
-              {submitted && orgPartnerError && <p className="na-form-error" style={{ marginTop: 8 }}>Select the partner this new agency belongs to.</p>}
-              {submitted && orgOfficeError && <p className="na-form-error" style={{ marginTop: 8 }}>Tell us whether this is a single-office agency.</p>}
-              {submitted && orgContactError && <p className="na-form-error" style={{ marginTop: 8 }}>Enter a contact email for the new agency.</p>}
-              {submitted && !orgOfficeError && (errors.agency || errors.branch) && (
-                <span className="field-error" style={{ marginTop: 10 }}>Select an agent and a branch.</span>
+              {/* THE SHARES, and only when there is something to share.
+                  A sole tenant carries 100% and is never asked. Each row's %
+                  and £ derive from one another as you type, and the PERCENTAGE
+                  is what is stored: it is the commercial fact the tenants
+                  agreed, and re-deriving it later against a corrected rent
+                  would restate the basis of a decision already made. */}
+              {joint && (
+                <div className="shares">
+                  <div className="shares__head">
+                    <span>Each tenant’s share of the rent</span>
+                    <span className="shares__tot">{pctNums.reduce((s, p) => s + (Number.isFinite(p) ? p : 0), 0).toFixed(3).replace(/\.?0+$/, '')}% of 100%</span>
+                  </div>
+                  {tenantNames.map((name, i) => {
+                    const amt = amountFromPercent(rentNum, pctNums[i]);
+                    return (
+                      <div className="shares__row" key={i}>
+                        <span className="shares__who">{name}</span>
+                        <label className="shares__in">
+                          <input className="inp" type="number" min="0" max="100" step="0.001" aria-label={`${name} share percent`}
+                            value={percents[i] ?? ''} onChange={(e) => setPercent(i, e.target.value)} />
+                          <span>%</span>
+                        </label>
+                        <label className="shares__in">
+                          <span>£</span>
+                          <input className="inp" type="number" min="0" step="0.01" aria-label={`${name} share amount`}
+                            value={amt === null ? '' : String(amt)} onChange={(e) => setShareAmount(i, e.target.value)} />
+                        </label>
+                      </div>
+                    );
+                  })}
+                  {shareErr && <p className="field-error" style={{ marginTop: 8 }}>{shareErr}</p>}
+                </div>
               )}
+
+              {/* WHAT IT COSTS, at the tenant count actually entered, before it
+                  is sent. The agreement's band can change the price when a
+                  second tenant is added, and the agent should see that here
+                  rather than on the tenant's checkout page. */}
+              {fee && (
+                <div className="feebox">
+                  <div className="feebox__head">
+                    <span>Guarantee fee{joint ? ' for this tenancy' : ''}</span>
+                    <strong>{money(fee.feeAmount)}</strong>
+                  </div>
+                  <div className="feebox__basis">
+                    {feeBasisLabel(fee)}{fee.isStandard ? '' : ` · agreed terms at ${tenantCount} ${plural(tenantCount, 'tenant')}`}
+                  </div>
+                  {joint && (
+                    <div className="feebox__rows">
+                      {tenantNames.map((name, i) => (
+                        <div className="feebox__row" key={i}>
+                          <span>{name}</span>
+                          <span>{pctNums[i]}%</span>
+                          <strong>{fee.shares[i] === undefined ? '-' : money(fee.shares[i])}</strong>
+                        </div>
+                      ))}
+                      <p className="feebox__note">Each tenant pays their own share through their own payment link.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* NOTHING ABOUT THE OFFICE HERE, and nothing anywhere else on the
+                  form either. A line reading "This referral is against Regent's
+                  Lettings, Regent's Park" used to sit here, on the principle that
+                  the fact was worth keeping even once the section asking for it had
+                  gone. It is not: somebody filing a referral from their only office
+                  knows which office they work at, and the line was the last of the
+                  furniture that section 4 used to be. Withdrawn.
+
+                  What remains for a single-office user is the submit-time error
+                  below, which is a different thing: it fires only when the office
+                  could not be resolved at all, and without it Send would refuse
+                  silently with no field to hang the reason on. */}
             </CardBody>
           </section>
 
+          {/* 4. AGENT & BRANCH, when there is more than one answer to give.
+
+              ONE SLOT FOR THE PICKER, ALWAYS, AND THIS IS LOAD BEARING.
+
+              This used to be a ternary: the picker inside this <section> when
+              there was a question to ask, and bare in a fragment when there was
+              not. Two positions in the tree for one element, so the moment the
+              shape resolved and oneOffice flipped, React unmounted the picker and
+              mounted a new one. A fresh picker has no shape, so oneOffice flipped
+              straight back, which moved it again. The form sat in a remount loop,
+              thousands of rounds a second.
+
+              Every symptom reported from the walk was that loop:
+
+                section 4 showed the full admin picker with an agency search and
+                an add-on-the-fly option, because a newly mounted picker has not
+                been told who is reading yet and that was the state it spent most
+                of its life in;
+
+                "Checking this agent..." never finished and "Add another tenant"
+                never enabled, because each remount cleared the agency and branch
+                and restarted the rail check;
+
+                the fee panel never appeared, because it needs an agency and a
+                branch and those were being wiped several times a frame.
+
+              So the section's CHROME is conditional and the picker's position is
+              not. When there is nothing to ask, the whole section is display:none
+              (it contains only the picker, which renders null then anyway) and
+              the office is stated as one line under Tenancy instead. */}
           <div style={{ marginTop: 6 }}>
             <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Guarantee reference, issue date and expiry are assigned automatically.</p>
             {formError && <p className="na-form-error">{formError}</p>}
@@ -313,10 +1022,18 @@ export function NewApplication() {
           <Card>
             <CardBody style={{ padding: 16 }}>
               <div className="navrail">
-                <a href="#sec-tenant" className="is-active"><span className="dot" />Tenant</a>
+                {/* The office leads here too, because it leads on the page. */}
+                {!oneOffice && <a href="#sec-branch" className="is-active"><span className="dot" />{orgCopy.title}</a>}
+                <a href="#sec-tenant" className={oneOffice ? 'is-active' : undefined}><span className="dot" />{joint ? 'Tenants' : 'Tenant'}</a>
                 <a href="#sec-property"><span className="dot" />Property</a>
                 <a href="#sec-tenancy"><span className="dot" />Tenancy</a>
-                <a href="#sec-branch"><span className="dot" />Agent &amp; branch</a>
+                {/* WALK FIX 28: "The side navigation should match the
+                    section names." It said "Agent & branch" while the
+                    section said "Agency and branch", "Your office" or
+                    "Agency and office" depending on who was reading, so for
+                    most readers the rail named a section that was not
+                    there. Taken from the same orgCopy the heading uses, so
+                    the two cannot say different things again. */}
               </div>
             </CardBody>
           </Card>

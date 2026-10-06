@@ -1,0 +1,81 @@
+name: CI
+
+# Runs on every push (and can be triggered by hand). The two jobs are
+# independent: a red web build never hides a red database test, or vice versa.
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  db-tests:
+    name: Database rules and grants (pgTAP)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      # Start a local Postgres and apply every migration in supabase/migrations,
+      # so the guards run against the real, freshly-migrated schema. No remote
+      # project is touched and no credentials are needed.
+      - name: Start local database
+        run: supabase db start
+      # `supabase test db` takes an OPTIONAL path list and otherwise runs every
+      # supabase/tests/*.test.sql, so a new suite is picked up by adding the file
+      # — there is no list here to forget to update. What runs today:
+      #
+      #   tenant_isolation            THE STANDING GUARD. Two agencies on the
+      #                               shared house partner, a multi-brand group,
+      #                               a single-office agency, a supplier and a
+      #                               direct tenant, and every role each has.
+      #                               It asserts what each of them can REACH
+      #                               across applications, people, activity,
+      #                               contacts, statement references, the
+      #                               definer functions, the deed and every
+      #                               scheduled email. On this rail partner_id
+      #                               is a route and not a company boundary, so
+      #                               a guard written against the partner reads
+      #                               as correct and is not: this file is what
+      #                               says so out loud.
+      #   applications_column_grants  a client-visible column added without its
+      #                               authenticated SELECT grant fails here, by
+      #                               name, instead of 500ing a staff dashboard.
+      #   resolve_rates_precedence    the supplier rail's most-specific-wins order.
+      #   create_referral_position_scope  the agent rail's position ladder.
+      #   commission_split            the additive rule's four worked examples, and
+      #                               the preview that the rate editor shows before
+      #                               a save — so the money rule cannot change
+      #                               silently.
+      #   one_rate_per_party          a party holds an explicit rate OR a negotiated
+      #                               agreement, never both, refused by trigger
+      #                               rather than by RPC guard; plus what an
+      #                               agreement's coverage reaches and what the 50%
+      #                               cap measures.
+      #   tenancy_firing_unit         a joint tenancy gets ONE deed, named for
+      #                               everybody, once everybody has paid, reminded
+      #                               and expired once — and a sole tenant's path is
+      #                               asserted unchanged in the same file.
+      #   all_in_ancestor_guard       the mirror of the coverage guard: a line added
+      #                               ABOVE an all-in deal breaches it and is refused
+      #                               by name, through set_node_rate, set_group_rates
+      #                               and a raw UPDATE alike, unless deliberately
+      #                               confirmed and audited against both parties.
+      #                               Also: a joint tenancy is agent-rail only.
+      #
+      # A failing assertion prints "not ok N" and the runner exits non-zero, which
+      # fails this step and the build.
+      - name: Run pgTAP tests
+        run: supabase test db --local
+
+  web:
+    name: Typecheck, tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build

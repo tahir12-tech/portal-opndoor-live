@@ -1,0 +1,132 @@
+/* Commission statement panel. A money-reconciliation surface: tabular numerals
+   everywhere, so a column of figures can be read down rather than across. */
+
+.stmt + .stmt {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.stmt__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.stmt__payee {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+}
+
+/* --ink-mute, not --muted: there is no --muted token in portal.css, so this
+   line was rendering at full ink and reading as a heading. */
+.stmt__level {
+  font-size: 12px;
+  color: var(--ink-mute);
+  margin-top: 2px;
+}
+
+/* THERE WAS A .stmt__only HERE. It styled the line a collapsed column left
+   behind under the payee, "Branch: Soho · Source: Agreement". That line is
+   withdrawn, so the class has nothing to dress: the head block is the payee and
+   the level, whatever the table below drops. See CommissionStatement.tsx. */
+
+.stmt__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stmt__table th,
+.stmt__table td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+/* THE REFERENCE AND THE TENANT MAY WRAP; THE NUMBERS MAY NOT. Matt (s): "The
+   guarantee reference is still truncated ('GR-FROST...'); let the column wrap
+   so references show in full."
+
+   `nowrap` on every cell is right for the money, rate and date columns --
+   tabular figures broken across two lines are unreadable, and that is what
+   the rule was added for. It is wrong for the two columns that carry names:
+   a reference squeezed to fit is the one cell on the statement somebody
+   needs to quote back to us, and a truncated one is worse than a tall row.
+
+   THE FIRST TWO COLUMNS BY POSITION, which holds because the reference and
+   the tenant lead every rendering of this table -- the component, the PDF
+   and both CSVs all build from MONTH_STATEMENT_COLS in that order. */
+.stmt__table td:first-child,
+.stmt__table td:nth-child(2) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.stmt__table th {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+}
+
+.stmt__table .num { text-align: right; }
+
+.stmt__total td {
+  font-weight: 700;
+  border-bottom: 0;
+  border-top: 2px solid var(--ink);
+  padding-top: 10px;
+}
+
+/* THE MONTH AS A LIST OF PAYEES, with one opened out of it. */
+.stmt__tools { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stmt-list__tools { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.stmt-list__q { flex: 1 1 200px; max-width: 280px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+/* The way to the rest of the payees, beside the count that says how many
+   there are. Same quiet link as the Every customer table's "Show top 10". */
+.stmt-list__showall {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; font-size: 12.5px; color: var(--heliotrope-deep); text-decoration: underline;
+}
+.stmt-list__showall:hover { text-decoration: none; }
+.stmt-list__row { cursor: pointer; }
+.stmt-list__row:hover { background: var(--white-lilac); }
+.stmt-list__name { border: none; background: none; padding: 0; font-size: 13.5px; font-weight: 700; color: var(--heliotrope-deep); cursor: pointer; text-align: left; }
+.stmt-list__name:hover { text-decoration: underline; }
+.stmt__back { display: inline-flex; align-items: center; gap: 5px; border: none; background: none; padding: 0 0 6px; font-size: 12px; font-weight: 600; color: var(--ink-mute); cursor: pointer; }
+.stmt__back:hover { color: var(--heliotrope-deep); }
+.stmt__ref { font-variant-numeric: tabular-nums; }
+
+/* A STATEMENT THAT COULD NOT BE BUILT SAYS SO LIKE A PROBLEM. It used
+   `muted`, the colour of an aside, so the one outcome a reader has to
+   act on looked like a footnote -- and, beside a card that had been
+   saying "Building..." indefinitely, was indistinguishable from the
+   thing still working. */
+.stmt__err {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--warn-ink, var(--ink));
+}
+.stmt__err svg { flex: none; margin-top: 2px; color: var(--warn); }
+
+/* A statement month that has not been posted. Matt, 2026-10-03: "label them
+   'Draft: month in progress, figures may change'". Warn-coloured rather than
+   muted: it is the one thing on the line a reader must not skim, because the
+   total beside it is still moving. */
+.stmt__draft { color: var(--warn); font-weight: 600; }
+/* A FAILED READ, NOT A WARNING ABOUT THE MONEY. `--warn` is what a draft
+   wears and means "these figures are still moving"; this means "we could not
+   find out", which is a fault on our side and reads as one. Not bold: it is
+   already the longest thing on the line. */
+.stmt__unread { color: var(--danger); }

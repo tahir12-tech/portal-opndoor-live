@@ -3,11 +3,12 @@
    signed-in user footer. Ported from portal.js buildSidebar. The
    reconciliation badge count comes from the queue.
    ===================================================================== */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { reconciliationPendingCount } from '@/data';
+import { awaitingDecisionCount, loadReconciliationTotals, NO_RECONCILIATION_WORK, type ReconciliationTotals } from '@/data';
 import { useSession } from '@/session/SessionContext';
-import { NAV } from '@/constants/nav';
+import { NAV, NAV_CAPABILITY } from '@/constants/nav';
+import { portalLabel } from '@/data/capabilities';
 import { useOnClickOutside } from '@/hooks/useOnClickOutside';
 import { usePageMetaValue } from './pageMeta';
 import { Icon } from '@/components/ui/Icon';
@@ -15,10 +16,34 @@ import { Icon } from '@/components/ui/Icon';
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   // useSession() re-renders on dataVersion bumps (re-hydration), so the badge
   // reflects the current pending-review count after a confirm or a new referral.
-  const { role, user, signOut } = useSession();
+  const { role, user, signOut, dataVersion, partnerScope } = useSession();
+
+  // Role first, then the item's capability if it declares one. The capability
+  // predicates live in NAV_CAPABILITY and are read here and by the route guard
+  // in App.tsx from the same map, so nothing is hidden that is not also closed.
   const navigate = useNavigate();
   const { active } = usePageMetaValue();
-  const reconcileBadge = reconciliationPendingCount();
+  /* THE BADGE IS THE PAGE'S OWN "All" COUNT. Matt, 2026-10-02: "Home's
+     Reconciliation count and the sidebar badge must equal the 'All'
+     count, including 'Not in network'."
+
+     IT WAS A THIRD SUBSET. This file added the review queue, the match
+     queue and the agencies needing an email -- which was this morning's
+     fix and still left out refunds and not-in-network, so the badge
+     disagreed with the page it points at. `loadReconciliationTotals`
+     counts all five in one place; nothing here adds anything up. */
+  const [recon, setRecon] = useState<ReconciliationTotals>(NO_RECONCILIATION_WORK);
+  useEffect(() => {
+    if (role !== 'superadmin') { setRecon(NO_RECONCILIATION_WORK); return; }
+    let cancelled = false;
+    void loadReconciliationTotals()
+      .then((t) => { if (!cancelled) setRecon(t); })
+      .catch(() => { if (!cancelled) setRecon(NO_RECONCILIATION_WORK); });
+    return () => { cancelled = true; };
+  }, [role, dataVersion]);
+
+  const reconcileBadge = recon.all;
+  const decisionsBadge = awaitingDecisionCount();
   const [menuOpen, setMenuOpen] = useState(false);
   const footRef = useRef<HTMLDivElement>(null);
   useOnClickOutside(footRef, () => setMenuOpen(false), menuOpen);
@@ -27,8 +52,18 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
     <>
       <div className="sb__brand">
         <span className="wordmark">opndoor</span>
+        {/* An agency of ours is not a supplier and does not think of itself
+            as one. The other word is for the companies who push referrals
+            through the API, and the product now calls those Suppliers
+            everywhere rather than Partners: "partner" remains the internal
+            name for a ROUTE, which is a different thing and is why the
+            Dashboard's "Partner comm" column keeps its name. */}
         <span className="sb__cobrand">
-          Partner<br />portal
+          {portalLabel(role, partnerScope) === 'Admin'
+            ? <>Admin<br />portal</>
+            : portalLabel(role, partnerScope) === 'Agency'
+              ? <>Agency<br />portal</>
+              : <>Supplier<br />portal</>}
         </span>
       </div>
       <div className="sb__product">
@@ -38,13 +73,14 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
       <nav className="sb__nav">
         {NAV.map((grp) => {
-          const items = grp.items.filter((it) => it.roles.includes(role));
+          const items = grp.items.filter((it) => it.roles.includes(role)
+            && (!it.capability || NAV_CAPABILITY[it.capability](role, partnerScope)));
           if (!items.length) return null;
           return (
             <div className="sb__group" key={grp.group}>
               <div className="sb__group-label">{grp.group}</div>
               {items.map((it) => {
-                const badge = it.badge === 'reconcile' ? reconcileBadge : undefined;
+                const badge = it.badge === 'reconcile' ? reconcileBadge : it.badge === 'decisions' ? decisionsBadge : undefined;
                 return (
                   <Link key={it.id} className={`sb__link${active === it.id ? ' is-active' : ''}`} to={it.to} onClick={onNavigate}>
                     <Icon name={it.icon} />

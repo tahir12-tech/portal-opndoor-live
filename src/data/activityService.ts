@@ -16,6 +16,7 @@ import { UPCOMING_GUARANTEES, type UpcomingGuaranteeSeed } from './mock/guarante
 import { allSummaries, guaranteeExpiry } from './applicationsService';
 import { KEYS, loadJSON, saveJSON } from './storage';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
+import { plural, countOf } from '@/lib/plural';
 
 const DAY = 86400000;
 
@@ -170,13 +171,15 @@ const NOTIF_KINDS = ['referral_created', 'payment_received', 'deed_sent', 'deed_
 function relTime(at: Date): string {
   const mins = Math.round((Date.now() - at.getTime()) / 60000);
   if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins} minute${mins === 1 ? '' : 's'} ago`;
+  if (mins < 60) return `${mins} ${plural(mins, 'minute')} ago`;
   const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`;
+  if (hrs < 24) return `${hrs} ${plural(hrs, 'hour')} ago`;
   const days = Math.round(hrs / 24);
   if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days} days ago`;
-  return `${Math.round(days / 7)} week${Math.round(days / 7) === 1 ? '' : 's'} ago`;
+  // Guarded by the `=== 1` above, so always plural -- through the helper
+  // anyway, so the guard is not the only thing keeping it right.
+  if (days < 7) return `${countOf(days, 'day')} ago`;
+  return `${Math.round(days / 7)} ${plural(Math.round(days / 7), 'week')} ago`;
 }
 
 function notifLabel(kind: string, tenant: string): { text: string; dot: NotificationItem['dot'] } {
@@ -186,7 +189,8 @@ function notifLabel(kind: string, tenant: string): { text: string; dot: Notifica
     case 'deed_sent': return { text: `Deed sent for signature to ${tenant}`, dot: 'sent' };
     case 'deed_signed':
     case 'deed_issued': return { text: `Deed issued for ${tenant}`, dot: 'deed' };
-    case 'refunded': return { text: `Guarantor fee refunded for ${tenant}`, dot: 'other' };
+    // "Guarantee fee", not "guarantor fee" (Matt, 2026-10-02).
+    case 'refunded': return { text: `Guarantee fee refunded for ${tenant}`, dot: 'other' };
     case 'expiry_reminder': return { text: `Guarantee expiring for ${tenant}`, dot: 'other' };
     default: return { text: `Update for ${tenant}`, dot: 'other' };
   }
@@ -249,8 +253,18 @@ export interface ActivityFeedItem {
 const FEED_KINDS = [
   'referral_created', 'payment_received', 'refunded',
   'deed_sent', 'deed_viewed', 'deed_signed', 'deed_issued',
-  'deed_delivered', 'deed_undelivered',
-  'deed_regenerated', 'deed_reissued', 'tenancy_amended',
+  'deed_delivered', 'deed_delivered_landlord', 'deed_undelivered',
+  'deed_regenerated', 'deed_reissued', 'tenancy_amended', 'tenancy_correction_applied',
+  'renewal_notice_sent',
+  /* A GUARANTEE ENDING IS A MILESTONE, and arguably the one a reader
+     scanning this page most needs to catch. Matt (ak): the deed must read
+     "Cancelled: fee refunded" everywhere, and a feed that showed the deed
+     being signed but not cancelled is one of the everywheres.
+
+     `refunded` was already here and is not the same event: the money going
+     back and the instrument ending are separate facts, and on a tenancy
+     refunded before signature only the first of them happens. */
+  'deed_cancelled', 'refund_cascade_started',
 ];
 
 /**

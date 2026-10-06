@@ -236,6 +236,160 @@
   margin-top: 6px;
 }
 
+/* =====================================================================
+   Agent-rail nine-stage journey: compact phased bands.
+   Done / not-started bands collapse to one clickable line (name, chip, and the
+   date a done band finished); only the band holding the current stage is open.
+   Rows keep a note only when current or declined. A separate .jtl* class tree,
+   so the supplier three-stage .timeline strip above is untouched. Progress
+   only, never content.
+   ===================================================================== */
+.jtl { display: block; }
+
+.jtl-band { border-radius: 10px; }
+.jtl-band + .jtl-band { margin-top: 1px; }
+.jtl-band--open { background: rgba(39, 29, 95, 0.022); }
+
+/* the band header line: doubles as the collapsed row and the expand toggle */
+.jtl-band__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--ink);
+}
+.jtl-band__head:hover { background: var(--app-bg-2); }
+/* a clear, simple dropdown toggle at the right of the header */
+.jtl-band__toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink-mute);
+  transition: transform 0.15s, border-color 0.15s, color 0.15s;
+}
+.jtl-band__head:hover .jtl-band__toggle { border-color: var(--ink-mute); color: var(--ink); }
+.jtl-band--open .jtl-band__toggle { transform: rotate(180deg); }
+.jtl-band__name {
+  font-family: var(--display);
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+.jtl-chip {
+  font-family: var(--display);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.jtl-band__head .jtl-chip { margin-left: auto; }
+.jtl-band__date {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.jtl-chip--done { background: var(--deed-bg); color: var(--deed); }
+.jtl-chip--inprogress { background: var(--paid-bg); color: var(--paid); }
+.jtl-chip--notstarted { background: var(--app-bg); color: var(--ink-mute); border: 1px solid var(--line-strong); }
+.jtl-chip--declined { background: var(--danger-bg); color: var(--danger); }
+
+/* the open band's rows: node in a left rail, content to the right. Rows are
+   contiguous, so the spine spans node-centre to node-centre exactly. */
+.jtl-band__rows { padding: 1px 10px 4px; }
+.jtl-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  column-gap: 10px;
+  min-height: 28px;
+}
+.jtl-row--current { background: rgba(211, 100, 251, 0.06); border-radius: 10px; }
+.jtl-row__rail { position: relative; }
+.jtl-node {
+  position: relative;
+  z-index: 1;
+  width: 22px;
+  height: 22px;
+  margin: 2px auto 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.jtl-node svg { width: 12px; height: 12px; }
+.jtl-node--done { background: var(--deed); color: #fff; }
+.jtl-node--current { background: var(--paid); color: #fff; box-shadow: 0 0 0 4px var(--paid-bg); }
+.jtl-node--todo,
+.jtl-node--terminated { background: var(--app-bg); color: var(--ink-mute); border: 1.5px solid var(--line-strong); }
+/* the vertical spine: node-centre (top:13px = 2px margin + 11px radius) down to
+   the next node; green below a done node, grey otherwise; not on a band's last row */
+.jtl-row:not(.jtl-row--last) .jtl-row__rail::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 13px;
+  width: 2px;
+  height: 100%;
+  transform: translateX(-1px);
+  background: var(--line-strong);
+  z-index: 0;
+}
+.jtl-row--seg:not(.jtl-row--last) .jtl-row__rail::after { background: var(--deed); }
+
+.jtl-cell { min-width: 0; padding: 2px 0 5px; }
+.jtl-row--current .jtl-cell { padding-right: 8px; }
+.jtl-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 1px 10px; }
+.jtl-label {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+.jtl-date {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--ink-mute);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.jtl-note { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
+.jtl-row--current .jtl-label { color: var(--paid); }
+.jtl-row--todo .jtl-label { color: var(--ink-soft); }
+.jtl-row--terminated .jtl-label,
+.jtl-row--terminated .jtl-date { color: var(--ink-mute); }
+.jtl-row--terminated .jtl-note { color: var(--danger); font-weight: 600; }
+
+/* A stage that hosts a slot (the payment or deed block threaded in): the slot
+   is the body, so drop the row min-height and the current-row tint, and let the
+   payment card's own rows fit the narrower rail. The spine still runs down the
+   left, so the block reads as that stage of the journey. */
+.jtl-row--host { min-height: 0; background: transparent; }
+.jtl-slot { margin: 4px 0 10px; }
+.jtl-slot .drow { grid-template-columns: 1fr auto; gap: 10px; padding: 6px 0; align-items: baseline; }
+.jtl-slot .drow__v { text-align: right; }
+
+@media (max-width: 640px) {
+  .jtl-date { margin-left: 0; width: 100%; }
+}
+
 /* detail rows */
 .drow {
   display: grid;
@@ -263,6 +417,21 @@
 .drow__v b {
   font-weight: 700;
 }
+.docrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.docrow:last-child { border-bottom: none; }
+.docrow__ic { color: var(--ink-mute); flex-shrink: 0; display: flex; }
+.docrow__txt { flex: 1; min-width: 0; }
+.docrow__name {
+  font-size: 14px; color: var(--ink); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.docrow__meta { font-size: 12px; color: var(--ink-mute); margin-top: 2px; }
 @media (max-width: 540px) {
   .drow {
     grid-template-columns: 1fr;
@@ -351,6 +520,29 @@
   font-size: 12px;
   color: var(--ink-mute);
   margin-top: 2px;
+}
+
+/* Executed deed: a stacked file block (no icon-beside-text flex), so at 360px
+   the filename keeps its own line and the size and issue date sit beneath it in
+   muted text rather than all squashing onto one line. */
+.deed-file {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--app-bg-2);
+}
+.deed-file__name {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.3;
+  color: var(--ink);
+  word-break: break-word;
+}
+.deed-file__meta {
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--ink-mute);
 }
 
 .note-item {
@@ -519,15 +711,25 @@
 .pay-state--awaiting .pay-dot { background: var(--sent); }
 .pay-state--refunded { color: var(--danger); }
 .pay-state--refunded .pay-dot { background: var(--danger); }
+/* THE LINK ITSELF HAS TO BE VISIBLE, not just the Copy button beside it.
+   Matt, 2026-10-01: "Show the payment link next to Copy on joint tenancy
+   applications as on singles."
+
+   `min-width: 0` on a flex child lets it shrink to nothing, which is what
+   happened in the threaded journey column a joint tenancy renders in: the
+   button kept its width and the input collapsed, so the row read as a Copy
+   button with nothing to copy. It wraps now rather than shrinking past
+   being readable. */
 .pay-link {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
   margin-top: 12px;
 }
 .pay-link input {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 200px;
+  min-width: 160px;
   font-size: 12px;
   padding: 8px 10px;
   border: 1px solid var(--line-strong);
@@ -567,4 +769,90 @@
   height: 16px;
   flex-shrink: 0;
   margin-top: 1px;
+}
+
+/* DEFECTS.md 8: a payment taken on a withdrawn application. Red rather than
+   amber, and above the state line rather than beside it, because the card would
+   otherwise say "no guarantor fee was collected" over the top of a real charge. */
+.pay-anomaly { border: 1px solid #fecaca; background: #fef2f2; border-radius: 10px;
+               padding: 12px 14px; margin-bottom: 12px; color: #7f1d1d; font-size: 13px;
+               line-height: 1.55; }
+.pay-anomaly strong { display: block; margin-bottom: 4px; }
+.pay-anomaly p { margin: 0 0 6px; }
+.pay-anomaly p:last-child { margin-bottom: 0; }
+.pay-anomaly code { background: rgba(127, 29, 29, 0.09); padding: 1px 5px; border-radius: 4px; }
+
+/* DEFECTS.md 3. Test mode is the state worth noticing, so it is the one that is
+   coloured. Live mode is the normal case and reads quietly. */
+.pay-badge--test { background: #fffbeb; border-color: #fde68a; color: #78350f; }
+
+/* ---- THE OTHER TENANTS ON THIS TENANCY -----------------------------------
+   Sits inside the Tenancy card, because that card is the only one whose subject
+   is the tenancy rather than this applicant — rent, start date and now who else
+   is on it. */
+.jt-panel { margin: 12px 0 4px; border-top: 1px solid var(--line); padding-top: 12px; }
+.jt-panel__head {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-mute); margin-bottom: 8px;
+}
+/* Two counts, stacked and right-aligned: how many have paid, and how many deeds
+   are executed. They are separate facts now that each tenant has their own deed,
+   so they get a line each rather than being run together. */
+.jt-panel__prog {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 12px;
+  text-align: right;
+}
+.jt-panel__row {
+  display: grid; grid-template-columns: 1fr auto auto auto auto; gap: 12px;
+  align-items: center; padding: 6px 0; font-size: 13.5px;
+  border-bottom: 1px dashed var(--line);
+}
+.jt-panel__row:last-of-type { border-bottom: none; }
+.jt-panel__row.is-me { background: var(--app-bg-2, rgba(0,0,0,.02)); margin: 0 -8px; padding: 6px 8px; border-radius: 6px; }
+.jt-panel__who { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.jt-panel__who a { color: var(--ink); text-decoration: underline; text-underline-offset: 2px; }
+.jt-panel__who a:hover { color: var(--heliotrope, #6b5bd2); }
+.jt-panel__you {
+  font-size: 10px; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--ink-mute); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px;
+}
+.jt-panel__share { font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.jt-panel__paid { font-size: 11.5px; color: var(--warn, #c77d0a); }
+.jt-panel__paid.is-paid { color: var(--paid, #1f8a5f); }
+/* Each row's OWN deed state. Four tones, one per memberDeedTone answer, so the
+   colour can never say something the word does not. */
+.jt-panel__ds { font-size: 11.5px; }
+.jt-panel__ds--none { color: var(--ink-mute); }
+.jt-panel__ds--progress { color: var(--sent); }
+.jt-panel__ds--done { color: var(--deed); }
+.jt-panel__ds--problem { color: var(--danger, #d64545); }
+.jt-panel__ref { font-size: 12px; color: var(--ink-mute); font-variant-numeric: tabular-nums; }
+.jt-panel__deed { font-size: 12.5px; color: var(--ink-mute); line-height: 1.55; margin: 10px 0 0; }
+
+@media (max-width: 560px) {
+  /* Two columns: name + share, then paid + deed state, then the reference on a
+     line of its own. Auto-placement does the rest. */
+  .jt-panel__row { grid-template-columns: 1fr auto; row-gap: 2px; }
+  .jt-panel__ref { grid-column: 1 / -1; }
+}
+
+/* ---- DELIVERY --------------------------------------------------------------
+   Its own card beside the deed on the supplier rail, and threaded under the deed
+   stage inside the journey on the agent rail. Only the threaded form needs a
+   wrapper: the card supplies its own heading and padding. */
+.pay-state--failed { color: var(--danger); }
+.pay-state--failed .pay-dot { background: var(--danger); }
+.pay-state--held { color: var(--warn, #c77d0a); }
+.pay-state--held .pay-dot { background: var(--warn, #c77d0a); }
+.pay-state--delivered { color: var(--deed); }
+.pay-state--delivered .pay-dot { background: var(--deed); }
+.pay-state--waiting { color: var(--ink-mute); }
+.pay-state--waiting .pay-dot { background: var(--ink-mute); }
+
+.dlv--threaded { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.dlv__head {
+  font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-mute); margin-bottom: 2px;
 }

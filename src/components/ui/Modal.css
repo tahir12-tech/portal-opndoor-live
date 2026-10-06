@@ -76,3 +76,15 @@
   width: 20px;
   height: 20px;
 }
+
+/* WALK FIX 23. The one sentence a confirmation is. Wide measure would make
+   a two-line question hard to scan, so it is held near 60 characters like
+   the rest of the product's running text. */
+.confirm__body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  max-width: 58ch;
+}
+.confirm__body b { color: var(--ink); }

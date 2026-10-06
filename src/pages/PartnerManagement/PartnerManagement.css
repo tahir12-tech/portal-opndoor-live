@@ -28,6 +28,9 @@
   font-size: 15.5px;
   letter-spacing: -0.01em;
 }
+/* The partner name opens its home page; it still reads as the name. */
+.pco__namelink { color: var(--ink); text-decoration: none; }
+.pco__namelink:hover { color: var(--heliotrope-deep); }
 .pco__since {
   font-size: 12px;
   color: var(--ink-mute);
@@ -67,6 +70,15 @@
 .pm-audit__field {
   font-weight: 700;
   color: var(--ink);
+}
+/* THE WHOLE CHANGE AS ONE SENTENCE, which replaced the field-name cell
+   and the value-arrow-value cell beside it. It spans, because a sentence
+   that wraps into a column half the row wide reads worse than the two
+   fragments it replaced. */
+.pm-audit__said {
+  grid-column: 1 / -1;
+  color: var(--ink);
+  line-height: 1.5;
 }
 .pm-audit__delta {
   color: var(--ink-soft);
@@ -125,3 +137,46 @@
 .pm-confirm__to {
   color: var(--heliotrope-deep);
 }
+
+/* Capability rows in the partner modal. Each row IS the control, so the
+   uppercase small-caps `.field label` rule must not reach it: these live outside
+   a Field for exactly that reason, which is the same trap the Dev Centre scope
+   rows hit. */
+.pmcap { display: flex; gap: 10px; align-items: flex-start; padding: 11px 12px;
+         border: 1px solid var(--line); border-radius: 10px; margin-bottom: 10px;
+         cursor: pointer; }
+.pmcap:has(input:checked) { border-color: var(--valhalla); background: #faf9ff; }
+.pmcap input { margin-top: 2px; flex-shrink: 0; }
+.pmcap__name { font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
+.pmcap__desc { font-size: 12.5px; color: var(--ink-mute); line-height: 1.5; }
+
+/* THE WHOLE ROW IS THE WAY IN. Matt, 2026-10-01: "clicking a supplier
+   opens its page." The chevron says so without a button that would be a
+   second control for the one thing the row already does. */
+.prow { cursor: pointer; }
+.prow:hover { background: var(--app-bg); }
+.prow:focus-visible { outline: 2px solid var(--heliotrope-deep); outline-offset: -2px; }
+.prow__go { width: 14px; height: 14px; color: var(--ink-mute); }
+.prow:hover .prow__go { color: var(--ink); }
+
+/* THE AGENCY'S CHANGE LIST adds a chip the supplier's does not need: its
+   history has four subjects (the agency, a branch, a person, a deal) and
+   the supplier's has one. Coloured by subject so the eye can group them
+   without reading. */
+.agc-chip {
+  display: inline-block;
+  margin-right: 7px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: 1px;
+  background: var(--app-bg-2);
+  color: var(--ink-mute);
+}
+.agc-chip--deal { background: var(--heliotrope-pale, #f1e9ff); color: var(--heliotrope-deep); }
+.agc-chip--person { background: #e8f1ff; color: #1f4f9c; }
+.agc-chip--branch { background: #e9f7ee; color: #1d6b3a; }
+.agc-who { margin-right: 6px; }

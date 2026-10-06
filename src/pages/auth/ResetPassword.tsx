@@ -17,12 +17,14 @@
    the user into the app before they finish.
    ===================================================================== */
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { carriedStaffTab, forgotHref, signInHref } from './carry';
 import { authService } from '@/data';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { AuthenticatorAppHelp } from '@/components/auth/AuthenticatorAppHelp';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import './auth.css';
@@ -31,7 +33,7 @@ import '../ForgotPassword/ForgotPassword.css';
 type Phase = 'checking' | 'stepup' | 'password' | 'enrol' | 'done' | 'invalid';
 
 const COPY = {
-  reset: { title: 'Set a new password', eyebrow: 'Account recovery', brandH1: 'Choose a new password.', invalidLead: 'Your reset link may have expired or already been used. Request a new one and we will email you a fresh link.', invalidCta: { to: '/forgot-password', label: 'Request a new link' } },
+  reset: { title: 'Set a new password', eyebrow: 'Account recovery', brandH1: 'Choose a new password.', invalidLead: 'Your reset link may have expired or already been used. Request a new one and we will email you a fresh link.', invalidCta: { to: '/forgot-password?tab=agent', label: 'Request a new link' } },
   invite: { title: 'Set your password', eyebrow: 'Welcome to opndoor', brandH1: 'Set your password to get started.', invalidLead: 'Your invitation may have expired or already been used. Ask your administrator to resend it.', invalidCta: { to: '/login', label: 'Back to sign in' } },
 } as const;
 
@@ -47,6 +49,23 @@ function mapUpdateError(msg: string): string {
 
 export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' }) {
   const c = COPY[mode];
+  const [sp] = useSearchParams();
+  /* The audience rides in the recovery link, so an expired one puts somebody
+     back on the tab they started from instead of guessing Agent for everybody.
+     Falls back to the hardcoded default when the link predates this, or when
+     the allowlist made the sender drop the parameter. */
+  const invalidCta = mode === 'reset'
+    ? { ...c.invalidCta, to: forgotHref(carriedStaffTab(sp), '') }
+    : { ...c.invalidCta, to: signInHref(carriedStaffTab(sp), '') };
+  /* AND EVERY WAY BACK TO SIGN IN, not only the one on the expired-link
+     screen. Matt, 2026-10-01: "Password reset and invite links send each
+     person to the sign-in tab for their own type ... Check every email
+     link that lands on the sign-in page." There are four of them on this
+     page and three were a bare /login, which is the Agent tab for
+     everybody -- so a supplier who had just set their password was sent
+     to the wrong door, by the page that knew which door they came from.
+     A tenant never reaches this page: their reset lands on /apply/reset. */
+  const backToSignIn = signInHref(carriedStaffTab(sp), '');
   useDocumentTitle(c.title);
   const navigate = useNavigate();
   const { status, markMfaVerified } = useSession();
@@ -64,7 +83,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
   // Once TOTP is verified (invite completion) the session reaches AAL2 and
   // SessionContext resolves to 'ready'; route on to the app then (mirrors Login).
   useEffect(() => {
-    if (SUPABASE_ENABLED && status === 'ready') navigate('/dashboard', { replace: true });
+    if (SUPABASE_ENABLED && status === 'ready') navigate('/home', { replace: true });
   }, [status, navigate]);
 
   useEffect(() => {
@@ -178,7 +197,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
         <input id="code" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="123456" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))} required />
       </div>
       {error && <p className="auth__error" role="alert" style={{ color: 'var(--danger, #c0392b)' }}>{error}</p>}
-      <Button variant="primary" block type="submit" arrow disabled={busy || code.length !== 6}>{busy ? 'Verifying…' : cta}</Button>
+      <Button variant="primary" block type="submit" arrow disabled={busy}>{busy ? 'Verifying…' : cta}</Button>
     </form>
   );
 
@@ -209,8 +228,8 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
               <div className="confirm-ic"><Icon name="alert" strokeWidth={2.4} /></div>
               <h2 className="auth__title">This link is not valid</h2>
               <p className="auth__sub">{c.invalidLead}</p>
-              <div className="auth__form"><Button variant="primary" block to={c.invalidCta.to}>{c.invalidCta.label}</Button></div>
-              <p className="auth__foot"><Link to="/login">Back to sign in</Link></p>
+              <div className="auth__form"><Button variant="primary" block to={invalidCta.to}>{invalidCta.label}</Button></div>
+              <p className="auth__foot"><Link to={backToSignIn}>Back to sign in</Link></p>
             </div>
           )}
 
@@ -219,7 +238,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
               <h2 className="auth__title">Confirm it is you</h2>
               <p className="auth__sub">Enter the current 6-digit code from your authenticator app before setting a new password.</p>
               {codeField(submitStepup, 'Authenticator code', 'Verify and continue')}
-              <p className="auth__foot">Lost your authenticator? <Link to="/login">Ask your administrator to reset it.</Link></p>
+              <p className="auth__foot">Lost your authenticator? Ask your Opndoor contact to reset it.</p>
             </div>
           )}
 
@@ -233,14 +252,19 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
                 {error && <p className="auth__error" role="alert" style={{ color: 'var(--danger, #c0392b)' }}>{error}</p>}
                 <Button variant="primary" block type="submit" arrow disabled={busy || !pw || !pw2}>{busy ? 'Saving…' : (mode === 'invite' ? 'Set password' : 'Save new password')}</Button>
               </form>
-              <p className="auth__foot"><Link to="/login">Back to sign in</Link></p>
+              <p className="auth__foot"><Link to={backToSignIn}>Back to sign in</Link></p>
             </div>
           )}
 
           {phase === 'enrol' && (
             <div>
               <h2 className="auth__title">Set up two-factor authentication</h2>
-              <p className="auth__sub">Scan this QR code with an authenticator app (Google Authenticator, 1Password, Authy), then enter the 6-digit code it shows.</p>
+              <p className="auth__sub">Scan this QR code with an authenticator app, then enter the 6-digit code it shows.</p>
+              {/* THE SAME BLOCK AS THE SIGN-IN PAGE, and it matters more here:
+                  this is the invite landing, so it is the first thing a brand new
+                  person ever sees of the portal, and it is the screen that spent
+                  months recommending a paid app after the other one was fixed. */}
+              <AuthenticatorAppHelp />
               {qr && <div className="twofa-qr"><img className="twofa-qr__img" src={qr} alt="Authenticator setup QR code" width={160} height={160} /></div>}
               {secret && <div className="twofa-key"><span className="twofa-key__label">Can't scan? Enter this key manually.</span><code className="twofa-key__code">{secret}</code></div>}
               {codeField(submitEnrol, '6-digit code', 'Verify and finish')}
@@ -252,7 +276,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
               <div className="confirm-ic"><Icon name="check" strokeWidth={2.4} /></div>
               <h2 className="auth__title">Password updated</h2>
               <p className="auth__sub">Your password has been changed. Sign in with your new password, then verify with your authenticator code.</p>
-              <div className="auth__form"><Button variant="primary" block to="/login">Back to sign in</Button></div>
+              <div className="auth__form"><Button variant="primary" block to={backToSignIn}>Back to sign in</Button></div>
             </div>
           )}
         </div>

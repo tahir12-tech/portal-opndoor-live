@@ -7,9 +7,10 @@
    INTEGRATION: helpService.getHelpContent + the mutators back these; real
    file upload replaces the client-side data-URL storage.
    ===================================================================== */
-import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
-import { helpService, type HelpResource, type HelpResourceSection, type Role } from '@/data';
+import { isAgencyUser } from '@/data/capabilities';
+import { helpService, getPartner, type HelpResource, type HelpResourceSection, type Role, type ReferencingMode } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { Button } from '@/components/ui/Button';
@@ -19,6 +20,7 @@ import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 import './Help.css';
+import { plural } from '@/lib/plural';
 
 const RES_IC: Record<string, IconName> = { doc: 'file', video: 'video', deed: 'file', users: 'users', image: 'image' };
 
@@ -71,10 +73,162 @@ function servableHref(r: HelpResource): string | null {
 }
 // #110 Role gating. A resource with minRole is hidden from roles below it:
 // 'management' shows to management + opndoor admins; 'superadmin' to admins only.
-const ROLE_RANK: Record<Role, number> = { referrer: 1, management: 2, superadmin: 3 };
-function visibleTo(r: HelpResource, role: Role): boolean {
-  return !r.minRole || ROLE_RANK[role] >= ROLE_RANK[r.minRole];
+// A seniority ladder: a resource with minRole is visible to that rank and above.
+// 'developer' is deliberately rank 0, below every gated resource. The ladder does
+// not model them, because a developer is orthogonal to this hierarchy rather than
+// junior to it, and several referrer-level guides describe commission. Rank 0
+// means they see only resources with no minRole at all, which is the honest
+// answer when a model does not fit.
+/* (dh) SUPERADMIN OUTRANKS AN OPNDOOR MANAGER, and until now it did not.
+   Both sat at 3, so `minRole: 'superadmin'` admitted a manager and the
+   guide whose own meta reads "opndoor admin only" was on their shelf:
+   reconciliation, rate management, the bordereau, the CRM sync. Every
+   one of those is a screen (bb) deliberately did NOT give them.
+
+   Found by generating the table Matt asked for rather than describing
+   it: the counts came out identical for the admin and the manager,
+   which is the kind of thing a hand-written table repeats and a
+   computed one exposes. */
+const ROLE_RANK: Record<Role, number> = { developer: 0, referrer: 1, management: 2, opndoor_manager: 3, superadmin: 4 };
+
+/* (cl) AN OPNDOOR MANAGER DOES NOT READ COMMISSION, and `v.admin` said
+   they did. The flag lumps superadmins and opndoor managers together,
+   which is right for the RAIL -- both see agency and supplier material
+   -- and wrong for money: Matt, (cl), "because managers can't read
+   commission". So the commission arm asks its own question and the
+   rail arm keeps using `admin`.
+
+   SUPERADMIN IS ALWAYS TRUE rather than relying on the seesCommission
+   bit, because that bit is the agency rail's Director marker and an
+   opndoor admin has no position to carry it. */
+function readsCommission(v: HelpViewer): boolean {
+  return v.role === 'superadmin' || v.seesCommission;
 }
+
+/* (dk) DOES THIS DESCRIBE THE JOURNEY THIS ORGANISATION IS ON?
+
+   Untagged means all three, which is the right default: most of the
+   catalogue is about signing in, finding an application and who sees
+   what, none of which changes with the checking setting. Only the
+   pieces that describe what happens AFTER a referral are tagged.
+
+   THE SETTING IS THE ORGANISATION'S, NOT THE READER'S. An opndoor
+   admin looking at Kestrel's Help should see Kestrel's journey; a
+   guide is wrong or right about a company, not about a person. */
+export function appliesToMode(
+  x: { modes?: ReferencingMode[] }, mode: ReferencingMode | null,
+): boolean {
+  if (!x.modes || !x.modes.length) return true;
+  // No setting resolved yet: show it rather than hide it. An empty
+  // shelf while the org loads reads as "there is nothing for you".
+  if (!mode) return true;
+  return x.modes.includes(mode);
+}
+
+/** An FAQ answers to the same rail and commission rules as a resource; it has no
+    role ladder of its own. */
+export function mayOpenFaq(f: { rail?: 'supplier' | 'agency'; needsCommission?: boolean; modes?: ReferencingMode[] }, v: HelpViewer): boolean {
+  if (!appliesToMode(f, v.mode ?? null)) return false;
+  if (f.rail === 'supplier' && v.agency) return false;
+  if (f.rail === 'agency' && !v.agency && !v.admin) return false;
+  if (f.needsCommission && !readsCommission(v)) return false;
+  return true;
+}
+
+/* (dr7) ONE ANSWER PER QUESTION, for the one reader who sees both
+   rails.
+
+   Matt: "Admin sees two sets of FAQs with the same questions answered
+   differently. One answer per question."
+
+   ONLY OPNDOOR'S OWN STAFF ARE AFFECTED. An agency reader sees the
+   agency set and a supplier reader the supplier set; neither ever
+   meets a duplicate. An admin sees BOTH, and the overlapping
+   questions -- what the portal is for, what opndoor does as
+   guarantor, what Sent, Paid and Deed Issued mean, how to refer --
+   have one answer on each rail, written at different times and
+   differing in detail. Two answers to one question is worse than
+   either being wrong, because the reader cannot tell which is
+   current.
+
+   WHERE BOTH EXIST, THE AGENCY ANSWER WINS. The agency set was
+   written later and deliberately, for (bg), and every supplier-only
+   question -- commission, the API, co-branding -- has no agency twin
+   and is untouched. So nothing is lost from the supplier side except
+   a second answer to a question already answered.
+
+   IF MATT WANTS THE OTHER WAY ROUND it is the comparison in `keep`
+   below and nothing else.
+
+   THE QUESTION IS THE KEY, normalised for case and spacing. Matching
+   on id would not find the duplicates, which is the whole problem:
+   af1 and f1 are the same question with different ids. */
+export function oneAnswerPerQuestion<T extends { q: string; rail?: 'supplier' | 'agency' }>(
+  faqs: T[],
+): T[] {
+  /* IT RUNS FOR EVERYBODY, not only the both-rails reader it was
+     written for, and the matrix found out why. Before the
+     organisation's checking setting resolves, `appliesToMode` shows
+     everything rather than emptying the shelf -- which means an
+     agency reader could meet BOTH "what does the tenant pay"
+     answers for the frame or two before the partner loads. Rare,
+     transient, and exactly the duplicate this is here to prevent.
+
+     FOR A READER WITH A RESOLVED SETTING IT IS A NO-OP, because the
+     mode gate has already left one of each pair. */
+  const key = (q: string) => q.trim().toLowerCase().replace(/\s+/g, ' ');
+  const byQ = new Map<string, T>();
+  for (const f of faqs) {
+    const k = key(f.q);
+    const seen = byQ.get(k);
+    const keep = !seen || (f.rail === 'agency' && seen.rail !== 'agency');
+    if (keep) byQ.set(k, f);
+  }
+  // Original order, so the shelf does not reshuffle.
+  return faqs.filter((f) => byQ.get(key(f.q)) === f);
+}
+
+/** Who is reading, in the three dimensions this page gates on. */
+export interface HelpViewer {
+  role: Role;
+  /** Director rather than Manager, on the agency rail. */
+  seesCommission: boolean;
+  /** On our own estate rather than a supplier referring somebody else's stock. */
+  agency: boolean;
+  /** opndoor's own staff, who see everything including drafts. */
+  admin: boolean;
+  /** (dk) The ORGANISATION's checking setting, which decides which
+      journey the guides describe. Optional so every existing caller
+      and test keeps working: absent means "show everything", which
+      is what the page did before the axis existed. */
+  mode?: ReferencingMode | null;
+}
+
+/* WHAT A READER MAY OPEN. Three tests, and the first two are things minRole
+   cannot say.
+
+   THE RAIL. Supplier material talks about referring somebody else's stock,
+   adding agencies on the fly, white-labelling and the sales conversation. None
+   of that is what an agency on our own estate does, so shown to a Regent reader
+   it describes a product they are not using. The agent one-pager, the sales and
+   conversation guide and the co-branding assets are supplier-rail.
+
+   COMMISSION. minRole 'management' admits Directors AND Managers, because they
+   are the same role: the Manager level exists precisely so somebody can run the
+   team without being shown what the agency earns, and a guide describing the
+   commission would hand it to them in prose. So a resource that describes
+   commission needs the bit, not the role.
+
+   THE LADDER stays for everything else, unchanged. */
+export function mayOpenResource(r: HelpResource, v: HelpViewer): boolean {
+  if (!appliesToMode(r, v.mode ?? null)) return false;
+  if (r.minRole && ROLE_RANK[v.role] < ROLE_RANK[r.minRole]) return false;
+  if (r.rail === 'supplier' && v.agency) return false;
+  if (r.rail === 'agency' && !v.agency && !v.admin) return false;
+  if (r.needsCommission && !readsCommission(v)) return false;
+  return true;
+}
+
 /** A resource is openable only when it has an uploaded file or a servable href. */
 function hasResourceFile(r: HelpResource): boolean {
   return !!r.file?.url || !!servableHref(r);
@@ -101,12 +255,57 @@ type PendingFile = HelpResource['file'] | null | false;
 export function Help() {
   usePageMeta('help', 'Help & resources', ['Home', 'Help & resources']);
   const { hash } = useLocation();
-  const { role } = useSession();
+  const { role, seesCommission, partnerScope } = useSession();
   const isAdmin = role === 'superadmin';
+  /* (dk) THE ORGANISATION'S CHECKING SETTING, which decides which
+     journey the guides describe. `getPartner` is the same read the
+     rest of the product uses for this; null while the scope is
+     resolving, and `appliesToMode` shows everything then rather than
+     emptying the shelf for a frame. */
+  const helpViewer: HelpViewer = {
+    role,
+    seesCommission,
+    agency: isAgencyUser(role, partnerScope),
+    admin: role === 'superadmin' || role === 'opndoor_manager',
+    mode: getPartner(partnerScope)?.referencingMode ?? null,
+  };
+
   const toast = useToast();
   const [, setVersion] = useState(0);
   const refresh = () => setVersion((v) => v + 1);
   const data = helpService.getHelpContent();
+  /* WHAT IS ACTUALLY ON THE SHELF, for this reader.
+
+     THREE RULES, APPLIED ONCE so every count, every section and the search all
+     agree. They disagreed before: the section counts called visibleTo and the
+     cards called it again, and nothing deduped or checked for content at all.
+
+     1. Rail, level and commission, via mayOpenResource.
+     2. NOTHING WITHOUT CONTENT BEHIND IT. An item with no uploaded file and no
+        servable href opened nothing; it used to render to everyone as "Coming
+        soon", which is a promise the page cannot keep and, on a list of eleven,
+        three of them. Admin still sees them, marked as a draft, because admin is
+        who uploads the file.
+     3. ONCE. The referral checklist is the referrer guide's own #send anchor, so
+        the same document was on the shelf twice under two names. Deduped by the
+        document it opens, keeping the first section it appears in, which is
+        Getting started: a guide is a guide before it is a template. */
+  const shelf = useMemo(() => {
+    const seen = new Set<string>();
+    const pick = (list: HelpResource[]) => list.filter((r) => {
+      if (!mayOpenResource(r, helpViewer)) return false;
+      if (!hasResourceFile(r) && !isAdmin) return false;
+      // The document, not the link: '...referrer-guide.html#send' and
+      // '...referrer-guide.html' are one guide.
+      const doc = (servableHref(r) ?? r.file?.url ?? r.id).split('#')[0];
+      if (seen.has(doc)) return false;
+      seen.add(doc);
+      return true;
+    });
+    return { gettingStarted: pick(data.gettingStarted), templates: pick(data.templates) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, role, seesCommission, partnerScope, isAdmin]);
+
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
 
@@ -162,7 +361,7 @@ export function Help() {
     } else if (r.file) {
       const u = fileToBlobUrl(r.file);
       if (!u) {
-        toast('Could not open this file.', 'warning');
+        toast('Could not open this file.', 'error');
         return;
       }
       a.href = u;
@@ -188,7 +387,7 @@ export function Help() {
     }
     const src = h ? h : fileToBlobUrl(r.file!);
     if (!src) {
-      toast('Could not open this file.', 'warning');
+      toast('Could not open this file.', 'error');
       return;
     }
     setViewer({ open: true, title: r.title || 'Resource', src, isImg: h ? false : imageMime(r.file?.mime), blob: h ? null : src, href: h ?? undefined });
@@ -211,7 +410,7 @@ export function Help() {
   }
   function readFile(file: File) {
     if (file.size > 4 * 1048576) {
-      toast('That file is over 4 MB. Please choose a smaller file for the demo.','info');
+      toast('That file is over 4 MB. Please choose a smaller file for the demo.');
       return;
     }
     const reader = new FileReader();
@@ -246,16 +445,16 @@ export function Help() {
         if (existing) delete existing.minRole;
       }
       if (!ok) return;
-      toast('Resource updated for all users.','success');
+      toast('Resource updated for all users.');
     } else {
       const draft: Omit<HelpResource, 'id'> = { ...base };
       if (pendingFile) draft.file = pendingFile;
       const res = helpService.addResource(resDraft.section, draft);
       if (!res.ok) {
-        toast('Storage limit reached. Try a smaller file or remove an old resource.','info');
+        toast('Storage limit reached. Try a smaller file or remove an old resource.');
         return;
       }
-      toast('Resource added and published to all users.','success');
+      toast('Resource added and published to all users.');
     }
     setResDraft(null);
     refresh();
@@ -265,7 +464,7 @@ export function Help() {
     helpService.deleteResource(resDraft.section, resDraft.id);
     setResDraft(null);
     refresh();
-    toast('Resource deleted for all users.','success');
+    toast('Resource deleted for all users.');
   }
 
   // ---- faq / manager ----
@@ -273,7 +472,7 @@ export function Help() {
     if (!faqDraft || !faqDraft.q.trim()) return;
     if (faqDraft.id) helpService.updateFaq(faqDraft.id, faqDraft.q.trim(), faqDraft.a.trim());
     else helpService.addFaq(faqDraft.q.trim(), faqDraft.a.trim());
-    toast(faqDraft.id ? 'FAQ updated for all users.' : 'FAQ added and published to all users.','success');
+    toast(faqDraft.id ? 'FAQ updated for all users.' : 'FAQ added and published to all users.');
     setFaqDraft(null);
     refresh();
   }
@@ -282,7 +481,7 @@ export function Help() {
     const payload = { name: mgrDraft.name.trim(), role: mgrDraft.role.trim() || 'opndoor Partnerships', email: mgrDraft.email.trim(), phone: mgrDraft.phone.trim() };
     if (mgrDraft.id) helpService.updateManager(mgrDraft.id, payload);
     else helpService.addManager(payload);
-    toast(mgrDraft.id ? 'Account manager updated.' : 'Account manager added.','success');
+    toast(mgrDraft.id ? 'Account manager updated.' : 'Account manager added.');
     setMgrDraft(null);
     refresh();
   }
@@ -290,14 +489,17 @@ export function Help() {
   // ---- render helpers ----
   function ResourceCard({ r, section }: { r: HelpResource; section: HelpResourceSection }) {
     const hasFile = hasResourceFile(r);
-    const metaRight = hasFile ? r.meta : isAdmin ? 'No file yet · edit to upload' : 'Coming soon';
+    // Only admin ever sees a fileless item now, so the other arm is what admin
+    // needs to do about it. 'Coming soon' has gone: it was shown to readers who
+    // could not make it come, about items that had been empty for months.
+    const metaRight = hasFile ? r.meta : 'Draft · no file yet, edit to upload';
     const icClass = r.icon === 'video' ? ' res__ic--video' : r.icon === 'deed' ? ' res__ic--deed' : '';
     return (
       <a className="res" href="#" onClick={(e) => { e.preventDefault(); openResourceFile(r, (e.target as HTMLElement).closest('.res__dl') != null); }}>
         {isAdmin && (
           <div className="res__admin">
             <button className="mini" title="Edit" onClick={(e) => { e.preventDefault(); e.stopPropagation(); openResource(section, r.id); }}><Icon name="edit" /></button>
-            <button className="mini mini--danger" title="Delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirm({ title: 'Delete resource?', body: <>Delete <b>{r.title || 'this resource'}</b>? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteResource(section, r.id); refresh(); toast('Resource deleted for all users.','success'); } }); }}><Icon name="trash" /></button>
+            <button className="mini mini--danger" title="Delete" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirm({ title: 'Delete resource?', body: <>Delete <b>{r.title || 'this resource'}</b>? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteResource(section, r.id); refresh(); toast('Resource deleted for all users.', 'error'); } }); }}><Icon name="trash" /></button>
           </div>
         )}
         {hasFile && <span className="res__dl" title={servableHref(r) ? 'Open' : 'Download'}><Icon name={servableHref(r) ? 'external' : 'download'} /></span>}
@@ -312,7 +514,7 @@ export function Help() {
   }
 
   function renderSection(section: HelpResourceSection, addLabel: string) {
-    const items = data[section].filter((r) => visibleTo(r, role)).filter(matchRes);
+    const items = shelf[section].filter(matchRes);
     return (
       <div className="res-grid">
         {items.map((r) => <ResourceCard key={r.id} r={r} section={section} />)}
@@ -328,7 +530,13 @@ export function Help() {
     );
   }
 
-  const faqs = data.faqs.filter(matchFaq);
+  /* THE SAME THREE-DIMENSION RULE AS THE SHELF. An FAQ that states the
+     commission is not safe merely because the guide describing it is gated:
+     f8 named 25% and 10% in a list every Manager and Negotiator could read. */
+  // (dr7) The dedupe runs on the GATED set and before the search, so a
+  // reader searching never turns up the twin the shelf just dropped.
+  const faqs = oneAnswerPerQuestion(data.faqs.filter((f) => mayOpenFaq(f, helpViewer)))
+    .filter(matchFaq);
   const initials = (n: string) => n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase();
 
   return (
@@ -355,7 +563,7 @@ export function Help() {
           <section id="getting-started">
             <div className="section-title">
               <h2>Getting started</h2>
-              <span className="count">{data.gettingStarted.filter((r) => visibleTo(r, role)).length} guides</span>
+              <span className="count">{shelf.gettingStarted.length} guides</span>
               {isAdmin && <Button variant="primary" size="sm" className="addbtn" onClick={() => openResource('gettingStarted')}><Icon name="plus" /> Add resource</Button>}
             </div>
             {renderSection('gettingStarted', 'Add resource')}
@@ -364,7 +572,7 @@ export function Help() {
           <section id="templates">
             <div className="section-title">
               <h2>Templates &amp; downloads</h2>
-              <span className="count">{data.templates.filter((r) => visibleTo(r, role)).length} files</span>
+              <span className="count">{shelf.templates.length} files</span>
               {isAdmin && <Button variant="primary" size="sm" className="addbtn" onClick={() => openResource('templates')}><Icon name="plus" /> Add file</Button>}
             </div>
             {renderSection('templates', 'Add file')}
@@ -373,7 +581,7 @@ export function Help() {
           <section id="faqs">
             <div className="section-title">
               <h2>Frequently asked questions</h2>
-              <span className="count">{faqs.length} {faqs.length === 1 ? 'answer' : 'answers'}</span>
+              <span className="count">{faqs.length} {plural(faqs.length, 'answer')}</span>
               {isAdmin && <Button variant="primary" size="sm" className="addbtn" onClick={() => setFaqDraft({ id: null, q: '', a: '' })}><Icon name="plus" /> Add FAQ</Button>}
             </div>
             <div>
@@ -388,7 +596,7 @@ export function Help() {
                       {isAdmin && (
                         <span className="faq__admin">
                           <button className="mini" title="Edit" onClick={(e) => { e.preventDefault(); setFaqDraft({ id: f.id, q: f.q, a: f.a }); }}><Icon name="edit" /></button>
-                          <button className="mini mini--danger" title="Delete" onClick={(e) => { e.preventDefault(); setConfirm({ title: 'Delete FAQ?', body: <>Delete the FAQ <b>&ldquo;{f.q}&rdquo;</b>? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteFaq(f.id); refresh(); toast('FAQ deleted for all users.','success'); } }); }}><Icon name="trash" /></button>
+                          <button className="mini mini--danger" title="Delete" onClick={(e) => { e.preventDefault(); setConfirm({ title: 'Delete FAQ?', body: <>Delete the FAQ <b>&ldquo;{f.q}&rdquo;</b>? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteFaq(f.id); refresh(); toast('FAQ deleted for all users.', 'error'); } }); }}><Icon name="trash" /></button>
                         </span>
                       )}
                       <Icon name="chevronRight" className="faq__chev" size={18} strokeWidth={2.2} />
@@ -437,7 +645,7 @@ export function Help() {
                       {isAdmin && (
                         <div className="am-row__act">
                           <button className="mini" title="Edit" onClick={() => setMgrDraft({ id: m.id, name: m.name, role: m.role, email: m.email, phone: m.phone })}><Icon name="edit" /></button>
-                          <button className="mini mini--danger" title="Delete" onClick={() => setConfirm({ title: 'Remove account manager?', body: <>Remove <b>{m.name.trim() || 'this account manager'}</b>? They will no longer appear on the Help page. This cannot be undone.</>, run: () => { helpService.deleteManager(m.id); refresh(); toast('Account manager removed.','success'); } })}><Icon name="trash" /></button>
+                          <button className="mini mini--danger" title="Delete" onClick={() => setConfirm({ title: 'Remove account manager?', body: <>Remove <b>{m.name.trim() || 'this account manager'}</b>? They will no longer appear on the Help page. This cannot be undone.</>, run: () => { helpService.deleteManager(m.id); refresh(); toast('Account manager removed.', 'error'); } })}><Icon name="trash" /></button>
                         </div>
                       )}
                     </div>
@@ -515,7 +723,7 @@ export function Help() {
         sub="Visible to everyone in the portal."
         footer={
           <>
-            {faqDraft?.id && <Button variant="quiet" onClick={() => setConfirm({ title: 'Delete FAQ?', body: <>Delete this FAQ? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteFaq(faqDraft.id!); setFaqDraft(null); refresh(); toast('FAQ deleted for all users.','success'); } })} style={{ color: 'var(--danger)' }}>Delete</Button>}
+            {faqDraft?.id && <Button variant="quiet" onClick={() => setConfirm({ title: 'Delete FAQ?', body: <>Delete this FAQ? It is removed for all users and cannot be undone.</>, run: () => { helpService.deleteFaq(faqDraft.id!); setFaqDraft(null); refresh(); toast('FAQ deleted for all users.', 'error'); } })} style={{ color: 'var(--danger)' }}>Delete</Button>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
               <Button variant="ghost" onClick={() => setFaqDraft(null)}>Cancel</Button>
               <Button variant="primary" onClick={saveFaq}>Save</Button>
@@ -539,7 +747,7 @@ export function Help() {
         sub="Shown to the partner team on this page."
         footer={
           <>
-            {mgrDraft?.id && <Button variant="quiet" onClick={() => setConfirm({ title: 'Remove account manager?', body: <>Remove <b>{mgrDraft?.name.trim() || 'this account manager'}</b>? They will no longer appear on the Help page. This cannot be undone.</>, run: () => { helpService.deleteManager(mgrDraft.id!); setMgrDraft(null); refresh(); toast('Account manager removed.', 'success'); } })} style={{ color: 'var(--danger)' }}>Delete</Button>}
+            {mgrDraft?.id && <Button variant="quiet" onClick={() => setConfirm({ title: 'Remove account manager?', body: <>Remove <b>{mgrDraft?.name.trim() || 'this account manager'}</b>? They will no longer appear on the Help page. This cannot be undone.</>, run: () => { helpService.deleteManager(mgrDraft.id!); setMgrDraft(null); refresh(); toast('Account manager removed.', 'error'); } })} style={{ color: 'var(--danger)' }}>Delete</Button>}
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 10 }}>
               <Button variant="ghost" onClick={() => setMgrDraft(null)}>Cancel</Button>
               <Button variant="primary" onClick={saveManager}>Save</Button>
@@ -549,10 +757,10 @@ export function Help() {
       >
         {mgrDraft && (
           <div className="form-grid">
-            <Field label="Name" htmlFor="am-name"><input id="am-name" type="text" placeholder="e.g. Rosa Hartley" value={mgrDraft.name} onChange={(e) => setMgrDraft({ ...mgrDraft, name: e.target.value })} /></Field>
+            <Field label="Name" htmlFor="am-name"><input id="am-name" type="text" placeholder="e.g. Jane Smith" value={mgrDraft.name} onChange={(e) => setMgrDraft({ ...mgrDraft, name: e.target.value })} /></Field>
             <Field label="Team / title" htmlFor="am-role"><input id="am-role" type="text" placeholder="e.g. opndoor Partnerships" value={mgrDraft.role} onChange={(e) => setMgrDraft({ ...mgrDraft, role: e.target.value })} /></Field>
             <Field label="Email" htmlFor="am-email"><input id="am-email" type="email" placeholder="partners@opndoor.co" value={mgrDraft.email} onChange={(e) => setMgrDraft({ ...mgrDraft, email: e.target.value })} /></Field>
-            <Field label="Phone" htmlFor="am-phone"><input id="am-phone" type="text" placeholder="020 4577 2100" value={mgrDraft.phone} onChange={(e) => setMgrDraft({ ...mgrDraft, phone: e.target.value })} /></Field>
+            <Field label="Phone" htmlFor="am-phone"><input id="am-phone" type="text" placeholder="020 7946 0000" value={mgrDraft.phone} onChange={(e) => setMgrDraft({ ...mgrDraft, phone: e.target.value })} /></Field>
           </div>
         )}
       </Modal>

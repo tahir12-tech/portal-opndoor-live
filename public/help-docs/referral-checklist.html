@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>opndoor management guide</title>
+<style>
+:root{--ink:#271D5F;--ink-soft:#5B4D86;--ink-mute:#8B80AD;--helio:#B54DE0;--helio-deep:#9A3ACB;--lilac:#F5EEFB;--lilac-line:#E9DEF5;--paper:#fff}
+*{box-sizing:border-box}
+html{-webkit-print-color-adjust:exact;print-color-adjust:exact;scroll-behavior:smooth}
+body{margin:0;font-family:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:#EFE9F6;line-height:1.65;font-size:15.5px;-webkit-font-smoothing:antialiased}
+.sheet{max-width:860px;margin:0 auto;background:var(--paper);min-height:100vh}
+.pad{padding:56px 64px 72px}
+.lockup{display:flex;align-items:center;gap:14px;margin-bottom:34px}
+.lockup__mark{font-family:'Sora',sans-serif;font-weight:800;font-size:26px;letter-spacing:-.02em;color:var(--helio)}
+.lockup__bar{width:1.5px;height:28px;background:var(--lilac-line)}
+.lockup__sub{font-size:10.5px;font-weight:700;letter-spacing:.14em;line-height:1.35;text-transform:uppercase;color:var(--helio)}
+.gated{display:inline-flex;align-items:center;gap:8px;background:var(--lilac);border-radius:999px;padding:5px 14px;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--helio-deep);margin:0 0 16px}
+.gated::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--helio)}
+.eyebrow{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--helio);margin:0 0 14px}
+.eyebrow::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--helio)}
+h1{font-family:'Sora',sans-serif;font-weight:800;font-size:44px;line-height:1.05;letter-spacing:-.025em;color:var(--ink);margin:0 0 20px}
+.lead{font-size:19px;line-height:1.5;color:var(--ink-soft);margin:0;max-width:60ch}
+.rule{height:2px;background:var(--ink);border:0;margin:38px 0 6px}
+h2{font-family:'Sora',sans-serif;font-weight:800;font-size:25px;letter-spacing:-.01em;color:var(--ink);margin:40px 0 12px}
+h3{font-family:'Sora',sans-serif;font-weight:700;font-size:16.5px;color:var(--ink);margin:24px 0 6px}
+p{margin:0 0 14px;max-width:70ch}
+strong,b{font-weight:700;color:var(--ink)}
+ul,ol{margin:0 0 16px;padding-left:24px;max-width:70ch}
+li{margin:8px 0}
+a{color:var(--helio);font-weight:600;text-decoration:none}
+.callout{background:var(--lilac);border-radius:20px;padding:24px 28px;margin:24px 0}
+.callout__label{font-family:'Sora',sans-serif;font-weight:700;font-size:15px;color:var(--helio);margin:0 0 10px}
+.callout ul{margin:0;padding-left:22px}
+.callout li{margin:9px 0}
+.callout li::marker{color:var(--helio)}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14.5px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--lilac-line);vertical-align:top}
+th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink);background:var(--lilac)}
+.foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--lilac-line);color:var(--ink-mute);font-size:12.5px}
+.printbtn{position:fixed;top:22px;right:22px;background:var(--helio);color:#fff;border:0;border-radius:999px;padding:12px 22px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(181,77,224,.38);font-family:inherit;z-index:50}
+.printbtn:hover{background:var(--helio-deep)}
+@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:0}.printbtn{display:none}h1{font-size:31pt}h2{page-break-after:avoid}.callout,table{page-break-inside:avoid}a{color:var(--ink)}@page{margin:16mm 18mm}}
+@media(max-width:640px){.pad{padding:32px 24px 48px}h1{font-size:33px}.lead{font-size:17px}}
+</style>
+</head>
+<body>
+<button class="printbtn" onclick="window.print()">Save as PDF</button>
+<div class="sheet"><div class="pad">
+  <div class="lockup">
+    <span class="lockup__mark">opndoor</span>
+    <span class="lockup__bar"></span>
+    <span class="lockup__sub">Guarantee<br>Referral Portal</span>
+  </div>
+
+  <div class="gated">Before you refer</div>
+  <h1>Referral information checklist</h1>
+  <p class="lead">Everything the New application form asks for, in the order it asks. Gather it before you start and a referral takes a couple of minutes.</p>
+
+  <hr class="rule">
+
+  <h2>The tenant</h2>
+  <ul class="plain">
+    <li><b>Title</b> &mdash; required.</li>
+    <li><b>First name</b> and <b>last name</b> &mdash; required. Their legal name, as it appears on their ID.</li>
+    <li>Middle name &mdash; optional.</li>
+    <li><b>Date of birth</b> &mdash; required.</li>
+    <li><b>Email</b> &mdash; required. This is where the payment link goes, so check it with them.</li>
+    <li><b>Phone</b> &mdash; required.</li>
+  </ul>
+
+  <h2>The property</h2>
+  <ul class="plain">
+    <li><b>Address line 1</b>, <b>city or town</b> and <b>postcode</b> &mdash; required. You can search by postcode and pick the address.</li>
+    <li>Address line 2 and county &mdash; optional.</li>
+  </ul>
+
+  <h2>The tenancy</h2>
+  <ul class="plain">
+    <li><b>Monthly rent</b> &mdash; required. The rent for the whole property, not one tenant's share.</li>
+    <li><b>Tenancy start date</b> &mdash; required. It can be changed later, up to the day the tenancy starts.</li>
+  </ul>
+
+  <h2>Who it is for</h2>
+  <ul class="plain">
+    <li><b>The agency and the office</b> &mdash; required. Start typing and pick from the list.</li>
+  </ul>
+
+  <h2>If more than one tenant is renting together</h2>
+  <p>Add each tenant and give each one a share. The shares have to account for the whole rent between them, and each tenant pays their own part of the fee and signs their own deed. You need the full set of tenant details above for every one of them.</p>
+
+  <div class="callout">
+    <div class="callout__label">One thing worth checking twice</div>
+    <p style="margin:0">The tenant's <b>email</b> and their <b>legal name</b>. The email is where the payment link goes, and the name is what the deed is issued in.</p>
+  </div>
+</div></div>
+</div></div>
+</body>
+</html>

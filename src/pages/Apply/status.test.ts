@@ -1,0 +1,105 @@
+/* The tenant-facing status vocabulary.
+
+   applications.status is OUR vocabulary: 'sent' means a payment link is out,
+   which is meaningless to the person it was sent to, and 'paid' means the
+   guarantee fee rather than the application fee. statusView is the translation,
+   and these lock the two places it must never get wrong: what a tenant is told
+   after submitting, and what they are told once approved. */
+import { describe, expect, it } from 'vitest';
+import { statusView } from './ApplicationStatus';
+
+describe('what a tenant is told about their application', () => {
+  it('in progress counts the sections done', () => {
+    const v = statusView('draft', false, 3, 7);
+    expect(v.headline).toBe('In progress');
+    expect(v.detail).toContain('3 of 7');
+    expect(v.detail).toContain('application fee');   // says what unlocks the rest
+  });
+
+  it('stops mentioning the fee once it is paid', () => {
+    expect(statusView('draft', true, 3, 7).detail).not.toContain('application fee');
+  });
+
+  it('says it is ready to send when everything is done', () => {
+    expect(statusView('draft', true, 7, 7).headline).toBe('Ready to send');
+  });
+
+  it('never says "referencing" to a tenant: it is an eligibility check', () => {
+    // Our internal vocabulary and the partner API's is "referencing"; the word a
+    // tenant sees is "eligibility". These are the two places it leaks.
+    for (const st of ['draft', 'referencing', 'declined', 'sent', 'paid', 'deed']) {
+      const v = statusView(st, true, 7, 7);
+      expect(`${v.headline} ${v.detail}`.toLowerCase()).not.toContain('referenc');
+    }
+  });
+
+  it('after submitting, says it is pending and that nothing is needed from them', () => {
+    const v = statusView('referencing', true, 7, 7);
+    expect(v.headline).toBe('Eligibility check in progress');
+    expect(v.detail).toContain('do not need to do anything');
+    expect(v.tone).toBe('waiting');
+    expect(v.reached).toBe(2);
+  });
+
+  it('approved says approved, and offers the guarantee fee', () => {
+    const v = statusView('sent', true, 7, 7);
+    expect(v.headline).toBe('Approved');
+    expect(v.cta).toBe('pay_guarantee');
+    expect(v.tone).toBe('good');
+  });
+
+  it('declined is terminal on the timeline and never shows a success tick', () => {
+    const v = statusView('declined', true, 7, 7);
+    expect(v.terminated).toBe(true);
+    expect(v.tone).toBe('bad');
+    expect(v.cta).toBeUndefined();      // never ask a declined tenant for money
+  });
+
+  it('the guarantee being issued is the end of the timeline', () => {
+    expect(statusView('deed', true, 7, 7).reached).toBeGreaterThan(5);
+    expect(statusView('deed', true, 7, 7).tone).toBe('good');
+  });
+
+  it('lapsed and withdrawn are terminal, not silent', () => {
+    expect(statusView('expired', true, 7, 7).terminated).toBe(true);
+    expect(statusView('withdrawn', true, 7, 7).terminated).toBe(true);
+  });
+
+  it('never offers to take money except when approved', () => {
+    // The money CTA is pay_guarantee. sign_deed and view_deed appear later but
+    // take no payment, so the guard is specifically against the pay CTA.
+    for (const st of ['draft', 'referencing', 'declined', 'paid', 'deed', 'expired', 'withdrawn']) {
+      expect(statusView(st, true, 7, 7).cta).not.toBe('pay_guarantee');
+    }
+    expect(statusView('sent', true, 7, 7).cta).toBe('pay_guarantee');
+  });
+});
+
+describe('who manages the property', () => {
+  /* A tenant reaches opndoor by three routes and the counterparty differs. The
+     form already asks, so a terminal message must not assume a letting agent:
+     a direct tenant with a private landlord was being told to talk to an agent
+     who does not exist. */
+  it('says letting agent when it is one', () => {
+    expect(statusView('withdrawn', true, 7, 7, 'letting_agent').detail).toContain('your letting agent');
+  });
+
+  it('says landlord when it is one', () => {
+    const d = statusView('withdrawn', true, 7, 7, 'private_landlord').detail;
+    expect(d).toContain('your landlord');
+    expect(d).not.toContain('letting agent');
+  });
+
+  it('commits to neither when it does not know', () => {
+    const d = statusView('expired', true, 7, 7, null).detail;
+    expect(d).toContain('whoever manages the property');
+    expect(d).not.toContain('letting agent');
+    expect(d).not.toContain('landlord');
+  });
+
+  it('never assumes an agent on any terminal state', () => {
+    for (const st of ['withdrawn', 'expired']) {
+      expect(statusView(st, true, 7, 7).detail).not.toContain('your letting agent');
+    }
+  });
+});

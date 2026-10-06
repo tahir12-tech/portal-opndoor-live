@@ -1,0 +1,12 @@
+/* The count and the way back, beside the submit button. Red, because it is
+   the same state the fields are in and the reader is matching one to the
+   other; quiet enough that it does not read as a failure of the system. */
+.missingfields {
+  display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 13px; font-weight: 600; color: var(--danger, #C2325A);
+}
+.missingfields__jump {
+  border: 0; background: none; padding: 0; cursor: pointer;
+  font: inherit; color: inherit; text-decoration: underline;
+}
+.missingfields__jump:hover { text-decoration: none; }

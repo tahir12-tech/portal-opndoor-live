@@ -17,10 +17,13 @@
 //   getAgencies, getPartners, getRatesFor, removeContactLive, setPrimaryLive, updateContactLive,
 //   type Agency, type AgentContact, type Branch,
 // } from '@/data';
+import { showsOffices } from '@/data/agencyOffices';
 // import { useSession } from '@/session/SessionContext';
 // import { usePageMeta } from '@/components/layout/pageMeta';
 // import { useToast } from '@/components/ui/Toast';
 // import { Button } from '@/components/ui/Button';
+import { MissingFields } from '@/components/ui/MissingFields';
+import { useMissingFields } from '@/lib/useMissingFields';
 // import { Icon } from '@/components/ui/Icon';
 // import { Eyebrow } from '@/components/ui/Eyebrow';
 // import { Field } from '@/components/ui/Field';
@@ -28,7 +31,7 @@
 // import { PartnerSelect } from '@/components/ui/Select';
 // import './OrgManagement.css';
 
-// const agencyId = (a: Agency) => `${a.partner || 'rightmove'}:${a.name}`;
+// const agencyId = (a: Agency) => `${a.partner || 'northwind'}:${a.name}`;
 // const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 // /** An inline, consequence-aware confirmation rendered inside the contacts modal. */
@@ -197,7 +200,7 @@
 //       after?.();
 //       toast(success);
 //     } catch (e) {
-//       toast(e instanceof Error ? e.message : 'Something went wrong.');
+//       toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
 //     } finally {
 //       setBusy(false);
 //     }
@@ -214,7 +217,7 @@
 //       if (spec.success) toast(spec.success);
 //       setCtConfirm(null);
 //     } catch (e) {
-//       toast(e instanceof Error ? e.message : 'Something went wrong.');
+//       toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
 //     } finally {
 //       setBusy(false);
 //     }
@@ -425,7 +428,7 @@
 //           const id = agencyId(a);
 //           const open = q ? true : openSet.has(id);
 //           const fees = feesOf(a, true);
-//           const meta = `${a.group ? `${a.group} · ` : ''}${a.branches.length} ${a.branches.length === 1 ? 'branch' : 'branches'}`;
+//           const meta = `${a.group ? `${a.group} · ` : ''}${a.branches.length} ${plural(a.branches.length, 'branch')}`;
 //           return (
 //             <div className={`agency${open ? ' is-open' : ''}`} key={id}>
 //               <div className="agency__head" onClick={(e) => onHeadClick(e, id)}>
@@ -523,8 +526,8 @@
 //           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Branch contact <span style={{ fontWeight: 400, color: 'var(--ink-mute)' }}>(optional)</span></div>
 //           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Leave blank to inherit the agency default contact.</p>
 //           <div className="form-grid">
-//             <Field span2 label="Contact email" htmlFor="branch-cemail" hint="Optional"><input id="branch-cemail" type="email" placeholder="branch@agency.co.uk" autoComplete="off" value={branchContact.email} onChange={(e) => setBranchContact((c) => ({ ...c, email: e.target.value }))} /></Field>
-//             <Field label="Contact name" htmlFor="branch-cname" hint="Optional"><input id="branch-cname" type="text" placeholder="e.g. Sam Rivers" autoComplete="off" value={branchContact.name} onChange={(e) => setBranchContact((c) => ({ ...c, name: e.target.value }))} /></Field>
+//             <Field span2 label="Contact email" htmlFor="branch-cemail" hint="Optional"><input id="branch-cemail" type="email" placeholder="lettings@example.co.uk" autoComplete="off" value={branchContact.email} onChange={(e) => setBranchContact((c) => ({ ...c, email: e.target.value }))} /></Field>
+//             <Field label="Contact name" htmlFor="branch-cname" hint="Optional"><input id="branch-cname" type="text" placeholder="e.g. Jane Smith" autoComplete="off" value={branchContact.name} onChange={(e) => setBranchContact((c) => ({ ...c, name: e.target.value }))} /></Field>
 //             <Field label="Contact phone" htmlFor="branch-cphone" hint="Optional"><input id="branch-cphone" type="tel" placeholder="020 7946 0000" autoComplete="off" value={branchContact.phone} onChange={(e) => setBranchContact((c) => ({ ...c, phone: e.target.value }))} /></Field>
 //           </div>
 //         </div>
@@ -590,7 +593,7 @@
 //           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>{ctEditIndex !== null ? 'Edit contact' : 'Add a contact'}</div>
 //           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>The email is what matters. It is where the Deed of Guarantee is delivered.</p>
 //           <div className="form-grid">
-//             <Field span2 label={<>Contact email <span className="req" aria-hidden="true">*</span></>} htmlFor="ct-email"><input id="ct-email" type="email" placeholder="deeds@agency.co.uk" autoComplete="off" value={ctEmail} onChange={(e) => setCtEmail(e.target.value)} /></Field>
+//             <Field span2 label={<>Contact email <span className="req" aria-hidden="true">*</span></>} htmlFor="ct-email"><input id="ct-email" type="email" placeholder="deeds@example.co.uk" autoComplete="off" value={ctEmail} onChange={(e) => setCtEmail(e.target.value)} /></Field>
 //             <div className="field span-2" style={{ marginTop: -6 }}><span className="hint">Use a shared work address (e.g. deeds@agency.co.uk) rather than a personal one. Deeds must always deliver, even when staff change.</span></div>
 //             <Field label="Name" htmlFor="ct-name" hint="Optional"><input id="ct-name" type="text" placeholder="e.g. Deeds team" autoComplete="off" value={ctName} onChange={(e) => setCtName(e.target.value)} /></Field>
 //             <Field label="Role" htmlFor="ct-role" hint="Optional"><input id="ct-role" type="text" placeholder="e.g. Branch manager" autoComplete="off" value={ctRole} onChange={(e) => setCtRole(e.target.value)} /></Field>
@@ -623,25 +626,36 @@
    next hydration. Admin-created records land confirmed; management-created
    land pending_review. In mock/test mode the same edits apply locally.
    ===================================================================== */
-import { useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { getOrgDeedReadiness, type DeedReadiness } from '@/data/positionsService';
+import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import {
-  ALL_PARTNERS, addContactLive, createAgencyLive, createBranchLive, effectivePrimary, findAgency,
-  getAgencies, getPartners, getRatesFor, removeContactLive, setPrimaryLive, updateContactLive,
-  type Agency, type AgentContact, type Branch,
+  ALL_PARTNERS, addContactLive, createBranchLive, effectivePrimary, findAgency,
+  getAgencies, getGroups, getPartners, getRatesFor, createAgencyGroup, maySeeCommission, setAgencyGroup as attachAgencyToGroup, removeContactLive, setPrimaryLive, updateContactLive,
+  type Agency, type AgencyGroup, type AgentContact, type Branch,
 } from '@/data';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
 import { useToast } from '@/components/ui/Toast';
 import { Button } from '@/components/ui/Button';
+import { agenciesNeedingAnEmail, agencyContactState, branchesWithNoDeedContact } from '@/data/deedContact';
+import { mayAddOwnEstateAgency, ownEstateTakesAdditions, partyIsSupplier } from '@/data/capabilities';
 import { Icon } from '@/components/ui/Icon';
 import { Eyebrow } from '@/components/ui/Eyebrow';
 import { Field } from '@/components/ui/Field';
 import { Modal } from '@/components/ui/Modal';
-import { PartnerSelect } from '@/components/ui/Select';
+import { AgencyCreate } from '@/pages/Agencies/AgencyCreate';
+import { SupplierAddOrg } from '@/pages/PartnerManagement/SupplierAddOrg';
 import './OrgManagement.css';
+import { plural } from '@/lib/plural';
 
-const agencyId = (a: Agency) => `${a.partner || 'rightmove'}:${a.name}`;
+const agencyId = (a: Agency) => `${a.partner || 'northwind'}:${a.name}`;
+/** Expand-state keys. Prefixed so a group id can never collide with an agency key. */
+const GK = (groupId: string) => `g:${groupId}`;
+const AK = (a: Agency) => `a:${agencyId(a)}`;
+/** Top-level nodes drawn per page. The tree below them is collapsed by default. */
+const PAGE = 50;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
 /** An inline, consequence-aware confirmation rendered inside the contacts modal. */
@@ -693,42 +707,206 @@ const realName = (name: string, email: string): string => {
   return n;
 };
 
-/** The effective-primary-contact summary line shown under an agency or branch name. */
-function ContactSummary({ agency, branch, canManage, onManage }: { agency: Agency; branch: Branch | null; canManage: boolean; onManage: () => void }) {
+/** The deed/contact summary line shown under an agency or branch name.
+
+    TWO RAILS, TWO QUESTIONS. On a supplier-introduced org the agent_contacts
+    mailbox IS the deed path, so a missing contact is the warning. On the AGENT
+    rail the deed goes to the org's PEOPLE — a nominated recipient, else the
+    branch/agency/group manager — so the mailbox says nothing about whether a deed
+    can be issued, and warning from it fired on agencies that are perfectly able to
+    receive one.
+
+    `ready` carries the people answer, resolved server-side by org_deed_readiness
+    for the whole list in one call (it must scale to thousands of rows, so it is
+    not recomputed here per row). It is undefined for supplier-introduced orgs and
+    in mock mode, and that case keeps the mailbox warning exactly as before. */
+function ContactSummary({ agency, branch, canManage, onManage, ready, people, stuck }: {
+  agency: Agency; branch: Branch | null; canManage: boolean; onManage: () => void; ready?: boolean;
+  /* HOW MANY PEOPLE ARE AT OR UNDER THIS ORG, and whether a deed is actually
+     stuck here. Matt, 2026-10-03: "for Opndoor's own agencies with no users,
+     replace 'No one at this agency can receive the deed...' with a neutral
+     'No users yet. Invite someone to start referring.' Only warn about deed
+     delivery when there's an application at that agency whose deed has
+     nowhere to go." `ready` alone cannot tell the two apart; see
+     20261007800000 and data/deedsStuck.ts. */
+  people?: number; stuck?: boolean;
+}) {
   const ep = effectivePrimary(agency, branch);
+  /* AN AGENCY ROW ASKS A DIFFERENT QUESTION FROM A BRANCH ROW.
+
+     Matt, 2026-10-01: "Apply the same rule as the admin supplier Overview
+     everywhere this warning appears: only warn on a branch that genuinely
+     has nowhere to send the deed, on that branch."
+
+     This row ran the BRANCH question on the agency node, so an agency that
+     keeps its contacts on its branches -- the normal arrangement, and the
+     one inheritance exists to support -- said "No agent contact. A deed
+     cannot be issued" above two branches each printing a working address.
+     Measured on dev: that is exactly Kestrel Lettings, which is the screen
+     Matt was looking at. `agencyContactState` is the Overview's rule,
+     lifted out so the two cannot answer differently again. */
+  /* AND SINCE 2026-10-02 THE SUBJECT IS THE AGENCY ADDRESS. Matt: "an
+     agency email is required at creation and is the default for all its
+     branches ... For supplier-estate agencies with no agency email, show
+     a clear warning on the supplier's Agencies tab ... No warnings for
+     Opndoor's own agencies without an email."
+
+     So this row says nothing at all for one of ours -- `agencyContactState`
+     answers 'quiet' there -- and for a supplier's agency without the
+     default it says what is missing and what to do, rather than the older
+     "a deed has nowhere to go", which is not what is wrong when every
+     branch holds an address of its own. The branch count is kept where it
+     is non-zero, because that IS the sharp end when it happens. */
+  if (!branch && ready === undefined) {
+    const state = agencyContactState(agency);
+    if (state.kind === 'needs-email') {
+      return (
+        <div className="contact-line contact-line--none">
+          <Icon name="alert" />
+          <span className="cl-none">
+            <b>No agency email.</b>{' '}
+            {state.bare > 0
+              ? <>A signed deed for {state.bare} of {state.branches} {plural(state.branches, 'branch')} has
+                  nowhere to go, and an application against one will fail after the tenant has paid.</>
+              : <>Its branches each have their own, so nothing is stranded today, but the next office
+                  added here would inherit nothing. Add one.</>}
+          </span>
+          {canManage ? (
+            <button className="contact-manage" onClick={(e) => { e.stopPropagation(); onManage(); }}>Manage</button>
+          ) : null}
+        </div>
+      );
+    }
+  }
   const manageBtn = canManage ? (
     <button className="contact-manage" onClick={(e) => { e.stopPropagation(); onManage(); }}>Manage</button>
   ) : null;
-  if (!ep.contact) {
-    return <div className="contact-line"><Icon name="mail" /><span className="cl-none">No agent contact</span>{manageBtn}</div>;
-  }
-  return (
+  /* ON OUR OWN ESTATE A MISSING ADDRESS IS NOT A WARNING, whatever the
+     readiness lookup has or has not answered yet. Matt, 2026-10-02: "No
+     warnings for Opndoor's own agencies without an email." The `ready`
+     branch below already tells the two rails apart when readiness has
+     loaded; this says so from the ESTATE, which is known from the row
+     itself, so a slow or failed lookup cannot show a supplier's warning
+     on one of ours. */
+  const ourOwn = !partyIsSupplier(agency.partner ?? '');
+  const contactLine = ep.contact ? (
     <div className="contact-line">
       <Icon name="mail" />
       <span>{realName(ep.contact.name, ep.contact.email) ? <><b>{realName(ep.contact.name, ep.contact.email)}</b> · {ep.contact.email}</> : <b>{ep.contact.email}</b>}</span>
       {branch && ep.inherited && <span className="cl-inherit">(agency default)</span>}
       {manageBtn}
     </div>
-  );
+  ) : null;
+
+  if (ready !== undefined) {
+    // Agent rail. No Manage button on the warning: the fix is inviting a manager or
+    // nominating a recipient on the agency's own page, not editing a mailbox.
+    if (!ready) {
+      /* A CAPABILITY IS NOT A PROBLEM. The deed warning now needs a deed:
+         without one, an org nobody has been invited to yet reads as what it
+         is, and an org that HAS people whom the ladder does not reach says
+         nothing here -- there is no document waiting and nothing to do
+         today. The alert returns the moment a deed is actually stranded. */
+      if (!stuck) {
+        if (people === 0) {
+          return (
+            <div className="contact-line">
+              <Icon name="users" />
+              <span className="cl-none">{NO_USERS_YET}</span>
+              {manageBtn}
+            </div>
+          );
+        }
+        return contactLine;
+      }
+      return (
+        <div className="contact-line contact-line--none">
+          <Icon name="alert" />
+          <span className="cl-none">
+            {branch
+              ? 'No one at this branch can receive the deed. Invite a branch manager or nominate a recipient.'
+              : 'No one at this agency can receive the deed. Invite a manager or nominate a recipient.'}
+          </span>
+        </div>
+      );
+    }
+    // A mailbox is still worth showing when there is one, but on this rail it is
+    // information rather than a deed requirement.
+    return contactLine;
+  }
+
+  if (!ep.contact) {
+    // Nothing to say on our own estate: the deed goes to the referrer and
+    // the ticked people, and this address is an optional extra.
+    if (ourOwn) return null;
+    // DEFECTS.md 6. This is not a cosmetic gap: a branch in a SUPPLIER's
+    // estate with no resolvable primary contact CANNOT ISSUE A DEED, and
+    // the failure happens after the tenant has paid. It used to read as a
+    // neutral "not filled in yet".
+    return (
+      <div className="contact-line contact-line--none">
+        <Icon name="alert" />
+        <span className="cl-none">
+          <b>No agent contact.</b> A deed cannot be issued for this branch, and an application against
+          it will fail after the tenant has paid.
+        </span>
+        {manageBtn}
+      </div>
+    );
+  }
+  return contactLine;
 }
 
 export function OrgManagement() {
-  usePageMeta('org', 'Agencies & branches', ['Home', 'Administration', 'Agencies & branches']);
-  const { role, partnerScope, selectedPartner, setSelectedPartner, refresh: refreshData } = useSession();
+  usePageMeta('org', 'Agencies', ['Home', 'Relationships', 'Agencies']);
+  const { role, partnerScope, currentUserId, dataVersion, refresh: refreshData } = useSession();
   const toast = useToast();
 
-  const [, setVersion] = useState(0);
+  const [version, setVersion] = useState(0);
   const refresh = () => setVersion((v) => v + 1);
+  const [createOpen, setCreateOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState('');
-  const [openSet, setOpenSet] = useState<Set<string>>(() => new Set(getAgencies(ALL_PARTNERS).filter((a) => a.open).map(agencyId)));
+
+  /* EXPAND STATE. Groups and agencies are COLLAPSED by default, so a thousand
+     agencies is a thousand one-line rows rather than the whole tree. Keys are
+     prefixed (GK/AK) so a group and an agency can never collide. Kept per user for
+     the session: sessionStorage survives navigating away and back, and does not
+     follow them into tomorrow. */
+  const expandKey = `org-expand:${currentUserId ?? 'anon'}`;
+  const [openSet, setOpenSet] = useState<Set<string>>(() => {
+    try {
+      const raw = sessionStorage.getItem(`org-expand:${currentUserId ?? 'anon'}`);
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* private window or blocked storage: start collapsed, which is correct anyway */ }
+    return new Set();
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem(expandKey, JSON.stringify([...openSet])); } catch { /* losing the expand state is not worth an error */ }
+  }, [expandKey, openSet]);
+
+  /* How many TOP-LEVEL nodes (groups + independent agencies) are drawn. Collapsed
+     rows are cheap, but the top level itself can be thousands, so it is paged. */
+  const [shownCount, setShownCount] = useState(PAGE);
+  useEffect(() => { setShownCount(PAGE); }, [query]);
+
+  /* Agent-rail deed readiness for every visible agency and branch, resolved
+     server-side in ONE call rather than per row. Null (mock mode, or a failure)
+     reads as "unknown", which keeps the old agent-contact warning. */
+  const [readiness, setReadiness] = useState<DeedReadiness | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getOrgDeedReadiness()
+      .then((r) => { if (alive) setReadiness(r); })
+      .catch(() => { if (alive) setReadiness(null); });
+    return () => { alive = false; };
+  }, [dataVersion]);
+  /* AND WHETHER A DEED IS ACTUALLY WAITING, which is the other half of the
+     deed warning's condition. Off the hydrated book, so it costs no call on
+     a list that has to work at thousands of rows. */
+  const stuckDeeds = useMemo(() => deedsWithNowhereToGo(), [dataVersion]);
 
   // add-agency modal (+ its required default contact)
-  const [agencyOpen, setAgencyOpen] = useState(false);
-  const [agencyName, setAgencyName] = useState('');
-  const [agencyGroup, setAgencyGroup] = useState('');
-  const [agencyPartner, setAgencyPartner] = useState<string>(selectedPartner !== ALL_PARTNERS ? selectedPartner : '');
-  const [agencyContact, setAgencyContact] = useState({ name: '', email: '', phone: '' });
   // add-branch modal (+ its optional own contact)
   const [branchOpen, setBranchOpen] = useState(false);
   const [branchName, setBranchName] = useState('');
@@ -750,12 +928,126 @@ export function OrgManagement() {
   const [ctPrimary, setCtPrimary] = useState(false);
   const [ctConfirm, setCtConfirm] = useState<CtConfirm | null>(null);
 
-  const rates = getRatesFor(partnerScope);
-  const isMgmt = role === 'management';
-  const q = query.trim().toLowerCase();
-  const pool = getAgencies(partnerScope);
+  // Commission editor (superadmin): set this agency's own override, or clear to
+  // inherit the next tier up. Server-side set_agency_rates is superadmin-only.
+  // Commission is now edited per node on the agency detail page (as percentages),
+  // not from a list modal — see AgencyHome. The old fraction-input modal is gone.
 
-  const partnerPoolForBranch = getAgencies(partnerScope);
+  // Group editor (superadmin/management): put a brand (agency) into a real group,
+  // create one on the fly, or detach. This is what makes "a whole group" position
+  // and the group commission tier reachable, replacing the dead group_name label.
+  const [groupAgency, setGroupAgency] = useState<Agency | null>(null);
+  const [groupChoice, setGroupChoice] = useState<string>('');
+  const [newGroupName, setNewGroupName] = useState('');
+  function openGroup(a: Agency) {
+    setGroupAgency(a);
+    setGroupChoice(a.groupId ?? '');
+    setNewGroupName('');
+  }
+  async function saveGroup() {
+    if (!groupAgency?.id) return;
+    setBusy(true);
+    try {
+      let gid: string | null;
+      if (groupChoice === 'new') {
+        const nm = newGroupName.trim();
+        if (!nm) { toast('Enter a name for the new group.', 'error'); setBusy(false); return; }
+        gid = (await createAgencyGroup(groupAgency.partner, nm)).id;
+      } else {
+        gid = groupChoice || null;
+      }
+      await attachAgencyToGroup(groupAgency.id, gid);
+      setGroupAgency(null);
+      toast(gid ? 'Agency added to the group.' : 'Agency detached from its group.');
+      await refreshData();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not update the group.', 'error');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const rates = getRatesFor(partnerScope);
+  /* THE COMMISSION STATS ON THIS PAGE, and they were gated on the ROLE alone.
+     `role === 'management'` is exactly what an agency MANAGER is, so a Manager
+     opened Agencies to "Agency commission" on every agency head, again on every
+     branch row inside it, and again rolled up on a collapsed group head: the
+     agency's earnings at three grains, on a page nobody thought of as a
+     commission surface. It is the same mistake RoleOnly was changed to stop
+     making, in a file that has no RoleOnly in it, which is why the sweep of the
+     other screens did not reach it.
+     maySeeCommission, not the role: a Director keeps all three. */
+  const isMgmt = role === 'management' && maySeeCommission(role);
+  const q = query.trim().toLowerCase();
+  // The Agencies section is addressed by the org itself, never by a partner: an
+  // admin sees every group/brand/branch; a partner manager sees their own. There
+  // is no partner selector on this screen.
+  const listScope = role === 'superadmin' ? ALL_PARTNERS : partnerScope;
+  /* getAgencies allocates a fresh filtered array on every call, so these are
+     memoised on the things that can actually change the org tree: the scope, a
+     re-hydration (dataVersion) and a local mutation (version). Without this the
+     whole pool is rescanned on every keystroke in the search box. */
+  /* ADMIN'S AGENCIES TAB IS OPNDOOR'S OWN ESTATE. Matt, 2026-10-01:
+     "Opndoor's estate: agencies that are Opndoor's own clients (like
+     Regent). They have logins, users, branches, their own deals, and
+     Opndoor pays them. Admin's Agencies tab lists only these. ... Each
+     supplier's estate: the agencies and branches that come through that
+     supplier ... On admin's view, they appear in an 'Agencies' tab on
+     that supplier's page, not in admin's main Agencies tab."
+
+     An admin read ALL_PARTNERS here, so every supplier's agencies were
+     listed beside our own clients with nothing to tell them apart --
+     which is the list Matt is splitting. A supplier's own staff are
+     scoped to their partner and so are unaffected: they go on seeing
+     their own estate here, which is the sentence after the one above.
+
+     The ESTATE, not the referencing mode: `partyIsAgency` asks how a
+     party is referenced, and an agency of ours that references its own
+     tenants is still ours. The partner IS the estate. */
+  const pool = useMemo(() => {
+    const all = getAgencies(listScope);
+    if (role !== 'superadmin' && role !== 'opndoor_manager') return all;
+    return all.filter((a) => !partyIsSupplier(a.partner));
+  }, [listScope, role, version, dataVersion]);
+
+  const partnerPoolForBranch = pool;
+
+  /* DEFECTS.md 6. Branches that cannot issue a deed, surfaced BEFORE an
+     application fails against one rather than after.
+     effectivePrimary is the client-side twin of effective_primary_contact, which
+     is the exact call the deed path makes and the same one GET /v1/orgs reports
+     as has_agent_contact, so this cannot disagree with either. */
+  // The agent_contacts mailbox warning is correct only for supplier-introduced orgs.
+  // Agent-rail orgs (partner referencing_mode 'opndoor_referenced') resolve the deed
+  // from their PEOPLE — a nominated recipient, else the branch/agency/group manager —
+  // which the agency detail page surfaces per branch; the mailbox check does not apply.
+  // Memoised: this walks every agency and every branch and calls getPartner (a
+  // linear find) per agency, so unmemoised it ran on every keystroke.
+  const deedBlocked = useMemo(() => branchesWithNoDeedContact(
+    // The ESTATE, not the referencing choice. M3 made this follow the agency's own
+    // referencing_mode, which was right for an agency opting INTO eligibility and
+    // wrong for one opting out: Regent reference their own tenants and are still
+    // one of ours, with people to deliver to and no mailbox to warn about.
+    /* `partyIsSupplier`, not "its partner is not agency-mode". The older
+       test read the partner RECORD, and `opndoor-agents` is a house slug
+       that may not be in the hydrated list at all -- in which case every
+       agency of ours fell through it and was counted. The predicate knows
+       a house slug without needing a record. */
+    pool.filter((a) => partyIsSupplier(a.partner ?? '')),
+  ), [pool]);
+
+  /* AND THE AGENCIES WITH NO DEFAULT ADDRESS. Matt, 2026-10-02: "For
+     supplier-estate agencies with no agency email, show a clear warning on
+     the supplier's Agencies tab and list them on Reconciliation so Opndoor
+     can add one. No warnings for Opndoor's own agencies without an email."
+
+     A DIFFERENT SET FROM `deedBlocked`, and the two overlap rather than
+     nest. An agency whose branches each hold their own address strands
+     nothing today and still has no default for the next office; a branch
+     with nothing anywhere is in both. `agenciesNeedingAnEmail` asks the
+     estate itself, so no filter is needed here and an admin looking at
+     Opndoor's own list gets an empty array. */
+  const needEmail = useMemo(() => agenciesNeedingAnEmail(pool), [pool]);
 
   // Resolve the contacts-modal owner fresh each render (reflects mutations + re-hydration).
   const ctAgency = ctOpen ? findAgency(ctAgencyName) ?? null : null;
@@ -811,7 +1103,7 @@ export function OrgManagement() {
       after?.();
       toast(success);
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Something went wrong.','error');
+      toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
     } finally {
       setBusy(false);
     }
@@ -828,7 +1120,7 @@ export function OrgManagement() {
       if (spec.success) toast(spec.success);
       setCtConfirm(null);
     } catch (e) {
-      toast(e instanceof Error ? e.message : 'Something went wrong.','error');
+      toast(e instanceof Error ? e.message : 'Something went wrong.', 'error');
     } finally {
       setBusy(false);
     }
@@ -841,7 +1133,7 @@ function submitContact() {
   const email = ctEmail.trim();
 
   if (!email) {
-    toast('Enter a contact email.','warning');
+    toast('Enter a contact email.');
     return;
   }
 
@@ -1004,23 +1296,6 @@ function requestCloseContacts() {
     toggle(id);
   }
 
-  const agencyEmailOk = EMAIL_RE.test(agencyContact.email.trim());
-  const canSaveAgency = !!agencyName.trim() && !!agencyPartner && agencyEmailOk && !busy;
-  function saveAgency() {
-    if (!canSaveAgency) {
-      if (!agencyPartner) toast('Select a specific partner before adding an agency.','warning');
-      return;
-    }
-    void runOrg(
-      () => createAgencyLive({
-        name: agencyName.trim(), group: agencyGroup.trim() || undefined,
-        contactEmail: agencyContact.email.trim(), contactName: agencyContact.name.trim() || undefined, contactPhone: agencyContact.phone.trim() || undefined,
-      }, agencyPartner),
-      'Agency added.',
-      () => setAgencyOpen(false),
-    );
-  }
-
   function openAddBranch(name?: string) {
     setBranchName('');
     setBranchArea('');
@@ -1031,10 +1306,16 @@ function requestCloseContacts() {
   const branchEmailProvided = !!branchContact.email.trim();
   const branchEmailOk = EMAIL_RE.test(branchContact.email.trim());
   const canSaveBranch = !!branchName.trim() && !!branchAgency && (!branchEmailProvided || branchEmailOk) && !busy;
+  /* PRESS IT AND BE TOLD. Matt, 2026-10-03: "Same for every form in the
+     portal." The Save button was disabled until the form was valid, so a
+     reader with the name left blank had a dead button and no mark saying
+     which field. See lib/missingFields. */
+  const [branchTried, setBranchTried] = useState(false);
+  const branchMissing = useMissingFields<HTMLDivElement>(branchTried);
   function saveBranch() {
-    if (!canSaveBranch) return;
+    if (!canSaveBranch) { setBranchTried(true); branchMissing.jump(); return; }
     const agency = findAgency(branchAgency);
-    if (!agency) { toast('Select a parent agency.','warning'); return; }
+    if (!agency) { toast('Select a parent agency.'); return; }
     void runOrg(
       () => createBranchLive(agency, {
         name: branchName.trim(), area: branchArea.trim() || undefined,
@@ -1047,39 +1328,275 @@ function requestCloseContacts() {
 
   const eyebrow = role === 'superadmin' ? 'opndoor admin' : role === 'management' ? 'Management' : 'Organisation';
   const roleNote: ReactNode =
-    role === 'superadmin' ? <>As an <b>opndoor admin</b> you have full control: add, edit and reorganise agencies and branches, and sync the hierarchy with HubSpot.</>
-      : role === 'management' ? <>You can view, add and edit your partner's agencies and branches, and your changes apply straight away. HubSpot sync is handled by <b>opndoor</b>.</>
-        : <>You can view every agency and branch. Adding and editing records is handled by your management team and <b>opndoor</b>.</>;
+    // No supplier brand in either branch. Management is a partner user and this
+    // is none of their business, and the superadmin string is no safer: it ships
+    // in the same bundle any logged-in user can read. Route-gating a screen does
+    // not gate the strings on it. See REGRESSION.md section C.
+    role === 'superadmin' ? <>As an <b>opndoor admin</b> you have full control: add, edit and reorganise agencies and branches, and sync the hierarchy to the CRM.</>
+      /* Matt's own sentence, 2026-10-01: "change the banner to 'You can
+         view, add and edit the agencies and branches you manage. Changes
+         apply straight away.'" The half that went was about opndoor
+         keeping its own records in step, which is true and is not this
+         reader's business on this screen. */
+      : role === 'management' ? <>You can view, add and edit the agencies and branches you manage. Changes apply straight away.</>
+        /* A SUPPLIER'S REFERRER CAN ADD ONE, AND NOT FROM HERE. Matt (uu):
+           "You can view every agency and office. To add a new one, use 'Add
+           a new agency' while sending a referral; editing is done by your
+           Management team."
 
-  // Filtered, with expand-all while searching (mirrors org-management.html).
-  const shownAgencies = pool
+           THE OLD SENTENCE WAS WRONG BY OMISSION rather than by fact.
+           "Adding and editing records is handled by your management team"
+           is true of editing and false of adding: a supplier's Referrer
+           adds agencies all the time, from the referral form, which is how
+           every one of Kestrel's got there. A reader who believes the
+           banner waits for somebody else to do what they could do in the
+           next thirty seconds.
+
+           OFFICE, NOT BRANCH, on a supplier's screen: it is their word. */
+        : partyIsSupplier(partnerScope)
+          ? <>You can view every agency and office. To add a new one, use <b>Add a new agency</b> while sending a referral; editing is done by your Management team.</>
+          : <>You can view every agency and branch. Adding and editing records is handled by your management team and <b>opndoor</b>.</>;
+
+  // Real groups (agency_groups) for the current scope, keyed by id — used both to
+  // match a group-name search and to build the group -> brand -> branch tree.
+  const listGroups = useMemo(() => getGroups(listScope), [listScope, version, dataVersion]);
+  const groupById = useMemo(() => new Map(listGroups.map((g) => [g.id, g])), [listGroups]);
+
+  // Filtered, with expand-all while searching (mirrors org-management.html). A brand
+  // matches on its own name OR its group's name, so searching a group keeps all its
+  // brands (and their branches) — matching the "Search groups, brands or branches" copy.
+  const shownAgencies = useMemo(() => pool
     .map((a) => {
-      const agencyMatch = a.name.toLowerCase().includes(q);
+      const groupName = a.groupId ? (groupById.get(a.groupId)?.name.toLowerCase() ?? '') : '';
+      const agencyMatch = a.name.toLowerCase().includes(q) || (!!q && groupName.includes(q));
+      // A BRANCH-level hit is what auto-expands an agency while searching. An
+      // agency-name hit does not: the matching row is the agency itself, and
+      // opening its branches would be expanding past the match.
+      const branchHit = !!q && a.branches.some((b) => b.name.toLowerCase().includes(q));
       const branches = a.branches.filter((b) => !q || agencyMatch || b.name.toLowerCase().includes(q));
-      return { a, agencyMatch, branches };
+      return { a, agencyMatch, branchHit, branches };
     })
-    .filter(({ agencyMatch, branches }) => !(q && !agencyMatch && branches.length === 0));
+    .filter(({ agencyMatch, branches }) => !(q && !agencyMatch && branches.length === 0)),
+    [pool, groupById, q]);
+
+  // Group the shown brands into their real group, so the list is a group -> brand ->
+  // branch tree. Brands with no group render at the top level.
+  type ShownBrand = (typeof shownAgencies)[number];
+  /* The top level of the list — group nodes and independent agencies — as ONE
+     sequence, so paging counts what is actually drawn rather than guessing. Only
+     the first `shownCount` are rendered, and everything below a COLLAPSED node is
+     not rendered at all. */
+  type TopNode =
+    | { kind: 'group'; group: AgencyGroup; items: ShownBrand[] }
+    | { kind: 'agency'; item: ShownBrand };
+
+  const { groupList, topNodes } = useMemo(() => {
+    const sections = new Map<string, { group: AgencyGroup; items: ShownBrand[] }>();
+    const ungrouped: ShownBrand[] = [];
+    for (const item of shownAgencies) {
+      const g = item.a.groupId ? groupById.get(item.a.groupId) : undefined;
+      if (g) {
+        const sec = sections.get(g.id) ?? { group: g, items: [] };
+        sec.items.push(item);
+        sections.set(g.id, sec);
+      } else {
+        ungrouped.push(item);
+      }
+    }
+    const gl = [...sections.values()];
+    const nodes: TopNode[] = [
+      ...gl.map((g) => ({ kind: 'group' as const, group: g.group, items: g.items })),
+      ...ungrouped.map((item) => ({ kind: 'agency' as const, item })),
+    ];
+    return { groupList: gl, topNodes: nodes };
+  }, [shownAgencies, groupById]);
+
+  const visibleNodes = topNodes.slice(0, shownCount);
+
+  // Expand-all applies to what is currently listed, which is what the reader means
+  // by "all" when a filter is on.
+  const expandAll = () => {
+    const next = new Set<string>();
+    groupList.forEach(({ group }) => next.add(GK(group.id)));
+    shownAgencies.forEach(({ a }) => next.add(AK(a)));
+    setOpenSet(next);
+  };
+  const collapseAll = () => setOpenSet(new Set());
+
+  // One brand (an agencies row) with its branches — reused under each group node
+  // and for ungrouped brands.
+  const renderBrand = ({ a, branchHit, branches }: ShownBrand) => {
+    const id = AK(a);
+    // While searching, expansion follows the match rather than the saved state, so
+    // only the path to a hit opens.
+    const open = q ? branchHit : openSet.has(id);
+    const fees = feesOf(a, true);
+    /* NM-P. NO "1 branch". Matt, 2026-09-30: "A single-office agency shows
+       only as the agency... No '1 branch', no branch row, no branch name."
+       This line was the literal phrase he named.
+
+       `showsOffices` and not `branches.length !== 1`, because the count has
+       to come from the agency's REAL offices: the placeholder "Unattached"
+       branches the house rail carries would otherwise make a single-office
+       agency look like two and the rule would never fire for it. And it
+       reads `a.branches`, never the search-filtered `branches` below --
+       typing "Chelsea" narrows a three-office agency to one, and a collapse
+       keyed on that would hide a real office name mid-search.
+
+       Zero offices still prints "0 branches", deliberately: an agency with
+       no office is a real state this screen exists to surface. */
+    const namesOffices = showsOffices(a.name, a.partner);
+    const meta = namesOffices
+      ? `${a.branches.length} ${plural(a.branches.length, 'branch')}`
+      : '';
+    return (
+      <div className={`agency${open ? ' is-open' : ''}`} key={id}>
+        <div className="agency__head" onClick={(e) => onHeadClick(e, id)}>
+          <span className="agency__chev"><Icon name="chevronRight" size={18} strokeWidth={2.2} /></span>
+          <span className="agency__ic"><Icon name="org" /></span>
+          <div className="agency__txt">
+            <Link className="agency__name agency__namelink" to={`/agencies/${encodeURIComponent(a.id ?? a.name)}`} data-stop title={`Open ${a.name}`}>{highlight(a.name, q)}</Link>
+            {meta && <div className="agency__meta">{meta}</div>}
+            <ContactSummary agency={a} branch={null} canManage={canManageContacts} onManage={() => openContacts(a.name, null)} ready={a.id ? readiness?.agencies.get(a.id) : undefined} people={a.id ? readiness?.agencyPeople.get(a.id) : undefined} stuck={!!a.id && stuckDeeds.agencies.has(a.id)} />
+          </div>
+          {/* BY ID. Matt, 2026-10-02: "Links must filter by the agency's
+              or branch's id, everywhere." A name stopped being an identity
+              when the two estates landed. The fallback keeps a row with no
+              id yet working -- mock mode, and the moment between creating
+              an agency and re-hydrating. */}
+          <Link className="statlink statlink--agency" to={a.id ? `/applications?agencyId=${encodeURIComponent(a.id)}` : `/applications?agency=${encodeURIComponent(a.name)}`} title={`View all applications for ${a.name}`}>
+            <div className="agency__stat"><div className="n">{a.referrals}</div><div className="l">Referrals</div></div>
+            <div className="agency__stat"><div className="n">{fmtK(fees)}</div><div className="l">Fees collected</div></div>
+            {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * rates.agent)}</div><div className="l">Agency commission</div></div>}
+            {goIcon}
+          </Link>
+          {role === 'superadmin' && (
+            <div className="agency__actions" data-stop>
+              {a.id && <button className="iconbtn iconbtn--sm" title="Group" onClick={() => openGroup(a)}><Icon name="org" /></button>}
+              <button className="iconbtn iconbtn--sm" title="Edit"  onClick={() => openContacts(a.name, null)}><Icon name="edit" /></button>
+            </div>
+          )}
+        </div>
+        {/* UNMOUNTED when closed, not merely hidden. The old tree rendered every
+            branch and let CSS display:none it, so "collapsed" cost exactly as much
+            DOM as expanded — which is the thing that has to stop at a thousand
+            agencies. */}
+        {open && (
+        <div className="branches">
+          {/* NM-P. NO BRANCH ROW for a single-office agency. Its referrals,
+              fees and commission are already on the agency head above and
+              are the same numbers, and its contact line is already there
+              too, so the row said nothing the head did not.
+
+              THE CONTAINER STAYS EVEN SO, and this is the trap the whole
+              item turns on: "Add branch" lives inside it, and Matt's
+              instruction keeps that -- "'Add branch' stays available on the
+              agency". Hiding the rows by hiding the block would delete the
+              one control he asked to keep. */}
+          {!namesOffices && !q && (
+            <div className="branch__meta" style={{ padding: '6px 0 2px 28px' }}>
+              One office, which is the agency itself. Add a second and both will show here.
+            </div>
+          )}
+          {namesOffices && branches.map((b) => {
+            const bFees = feesOf(b, false);
+            return (
+              <div className="branch" key={b.name}>
+                <span className="branch__line">│</span>
+                <span className="branch__ic"><Icon name="home" /></span>
+                <div className="branch__txt">
+                  <div className="branch__name">{highlight(b.name, q)}</div>
+                  <div className="branch__meta">{b.area}</div>
+                  <ContactSummary agency={a} branch={b} canManage={canManageContacts} onManage={() => openContacts(a.name, b.name)} ready={b.id ? readiness?.branches.get(b.id) : undefined} people={b.id ? readiness?.branchPeople.get(b.id) : undefined} stuck={!!b.id && stuckDeeds.branches.has(b.id)} />
+                </div>
+                <Link className="statlink statlink--branch" to={b.id ? `/applications?branchId=${encodeURIComponent(b.id)}` : `/applications?branch=${encodeURIComponent(b.name)}`} title={`View applications for ${b.name}`}>
+                  <div className="branch__stat"><b>{b.referrals}</b>referrals</div>
+                  <div className="branch__stat"><b>{fmtK(bFees)}</b>fees collected</div>
+                  {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * rates.agent)}</b>agency comm.</div>}
+                  {goIcon}
+                </Link>
+              </div>
+            );
+          })}
+          {!q && canManageOrg && (
+            <div className="branch__add">
+              <Button variant="ghost" size="sm" onClick={() => openAddBranch(a.name)}><Icon name="plus" /> Add branch</Button>
+            </div>
+          )}
+        </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
+      {/* DEFECTS.md 6. Visible before an application fails, which is the whole
+          point: the condition was previously only discoverable by opening each
+          branch, or by a tenant paying for a deed that could not be issued. */}
+      {needEmail.length > 0 && (
+        <div className="org-blocked">
+          <Icon name="alert" />
+          <div>
+            <strong>
+              {needEmail.length} {needEmail.length === 1 ? 'agency has' : 'agencies have'} no agency email
+            </strong>
+            <p>
+              An agency that comes through a supplier needs one: it is the address a signed deed goes to,
+              and the default every office of theirs inherits. Add one on each agency below.
+            </p>
+            <p className="org-blocked__list">
+              {needEmail.slice(0, 8).map((a) => a.name).join(', ')}
+              {needEmail.length > 8 && ` and ${needEmail.length - 8} more`}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {deedBlocked.length > 0 && (
+        <div className="org-blocked">
+          <Icon name="alert" />
+          <div>
+            <strong>
+              {deedBlocked.length} {plural(deedBlocked.length, 'branch')} cannot issue a deed
+            </strong>
+            <p>
+              No agent contact resolves for them. An application against one of these will be accepted,
+              the tenant will pay, and the deed will then fail. Add a contact, or set one as primary.
+            </p>
+            <p className="org-blocked__list">
+              {deedBlocked.slice(0, 8).map((b) => `${b.agency} \u00b7 ${b.branch}`).join(', ')}
+              {deedBlocked.length > 8 && ` and ${deedBlocked.length - 8} more`}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="page-head">
         <div>
           <Eyebrow>{eyebrow}</Eyebrow>
-          <h1 className="page-head__title" style={{ marginTop: 10 }}>Agencies &amp; branches</h1>
-          <p className="page-head__sub">Manage the partner organisation hierarchy. Search to find an agency or branch, expand to see branches, or click any figure to view the applications behind it.</p>
+          <h1 className="page-head__title" style={{ marginTop: 10 }}>Agencies</h1>
+          <p className="page-head__sub">The group → agency → branch hierarchy. Search a group, agency or branch, expand to see branches, or click any figure to view the applications behind it.</p>
         </div>
         <div className="page-head__actions">
-          {role === 'superadmin' && (
-            <PartnerSelect
-              ariaLabel="Partner"
-              value={selectedPartner}
-              onChange={setSelectedPartner}
-              options={[{ value: ALL_PARTNERS, label: 'All partners' }, ...getPartners().map((p) => ({ value: p.id, label: p.name }))]}
-            />
-          )}
-        
-          {canManageOrg && (
-            <Button variant="primary" size="sm" onClick={() => { setAgencyName(''); setAgencyGroup(''); setAgencyPartner(selectedPartner !== ALL_PARTNERS ? selectedPartner : ''); setAgencyContact({ name: '', email: '', phone: '' }); setAgencyOpen(true); }}><Icon name="plus" /> Add agency</Button>
+          {/* WHO ONBOARDS AN AGENCY, which changed on 2026-10-03 and the comment
+              that used to sit here is why this is a predicate now rather than a
+              role test. It read: "Opndoor onboards agencies:
+              admin_create_agency_and_branch refuses anyone but an admin, so
+              drawing this for an agency manager offered a button that could only
+              fail." Still true of an agency manager, and no longer true of a
+              supplier's own Management: 20261007840000 admits them for their own
+              estate, which is Matt's "Supplier Management can also add and edit
+              agencies and offices from their Agencies page; show an 'Add agency'
+              button there to match the page's own text."
+
+              THE PAGE'S OWN TEXT is the point he is making: the banner has told
+              Management "You can view, add and edit the agencies and branches you
+              manage" since 2026-10-01, and on the supplier rail there was no
+              button to do it with. Add BRANCH stays on canManageOrg, which
+              management may genuinely do. */}
+          {mayAddOwnEstateAgency(role, partnerScope) && (
+            <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}><Icon name="plus" /> Add agency</Button>
           )}
         </div>
       </div>
@@ -1091,99 +1608,115 @@ function requestCloseContacts() {
 
       <div className={`org-search${query.trim() ? ' has-q' : ''}`}>
         <Icon name="search" />
-        <input type="text" placeholder="Search agencies or branches" autoComplete="off" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input type="text" placeholder="Search groups, agencies or branches" autoComplete="off" value={query} onChange={(e) => setQuery(e.target.value)} />
         <button className="org-search__clear" aria-label="Clear search" onClick={() => setQuery('')}><Icon name="x" size={16} /></button>
       </div>
 
+      {topNodes.length > 0 && (
+        <div className="org-tools">
+          <div className="org-tools__count">
+            Showing <b>{Math.min(shownCount, topNodes.length)}</b> of {topNodes.length} {plural(topNodes.length, 'row')}
+            {' · '}{shownAgencies.length} {plural(shownAgencies.length, 'agency')}
+          </div>
+          {/* While searching, expansion follows the match, so these would be dead. */}
+          {!q && (
+            <div className="org-tools__actions">
+              <button type="button" className="org-tools__btn" onClick={expandAll}>Expand all</button>
+              <button type="button" className="org-tools__btn" onClick={collapseAll}>Collapse all</button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="org">
-        {shownAgencies.map(({ a, branches }) => {
-          const id = agencyId(a);
-          const open = q ? true : openSet.has(id);
-          const fees = feesOf(a, true);
-          const meta = `${a.group ? `${a.group} · ` : ''}${a.branches.length} ${a.branches.length === 1 ? 'branch' : 'branches'}`;
+        {visibleNodes.map((node) => {
+          if (node.kind === 'agency') return renderBrand(node.item);
+          const { group, items } = node;
+          const brandCount = items.length;
+          const branchCount = items.reduce((s, it) => s + it.a.branches.length, 0);
+          // Rolled up from the agencies underneath, so a collapsed group still
+          // answers "how much business is in here?" without being opened.
+          const groupRefs = items.reduce((s, it) => s + (it.a.referrals || 0), 0);
+          const groupFees = items.reduce((s, it) => s + feesOf(it.a, true), 0);
+          const gOpen = q ? true : openSet.has(GK(group.id));
           return (
-            <div className={`agency${open ? ' is-open' : ''}`} key={id}>
-              <div className="agency__head" onClick={(e) => onHeadClick(e, id)}>
-                <span className="agency__chev"><Icon name="chevronRight" size={18} strokeWidth={2.2} /></span>
-                <span className="agency__ic"><Icon name="org" /></span>
-                <div className="agency__txt">
-                  <div className="agency__name">{highlight(a.name, q)}</div>
-                  <div className="agency__meta">{meta}</div>
-                  <ContactSummary agency={a} branch={null} canManage={canManageContacts} onManage={() => openContacts(a.name, null)} />
+            <div className={`orggroup${gOpen ? ' is-open' : ''}`} key={group.id}>
+              <div className="orggroup__head" onClick={(e) => onHeadClick(e, GK(group.id))}>
+                <span className="orggroup__chev"><Icon name="chevronRight" size={18} strokeWidth={2.2} /></span>
+                <span className="orggroup__tick">G</span>
+                <div className="orggroup__txt">
+                  <Link className="orggroup__name" to={`/agencies/${encodeURIComponent(group.id)}`} data-stop title={`Open ${group.name}`}>{highlight(group.name, q)}</Link>
+                  {/* AND WHICH AGENCIES, not only how many. Matt,
+                      2026-10-02: "It says '6 agencies' but only shows
+                      Frost Partnership, Regent's Lettings, Harbour Lets
+                      and Harborview Lettings, even with Expand all.
+                      Northgate Lettings and Southbank Residential are
+                      missing."
+
+                      THEY WERE NOT MISSING. Both are inside Meridian
+                      Property Group, which is collapsed by default and
+                      renders its children only when open -- reproduced
+                      with dev's exact shape, where Expand all does open
+                      it. What was wrong is that the count line says "6
+                      agencies" while four names are on screen, and the
+                      group row answered "2 agencies" without saying
+                      which two. A reader counting names against the
+                      total is right to conclude something is lost.
+
+                      Naming them costs one line and makes the
+                      collapsed state honest: nothing is hidden, it is
+                      only folded. */}
+                  <div className="orggroup__meta">
+                    {brandCount} {plural(brandCount, 'agency')} · {branchCount} {plural(branchCount, 'branch')}
+                    {!gOpen && brandCount > 0 && (
+                      <> · {items.map((it) => it.a.name).join(', ')}</>
+                    )}
+                  </div>
                 </div>
-                <Link className="statlink statlink--agency" to={`/applications?agency=${encodeURIComponent(a.name)}`} title={`View all applications for ${a.name}`}>
-                  <div className="agency__stat"><div className="n">{a.referrals}</div><div className="l">Referrals</div></div>
-                  <div className="agency__stat"><div className="n">{fmtK(fees)}</div><div className="l">Fees collected</div></div>
-                  {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * rates.partner)}</div><div className="l">Your commission</div></div>}
-                  {isMgmt && <div className="agency__stat"><div className="n">{fmtK(fees * rates.agent)}</div><div className="l">Agent comm.</div></div>}
-                  {goIcon}
-                </Link>
-                {role === 'superadmin' && (
-                  <div className="agency__actions" data-stop>
-                    <button className="iconbtn iconbtn--sm" title="Edit"  onClick={() => openContacts(a.name, null)}><Icon name="edit" /></button>
-                  </div>
-                )}
+                <div className="orggroup__stats">
+                  <div className="agency__stat"><div className="n">{groupRefs}</div><div className="l">Referrals</div></div>
+                  <div className="agency__stat"><div className="n">{fmtK(groupFees)}</div><div className="l">Fees collected</div></div>
+                  {isMgmt && <div className="agency__stat"><div className="n">{fmtK(groupFees * rates.agent)}</div><div className="l">Agency commission</div></div>}
+                </div>
               </div>
-              <div className="branches">
-                {branches.map((b) => {
-                  const bFees = feesOf(b, false);
-                  return (
-                    <div className="branch" key={b.name}>
-                      <span className="branch__line">│</span>
-                      <span className="branch__ic"><Icon name="home" /></span>
-                      <div className="branch__txt">
-                        <div className="branch__name">{highlight(b.name, q)}</div>
-                        <div className="branch__meta">{b.area}</div>
-                        <ContactSummary agency={a} branch={b} canManage={canManageContacts} onManage={() => openContacts(a.name, b.name)} />
-                      </div>
-                      <Link className="statlink statlink--branch" to={`/applications?branch=${encodeURIComponent(b.name)}`} title={`View applications for ${b.name}`}>
-                        <div className="branch__stat"><b>{b.referrals}</b>referrals</div>
-                        <div className="branch__stat"><b>{fmtK(bFees)}</b>fees collected</div>
-                        {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * rates.partner)}</b>your comm.</div>}
-                        {isMgmt && <div className="branch__stat"><b>{fmtK(bFees * rates.agent)}</b>agent comm.</div>}
-                        {goIcon}
-                      </Link>
-                    </div>
-                  );
-                })}
-                {!q && canManageOrg && (
-                  <div className="branch__add">
-                    <Button variant="ghost" size="sm" onClick={() => openAddBranch(a.name)}><Icon name="plus" /> Add branch</Button>
-                  </div>
-                )}
-              </div>
+              {/* Unmounted when closed, so a collapsed group costs one row. */}
+              {gOpen && (
+                <div className="orggroup__brands">
+                  {items.map(renderBrand)}
+                </div>
+              )}
             </div>
           );
         })}
       </div>
-      <div className={`org-empty${shownAgencies.length ? '' : ' is-shown'}`}>No agencies or branches match your search.</div>
-
-      {/* ADD AGENCY */}
-      <Modal
-        open={agencyOpen}
-        onClose={() => { if (!busy) setAgencyOpen(false); }}
-        title="Add agency"
-        sub="Create a new agency in the hierarchy. A default contact is required so deeds and the bordereau resolve to someone reachable."
-        footer={<><Button variant="ghost" onClick={() => setAgencyOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={saveAgency} disabled={!canSaveAgency}>{busy ? 'Saving…' : 'Save agency'}</Button></>}
-      >
-        <Field label="Agency name" htmlFor="agency-name"><input id="agency-name" type="text" placeholder="e.g. Riverside Lettings" autoComplete="off" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} /></Field>
-        <Field label="Agency partner" htmlFor="agency-partner">
-          <select id="agency-partner" value={agencyPartner} onChange={(e) => setAgencyPartner(e.target.value)}>
-            <option value="">Select a partner</option>
-            {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Group / network" htmlFor="agency-group" hint="Optional"><input id="agency-group" type="text" placeholder="e.g. ABC group" autoComplete="off" value={agencyGroup} onChange={(e) => setAgencyGroup(e.target.value)} /></Field>
-        <div style={{ borderTop: '1px solid var(--line)', paddingTop: 14, marginTop: 6 }}>
-          <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Default agency contact</div>
-          <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Its branches inherit this contact unless they have their own.</p>
-          <div className="form-grid">
-            <Field span2 label={<>Contact email <span className="req" aria-hidden="true">*</span></>} htmlFor="agency-cemail"><input id="agency-cemail" type="email" placeholder="agent@agency.co.uk" autoComplete="off" value={agencyContact.email} onChange={(e) => setAgencyContact((c) => ({ ...c, email: e.target.value }))} /></Field>
-            <Field label="Contact name" htmlFor="agency-cname" hint="Optional"><input id="agency-cname" type="text" placeholder="e.g. Jordan Blake" autoComplete="off" value={agencyContact.name} onChange={(e) => setAgencyContact((c) => ({ ...c, name: e.target.value }))} /></Field>
-            <Field label="Contact phone" htmlFor="agency-cphone" hint="Optional"><input id="agency-cphone" type="tel" placeholder="020 7946 0000" autoComplete="off" value={agencyContact.phone} onChange={(e) => setAgencyContact((c) => ({ ...c, phone: e.target.value }))} /></Field>
-          </div>
+      {shownCount < topNodes.length && (
+        <div className="org-more">
+          <Button variant="ghost" size="sm" onClick={() => setShownCount((n) => n + PAGE)}>
+            Show {Math.min(PAGE, topNodes.length - shownCount)} more
+          </Button>
         </div>
-      </Modal>
+      )}
+      <div className={`org-empty${shownAgencies.length ? '' : ' is-shown'}`}>No groups, agencies or branches match your search.</div>
+
+      {/* TWO DIALOGS, BECAUSE THEY ARE TWO DIFFERENT JOBS. The admin flow
+          onboards one of OUR agencies: name, first branch and address,
+          commission, first invite. A supplier adding to its own estate has no
+          commission to set (the supplier's deal covers it) and no invite to send
+          (an agency in a supplier's estate never has logins), so it gets the
+          three fields Matt asked for and the duplicate check that goes with
+          them -- the same dialog his Add agency button on Manage partner opens,
+          rather than a second copy of it here. */}
+      {createOpen && ownEstateTakesAdditions(partnerScope) && role !== 'superadmin' ? (
+        <SupplierAddOrg
+          mode="agency"
+          partnerSlug={String(partnerScope)}
+          partnerName={getPartners().find((pp) => pp.id === partnerScope)?.name ?? 'your company'}
+          onClose={() => setCreateOpen(false)}
+          onDone={() => { setCreateOpen(false); refresh(); }}
+        />
+      ) : (
+        <AgencyCreate open={createOpen} onClose={() => setCreateOpen(false)} />
+      )}
 
       {/* ADD BRANCH */}
       <Modal
@@ -1191,9 +1724,10 @@ function requestCloseContacts() {
         onClose={() => { if (!busy) setBranchOpen(false); }}
         title="Add branch"
         sub="Add a branch to an agency. A branch with no contact of its own inherits the agency default."
-        footer={<><Button variant="ghost" onClick={() => setBranchOpen(false)} disabled={busy}>Cancel</Button><Button variant="primary" onClick={saveBranch} disabled={!canSaveBranch}>{busy ? 'Saving…' : 'Save branch'}</Button></>}
+        footer={<><Button variant="ghost" onClick={() => setBranchOpen(false)} disabled={busy}>Cancel</Button><MissingFields count={branchMissing.count} onJump={branchMissing.jump} /><Button variant="primary" onClick={saveBranch} disabled={busy}>{busy ? 'Saving…' : 'Save branch'}</Button></>}
       >
-        <Field label="Branch name" htmlFor="branch-name"><input id="branch-name" type="text" placeholder="e.g. Notting Hill" autoComplete="off" value={branchName} onChange={(e) => setBranchName(e.target.value)} /></Field>
+        <div ref={branchMissing.formRef}>
+        <Field label="Branch name" htmlFor="branch-name" error={branchTried && !branchName.trim() ? 'Required' : undefined}><input id="branch-name" type="text" placeholder="e.g. Notting Hill" autoComplete="off" value={branchName} onChange={(e) => setBranchName(e.target.value)} /></Field>
         <Field label="Postcode / area" htmlFor="branch-area" hint="Optional"><input id="branch-area" type="text" placeholder="e.g. W11" autoComplete="off" value={branchArea} onChange={(e) => setBranchArea(e.target.value)} /></Field>
         <Field label="Parent agency" htmlFor="branch-agency">
           <select id="branch-agency" value={branchAgency} onChange={(e) => setBranchAgency(e.target.value)}>
@@ -1204,10 +1738,11 @@ function requestCloseContacts() {
           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>Branch contact <span style={{ fontWeight: 400, color: 'var(--ink-mute)' }}>(optional)</span></div>
           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>Leave blank to inherit the agency default contact.</p>
           <div className="form-grid">
-            <Field span2 label="Contact email" htmlFor="branch-cemail" hint="Optional"><input id="branch-cemail" type="email" placeholder="branch@agency.co.uk" autoComplete="off" value={branchContact.email} onChange={(e) => setBranchContact((c) => ({ ...c, email: e.target.value }))} /></Field>
-            <Field label="Contact name" htmlFor="branch-cname" hint="Optional"><input id="branch-cname" type="text" placeholder="e.g. Sam Rivers" autoComplete="off" value={branchContact.name} onChange={(e) => setBranchContact((c) => ({ ...c, name: e.target.value }))} /></Field>
+            <Field span2 label="Contact email" htmlFor="branch-cemail" hint="Optional"><input id="branch-cemail" type="email" placeholder="lettings@example.co.uk" autoComplete="off" value={branchContact.email} onChange={(e) => setBranchContact((c) => ({ ...c, email: e.target.value }))} /></Field>
+            <Field label="Contact name" htmlFor="branch-cname" hint="Optional"><input id="branch-cname" type="text" placeholder="e.g. Jane Smith" autoComplete="off" value={branchContact.name} onChange={(e) => setBranchContact((c) => ({ ...c, name: e.target.value }))} /></Field>
             <Field label="Contact phone" htmlFor="branch-cphone" hint="Optional"><input id="branch-cphone" type="tel" placeholder="020 7946 0000" autoComplete="off" value={branchContact.phone} onChange={(e) => setBranchContact((c) => ({ ...c, phone: e.target.value }))} /></Field>
           </div>
+        </div>
         </div>
       </Modal>
 
@@ -1271,7 +1806,7 @@ function requestCloseContacts() {
           <div style={{ fontFamily: 'var(--display)', fontWeight: 700, fontSize: 13.5, marginBottom: 4 }}>{ctEditIndex !== null ? 'Edit contact' : 'Add a contact'}</div>
           <p style={{ fontSize: 12.5, color: 'var(--ink-mute)', margin: '0 0 12px' }}>The email is what matters. It is where the Deed of Guarantee is delivered.</p>
           <div className="form-grid">
-            <Field span2 label={<>Contact email <span className="req" aria-hidden="true">*</span></>} htmlFor="ct-email"><input id="ct-email" type="email" placeholder="deeds@agency.co.uk" autoComplete="off" value={ctEmail} onChange={(e) => setCtEmail(e.target.value)} /></Field>
+            <Field span2 label={<>Contact email <span className="req" aria-hidden="true">*</span></>} htmlFor="ct-email"><input id="ct-email" type="email" placeholder="deeds@example.co.uk" autoComplete="off" value={ctEmail} onChange={(e) => setCtEmail(e.target.value)} /></Field>
             <div className="field span-2" style={{ marginTop: -6 }}><span className="hint">Use a shared work address (e.g. deeds@agency.co.uk) rather than a personal one. Deeds must always deliver, even when staff change.</span></div>
             <Field label="Name" htmlFor="ct-name" hint="Optional"><input id="ct-name" type="text" placeholder="e.g. Deeds team" autoComplete="off" value={ctName} onChange={(e) => setCtName(e.target.value)} /></Field>
             <Field label="Role" htmlFor="ct-role" hint="Optional"><input id="ct-role" type="text" placeholder="e.g. Branch manager" autoComplete="off" value={ctRole} onChange={(e) => setCtRole(e.target.value)} /></Field>
@@ -1286,6 +1821,39 @@ function requestCloseContacts() {
             {ctEditIndex !== null && <Button variant="ghost" size="sm" onClick={resetContactForm} disabled={busy}>Cancel edit</Button>}
           </div>
         </div>
+      </Modal>
+
+
+      {/* Group editor: put a brand into a real agency_groups row, create one, or detach. */}
+      <Modal
+        open={!!groupAgency}
+        onClose={() => setGroupAgency(null)}
+        width={460}
+        title={`Group: ${groupAgency?.name ?? ''}`}
+        sub="Put this agency into a group. A group is the top commission tier and can be covered by a single director's position."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setGroupAgency(null)} disabled={busy}>Cancel</Button>
+            <Button variant="primary" onClick={() => void saveGroup()} disabled={busy}>{busy ? 'Saving…' : 'Save group'}</Button>
+          </>
+        }
+      >
+        {groupAgency && (
+          <div className="form-grid">
+            <Field label="Group" span2 hint="Groups available for this agency.">
+              <select value={groupChoice} onChange={(e) => setGroupChoice(e.target.value)}>
+                <option value="">None (ungrouped)</option>
+                {getGroups(groupAgency.partner).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                <option value="new">＋ New group…</option>
+              </select>
+            </Field>
+            {groupChoice === 'new' && (
+              <Field label="New group name" span2>
+                <input type="text" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="Example Property Group" />
+              </Field>
+            )}
+          </div>
+        )}
       </Modal>
     </>
   );

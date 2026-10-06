@@ -1,0 +1,223 @@
+/* WHAT ONE OF OUR OWN AGENCIES READS ON THE DASHBOARD.
+
+   Three rulings meet on this screen, and all three come from the same place:
+   every figure here was written for Opndoor looking across a book of suppliers,
+   and then 'management' became the role an agency DIRECTOR wears too.
+
+   1. "Commission by route" is Opndoor's table about Opndoor's business. Its
+      allowlist was the only gate, so it opened on a director's dashboard and
+      split their money with a party they have never heard of.
+   2. The commission tile carried a blended percentage. It reconciles with the
+      pound figure beside it and it is still not a rate anybody agreed to, so the
+      tile states the amount and the terms, and the rates are named per
+      agreement in the commission statement lower down the page.
+   3. A first deed read "across 1 issued deeds".
+
+   The reader is not stubbed: the page asks isAgencyUser, which reads the party
+   in scope, so the test stages a real one. 'northwind' is opndoor_referenced in
+   the mock partner seed and is the home partner in mock mode, which is what
+   makes a 'management' user one of OUR agencies rather than a supplier's
+   manager. The admin case proves the discrimination is on the READER and not on
+   the rail: an Opndoor admin scoped to that same agency keeps everything.
+
+   Live mode is staged rather than mocked away: SUPABASE_ENABLED is the switch
+   into the live analytics path, and the figures are then summed from one
+   hydrated application, so deedsIssued really is 1 and the partner breakdown
+   really does have a row to draw. There is no client behind the flag, which is
+   why `supabase` is null (SessionContext then resolves straight to ready) and
+   sb() throws: nothing on this page may reach the network. */
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+
+/* Mutable through a getter so one file can test both halves of the switch: the
+   live path the real portal runs on, and the synthetic model mock and demo mode
+   read. vi.hoisted because the mock factory is evaluated during the imports
+   below, before a plain module-scope binding exists. */
+const flags = vi.hoisted(() => ({ live: true }));
+vi.mock('@/lib/supabase', () => ({
+  get SUPABASE_ENABLED() { return flags.live; },
+  supabase: null,
+  sb: () => { throw new Error('This test runs with no Supabase client.'); },
+}));
+
+import { KEYS } from '@/data/storage';
+import { SessionProvider } from '@/session/SessionContext';
+import { ToastProvider } from '@/components/ui/Toast';
+import { PageMetaProvider } from '@/components/layout/pageMeta';
+import { hydrateFull, type FullApp } from '@/data/applicationsService';
+import { hydrateOrg } from '@/data/orgService';
+import { Dashboard } from './Dashboard';
+
+const AGENCY_PARTNER = 'northwind';
+
+/* ONE deed, paid inside the dashboard's default period ("This calendar month"),
+   which in live mode is the real month. Dated from now rather than from a fixed
+   day so the row never falls out of the period as the calendar moves.
+
+   The fee is three weeks of rent (2400 x 36 / 52), a negotiated basis rather
+   than a month, so the copy under Net fees is exercised as Regent's actually is. */
+function oneDeed(): FullApp {
+  const now = new Date();
+  return {
+    ref: 'GR-AG01', partner: AGENCY_PARTNER, partnerRate: 0.25, agentRate: 0.25,
+    agency: "Regent's Lettings", agencyId: 'ag-r', branch: "Regent's Park", branchId: 'br-rp',
+    referrer: 'Rosa', owner: 0, status: 'deed',
+    rent: 2400, fee: 1661.54, feeBasisWeeks: 3,
+    commissionLines: [{ level: 'agency', orgId: 'ag-r', orgName: "Regent's Lettings", rate: 0.25, source: 'agreement' }],
+    sentAt: now, paidAt: now, deedAt: now, tenancyStart: null, expiry: null,
+    refunded: false, refundedAt: null, refundedAmount: null, refundAfterStart: false,
+    deedState: null, deedSentAt: null, deedViewedAt: null,
+    withdrawn: false, withdrawnReason: null, withdrawnNote: null, expired: false,
+  };
+}
+
+/* STAGE THE WHOLE OF LIVE MODE, not half of it. hydrate() loads the
+   applications and the ORG in one pass, and the client narrows the book to the
+   agencies the org contains (reachableAgencyNames), because on the agency rail
+   the partner is a route and not a company. A test that stages the book but
+   leaves the org as the mock seed is staging a state the product never reaches:
+   agencies that do not contain the staged applications' own agency. */
+function stageOrg(names: string[]) {
+  hydrateOrg(names.map((name, i) => ({
+    partner: AGENCY_PARTNER, name, referrals: 0, guaranteed: '£0',
+    id: `ag-staged-${i}`, branches: [],
+  })));
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  flags.live = true;
+  hydrateFull([oneDeed()]);
+  stageOrg(["Regent's Lettings"]);
+});
+
+afterEach(cleanup);
+// Leave the module-level working copy as the rest of the suite expects to find it.
+afterAll(() => hydrateFull([]));
+
+/* The page on its own rather than through <App />: this is a test about one
+   screen, and routing the whole shell in only makes it depend on every other
+   page compiling. */
+async function openDashboard(role: string, scope?: string) {
+  localStorage.setItem('grp_role', role);
+  /* BOTH KEYS, because that is what the picker writes. `grp_partner` is the
+     isolation scope the server rule speaks in; `grp_scope_sel` is the richer
+     selection the picker holds, and it is what "am I viewing as somebody"
+     is read off. Setting only the first is how this harness used to lie:
+     selecting an AGENCY leaves the partner at All, so a test that drove only
+     the partner could never reach the agency case at all. */
+  if (scope) {
+    localStorage.setItem('grp_partner', scope);
+    localStorage.setItem(KEYS.scopeSel, `partner:${scope}`);
+  }
+  /* VIEW AS IS A LINK NOW: Reporting clears the selection on arrival
+     (Matt, 2026-10-02) and ViewAsButton navigates to
+     /dashboard?origin=<selection>, so the harness does too. */
+  const at = scope ? `/dashboard?origin=${encodeURIComponent(`partner:${scope}`)}` : '/dashboard';
+  const view = render(
+    <MemoryRouter initialEntries={[at]}>
+      <SessionProvider><ToastProvider><PageMetaProvider><Dashboard /></PageMetaProvider></ToastProvider></SessionProvider>
+    </MemoryRouter>,
+  );
+  await waitFor(() => { if (!view.container.querySelector('.herorow')) throw new Error('dashboard not ready'); });
+  return view;
+}
+
+type View = Awaited<ReturnType<typeof openDashboard>>;
+/** The commission tile, found by its own content: the money tile beside it is
+    about fees and never says "Commission". */
+function commissionTile(v: View): HTMLElement {
+  const tile = [...v.container.querySelectorAll<HTMLElement>('.hero-kpi')]
+    /* Case-insensitive since 2026-10-01: an agency's own tile reads "Your
+       commission", so a capital C stopped finding it. */
+    .find((el) => /commission/i.test(el.textContent ?? ''));
+  if (!tile) throw new Error('no commission tile on this dashboard');
+  return tile;
+}
+const feesTile = (v: View) => v.container.querySelector<HTMLElement>('.hero-kpi--dark')!;
+
+describe('the dashboard a director at one of our agencies reads', () => {
+  it('has no Commission by route table anywhere on it', async () => {
+    const view = await openDashboard('management');
+    expect(view.container.textContent).not.toMatch(/Commission by route/i);
+    // The caption said it five times; the whole section is what went.
+    expect(view.container.querySelectorAll('.settle table')).toHaveLength(0);
+  });
+
+  /* "YOUR COMMISSION, NET OF REFUNDS", Matt's words of 2026-10-01. The old
+     label said where the rate came from twice over, which is not what an
+     agency reading their own earnings is asking. */
+  it('labels the commission tile as theirs, and states no rate', async () => {
+    const view = await openDashboard('management');
+    const tile = commissionTile(view);
+    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Your commission');
+    // Not in the tag, not in the sub-line, not anywhere on the tile.
+    expect(tile.textContent).not.toContain('%');
+    // The amount is still the point of the tile.
+    expect(tile.querySelector('.comm-headline')!.textContent).toMatch(/^£[\d,]+$/);
+  });
+
+  /* THE NOUN STILL AGREES AT ONE, and the noun has changed. Matt,
+     2026-09-30: the description counted issued deeds when the fees came
+     from all PAID REFERRALS, which is a larger and different set -- a
+     referral pays before its deed is issued and some never get one.
+
+     What this case protects is unchanged and is the reason it exists: at
+     a count of one the sentence must not read "1 paid referrals". That
+     was the original bug ("across 1 issued deeds"), and writing the copy
+     against the formatted string rather than the number is how it
+     happened, so the count here is deliberately one. */
+  it('agrees with its own count at one paid referral', async () => {
+    const view = await openDashboard('management');
+    expect(feesTile(view).textContent).toMatch(/across 1 paid referral,/);
+    expect(feesTile(view).textContent).not.toMatch(/paid referrals/);
+  });
+});
+
+describe('the same agency, read by Opndoor', () => {
+  /* THIS BLOCK CHANGED WITH Q-06 ITEM B, and the case is kept rather than
+     deleted because what it was protecting is still worth protecting.
+
+     It asserted that an admin SCOPED TO an agency keeps Opndoor's page: the
+     commission-by-partner split, and a tile reading "Commission payable".
+     But an admin scoped to a party IS viewing as that party, and Matt's
+     instruction is that Reporting then shows what that party's management
+     sees. So both expectations are now the opposite, and the thing the block
+     was really guarding -- that an ADMIN still reads Opndoor's own numbers --
+     moves to the second case, where the admin is narrowed to nobody and the
+     assertion actually means that. */
+  it('reads the agency\u2019s own page when narrowed to them, not Opndoor\u2019s', async () => {
+    const view = await openDashboard('superadmin', AGENCY_PARTNER);
+    expect(view.container.textContent).not.toMatch(/Commission by route/);
+    const tile = commissionTile(view);
+    /* "Agency commission", not "Your commission": Opndoor is reading
+       somebody else's page and the eyebrow above already names them. */
+    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Agency commission');
+    // Still rate-free: an agency's tile states a total, not a blended rate.
+    expect(tile.textContent).not.toMatch(/\bPartner \u00b7/);
+  });
+
+  it('and keeps Opndoor\u2019s own view when narrowed to nobody', async () => {
+    /* PAYABLE, NOT EARNED. An admin reading the unscoped page is looking at
+       what opndoor owes out, which is a different number from what it earned:
+       the house route's partner cut is opndoor's own margin and is owed to
+       nobody. */
+    const view = await openDashboard('superadmin');
+    expect(view.container.textContent).toMatch(/Commission by route/);
+    expect(commissionTile(view).querySelector('.kpi__label')!.textContent).toBe('Commission payable');
+  });
+});
+
+
+describe('mock and demo mode, where the synthetic model answers', () => {
+  it('gives the agency the same rate-free tile, demo delta included', async () => {
+    flags.live = false;
+    const view = await openDashboard('management');
+    const tile = commissionTile(view);
+    expect(tile.querySelector('.kpi__label')!.textContent).toBe('Your commission');
+    // The hard-coded "12.4% vs prior period" is demo furniture, and a figure
+    // nobody computed is the worst kind of rate to show somebody their money by.
+    expect(tile.textContent).not.toContain('%');
+  });
+});

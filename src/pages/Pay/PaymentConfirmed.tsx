@@ -37,7 +37,9 @@ export function PaymentConfirmed() {
       const definitiveNotFound = !c.transient && !c.found;
       // Settled = payment confirmed AND the deed reached a terminal state. While
       // unpaid (webhook race) we keep polling rather than assert anything.
-      const settled = !c.transient && c.found === true && c.paid === true && (c.deedReady || c.deedSigned || c.deedError);
+      // A refund is terminal in itself: there is no deed state left to wait for,
+      // so it settles the poll rather than spinning out the full 30 tries.
+      const settled = !c.transient && c.found === true && (c.refunded === true || (c.paid === true && (c.deedReady || c.deedSigned || c.deedError)));
       if (definitiveNotFound || settled) return;
       if (triesRef.current >= MAX_TRIES) { setGaveUp(true); return; }
       timer = setTimeout(tick, POLL_MS);
@@ -81,6 +83,26 @@ export function PaymentConfirmed() {
     );
   }
 
+  // Paid, then refunded. Terminal and distinct from "not yet paid": the fee did
+  // arrive, so say what actually happened and offer no signing action.
+  if (conf.refunded) {
+    return (
+      <Frame>
+        <div className="pay__icon pay__icon--warn"><Icon name="alert" strokeWidth={2} /></div>
+        <h1 className="pay__title">This payment has been refunded</h1>
+        <p className="pay__lead">
+          Your guarantor fee{conf.amount ? ` of ${fmtAmount(conf.amount)}` : ''} has been refunded to your original payment method.
+        </p>
+        {conf.reference && (
+          <div className="pay__receipt">
+            <div className="pay__rrow"><span className="pay__rk">Reference</span><span className="pay__rv">{conf.reference}</span></div>
+          </div>
+        )}
+        <p className="pay__muted">Your Deed of Guarantee is no longer active and its signing link has been closed. If you think this is a mistake, contact hello@opndoor.co.</p>
+      </Frame>
+    );
+  }
+
   // Found, but the payment is not yet confirmed (webhook race, or a stale/async
   // link). Never assert "paid" until the back end says so.
   if (!conf.paid) {
@@ -91,7 +113,7 @@ export function PaymentConfirmed() {
         <p className="pay__lead">
           {gaveUp
             ? <>This is taking longer than usual. If your payment went through, you&rsquo;ll receive an email confirmation shortly.</>
-            : <>Just a moment while we confirm your guarantor fee{conf.firstName ? `, ${conf.firstName}` : ''}&hellip;</>}
+            : <>Just a moment while we confirm your guarantee fee{conf.firstName ? `, ${conf.firstName}` : ''}&hellip;</>}
         </p>
       </Frame>
     );
@@ -104,7 +126,7 @@ export function PaymentConfirmed() {
       <div className="pay__icon pay__icon--ok"><Icon name="check" strokeWidth={2.4} /></div>
       <h1 className="pay__title">Payment received</h1>
       <p className="pay__lead">
-        Thank you{conf.firstName ? `, ${conf.firstName}` : ''}. Your guarantor fee has been paid.
+        Thank you{conf.firstName ? `, ${conf.firstName}` : ''}. Your guarantee fee has been paid.
       </p>
 
       <div className="pay__receipt">
@@ -124,7 +146,7 @@ export function PaymentConfirmed() {
             <button className="pay__btn pay__btn--primary" onClick={onSign} disabled={signing}>
               <Icon name="edit" strokeWidth={2} /> {signing ? 'Opening…' : 'Sign your deed now'}
             </button>
-            {signErr && <p className="pay__muted">We couldn&rsquo;t open the signing session just now &mdash; we&rsquo;ll email your signing link shortly.</p>}
+            {signErr && <p className="pay__muted">We couldn&rsquo;t open the signing session just now. We&rsquo;ll email your signing link shortly.</p>}
           </>
         ) : conf.deedError || gaveUp ? (
           <>

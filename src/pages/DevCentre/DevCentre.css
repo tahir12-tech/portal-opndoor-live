@@ -1,0 +1,307 @@
+/* Dev Centre. Deliberately plain: an integrator is reading values, not admiring
+   a layout, and the environment banner is the one thing that must not be missed. */
+
+.devenv { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 10px;
+          border: 1px solid; margin-bottom: 16px; font-size: 14px; line-height: 1.5; }
+.devenv--sandbox { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+.devenv--live    { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+
+.devpartner { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; font-size: 14px; }
+.devnote    { margin-bottom: 14px; font-size: 14px; }
+
+.devalert { padding: 10px 12px; border-radius: 8px; background: #fef2f2; border: 1px solid #fecaca;
+            color: #7f1d1d; margin-bottom: 14px; font-size: 14px; }
+
+.dt tr.is-revoked td { opacity: .55; }
+
+.devfail { font-size: 12px; color: #b91c1c; margin-top: 2px; word-break: break-word; }
+
+.devstate { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.devstate--ok      { background: #ecfdf5; color: #065f46; }
+.devstate--pending { background: #f3f4f6; color: #374151; }
+.devstate--retry   { background: #fffbeb; color: #92400e; }
+.devstate--dead    { background: #fef2f2; color: #991b1b; }
+
+.devkeybox { display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 8px;
+             background: #0f172a; color: #e2e8f0; overflow-x: auto; }
+.devkeybox code { font-size: 13px; white-space: nowrap; }
+
+.devwarn { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: #fffbeb;
+           border: 1px solid #fde68a; color: #78350f; font-size: 13px; line-height: 1.5; }
+
+/* ---------------------------------------------------------------------
+   Option rows in the mint-key and add-endpoint modals.
+
+   These sit inside a Field, and each row is a <label>, so portal.css:446
+   `.field label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+   text-transform: uppercase }` was landing on every one of them. That rule is
+   for the small caps heading ABOVE a control, not for a row that is itself the
+   control. It produced both faults at once: the uppercase descriptions, and the
+   wrapping, because 0.12em of tracking at weight 700 inflates every word until
+   two of them fill the column.
+
+   SPECIFICITY MATTERS HERE. `.field label` is (0,1,1), so a bare `.devscope`
+   at (0,1,0) would lose no matter which stylesheet loads later. Hence
+   `.devscopes .devscope`, which is (0,2,0). Resetting inherited Field
+   typography is the established pattern: `.field .hint` on the next line of
+   portal.css does exactly the same thing.
+   --------------------------------------------------------------------- */
+.devscopes { display: grid; gap: 8px; }
+
+.devscopes .devscope {
+  /* Fixed checkbox column, then everything else. The checkbox was previously a
+     flex item free to grow and shrink, which is what left the two fighting. */
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line, #e5e7eb);
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+
+  /* Undo the Field label heading style. */
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink, #111827);
+}
+.devscopes .devscope.is-sel { border-color: var(--brand, #4f46e5); background: #f5f3ff; }
+
+.devscopes .devscope input[type="checkbox"] {
+  /* Sized and pinned so it cannot participate in the width negotiation, and
+     nudged down to sit on the first line of the name rather than the box top. */
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  flex: none;
+  cursor: pointer;
+}
+
+.devscopes .devscope > div { min-width: 0; }   /* lets long text wrap instead of overflowing */
+
+.devscopes .devscope__name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink, #111827);
+  line-height: 1.35;
+}
+.devscopes .devscope__desc {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted, #6b7280);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+.devdoc__section { margin-bottom: 26px; }
+.devdoc__title   { font-size: 16px; margin: 0 0 8px; }
+.devdoc__h       { font-size: 14px; margin: 14px 0 6px; }
+.devdoc p        { font-size: 14px; line-height: 1.6; margin: 0 0 10px; }
+.devdoc__ul      { font-size: 14px; line-height: 1.6; padding-left: 20px; margin: 0 0 10px; }
+.devdoc__tablewrap { overflow-x: auto; margin-bottom: 12px; }
+.devcode { background: #0f172a; color: #e2e8f0; padding: 12px 14px; border-radius: 8px;
+           overflow-x: auto; font-size: 12.5px; line-height: 1.55; margin: 0 0 12px; }
+.devdoc code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+.devcode code { background: none; padding: 0; font-size: inherit; }
+
+/* ---- Monitoring ---- */
+.devcounts { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.devcount  { padding: 12px 14px; border: 1px solid var(--line, #e5e7eb); border-radius: 10px; background: #fff; }
+.devcount__label { font-size: 12px; color: var(--muted, #6b7280); text-transform: uppercase; letter-spacing: .04em; }
+.devcount__value { font-size: 26px; font-weight: 700; margin-top: 4px; }
+.devcount__value.is-bad { color: #b91c1c; }
+.devcount__sub   { font-size: 12px; color: var(--muted, #6b7280); margin-top: 2px; }
+
+.devchart__bars { display: flex; align-items: flex-end; gap: 6px; height: 180px; padding-top: 8px; }
+.devbar { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; }
+.devbar__stack { flex: 1; width: 100%; display: flex; flex-direction: column; justify-content: flex-end; }
+.devbar__ok   { background: #34d399; border-radius: 0 0 3px 3px; min-height: 0; }
+.devbar__fail { background: #f87171; border-radius: 3px 3px 0 0; min-height: 0; }
+.devbar__label { font-size: 10px; color: var(--muted, #6b7280); margin-top: 6px; white-space: nowrap; }
+.devlegend { display: flex; gap: 16px; font-size: 12px; color: var(--muted, #6b7280); margin-top: 10px; }
+.devswatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; }
+.devswatch--ok { background: #34d399; } .devswatch--fail { background: #f87171; }
+
+/* ---- Logs / history ---- */
+.devfilters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.devfilters input { min-width: 230px; }
+.devmethod { font-size: 11px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: #eef2ff; color: #3730a3; }
+.devstatus { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.devstatus--ok     { background: #ecfdf5; color: #065f46; }
+.devstatus--client { background: #fffbeb; color: #92400e; }
+.devstatus--server { background: #fef2f2; color: #991b1b; }
+.devid { font-size: 12px; color: var(--muted, #6b7280); }
+
+/* ---- Configuration ---- */
+.devlinks { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.devlink  { display: flex; gap: 12px; align-items: center; text-align: left; padding: 14px;
+            border: 1px solid var(--line, #e5e7eb); border-radius: 10px; background: #fff; cursor: pointer; }
+.devlink:hover { border-color: var(--brand, #4f46e5); }
+.devlink__title { font-weight: 600; font-size: 14px; }
+.devlink__sub   { font-size: 12.5px; color: var(--muted, #6b7280); }
+.devlink > div  { flex: 1; }
+
+.devsecret { display: flex; align-items: center; gap: 6px; }
+.devsecret code { font-size: 12px; }
+.devsecret__note { font-size: 11px; margin-top: 2px; }
+.devicon { border: 0; background: none; cursor: pointer; color: var(--muted, #6b7280); padding: 2px; }
+.devicon:hover { color: var(--ink, #111827); }
+
+.devtoggle { width: 40px; height: 22px; border-radius: 999px; background: #d1d5db; border: 0; cursor: pointer;
+             position: relative; transition: background .15s; }
+.devtoggle.is-on { background: #34d399; }
+.devtoggle__knob { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
+                   background: #fff; transition: transform .15s; }
+.devtoggle.is-on .devtoggle__knob { transform: translateX(18px); }
+.devenv__note { margin-top: 6px; font-size: 13px; opacity: .85; }
+
+/* ---------------------------------------------------------------------
+   Icon sizing.
+
+   Icon renders an SVG with a viewBox and NO width or height unless a size prop
+   is passed, and portal.css sets only `img, svg { display: block; max-width:
+   100% }`. An unsized SVG therefore expands to fill whatever box it is in.
+
+   The app's convention is a per-container rule, one per place icons appear:
+   `.btn svg`, `.sb__link svg`, `.rolenote svg`, `.iconbtn svg` and so on. Icons
+   inside a Button were already correct here because `.btn svg` covers them; the
+   ones that broke were the bare icons in containers with no rule of their own.
+
+   Following that convention rather than passing size props, so these behave like
+   the rest of the portal and a future icon added to any of these containers is
+   sized without anyone having to remember.
+
+   flex-shrink: 0 matters as much as the dimensions: every one of these sits in a
+   flex row beside text that would otherwise squash the icon narrower than it is
+   tall. `.sb__link svg` and `.rolenote svg` both do the same.
+   --------------------------------------------------------------------- */
+.devenv    > svg { width: 18px; height: 18px; flex-shrink: 0; margin-top: 1px; }
+.devpartner  svg { width: 16px; height: 16px; flex-shrink: 0; }
+.devlink   > svg { width: 20px; height: 20px; flex-shrink: 0; }
+.devicon     svg { width: 14px; height: 14px; flex-shrink: 0; }
+.devnote     svg { width: 15px; height: 15px; flex-shrink: 0; }
+.devalert    svg { width: 16px; height: 16px; flex-shrink: 0; }
+.devfilters  svg { width: 15px; height: 15px; flex-shrink: 0; }
+.devcount    svg { width: 14px; height: 14px; flex-shrink: 0; }
+.devkeybox   svg { width: 15px; height: 15px; flex-shrink: 0; }
+.devwarn     svg { width: 15px; height: 15px; flex-shrink: 0; }
+.devscope    svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* ---------------------------------------------------------------------
+   Sandbox tab.
+
+   The warning is amber and permanent rather than red and dismissable. Red is
+   this file's error colour (.devalert) and nothing here is broken; amber is
+   .devwarn's "this is true and you need to know it", which is exactly what
+   "PandaDoc really sends" is. It cannot be dismissed because it is true on
+   every visit, and a notice that can be dismissed is one that will be.
+   --------------------------------------------------------------------- */
+.sbxwarn { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 16px;
+           padding: 12px 14px; border-radius: 10px; background: #fffbeb;
+           border: 1px solid #fde68a; color: #78350f; font-size: 13px; line-height: 1.55; }
+.sbxwarn strong { display: block; margin-bottom: 3px; }
+.sbxwarn p { margin: 0; }
+.sbxwarn code { background: rgba(120, 53, 15, 0.09); padding: 1px 5px; border-radius: 4px; }
+.sbxwarn--tight { margin-bottom: 12px; }
+
+.sbxhead { display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+           justify-content: space-between; margin-bottom: 14px; }
+.sbxcounts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.sbxacts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+/* Buttons in a table cell, kept on one line so the column does not grow a row
+   in height the moment an application has both a payment link and a deed. */
+.sbxrowacts { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; }
+
+/* The signing link. Dark like .devkeybox because it is the same kind of thing:
+   a bearer credential the developer is about to copy. Wraps rather than
+   scrolls, since a PandaDoc session URL is long and the whole of it matters. */
+.sbxlink { margin-top: 10px; padding: 12px; border-radius: 8px; background: #0f172a;
+           color: #e2e8f0; word-break: break-all; }
+.sbxlink code { font-size: 12.5px; line-height: 1.5; }
+
+/* Per-container icon sizing, following the convention at the foot of this file
+   rather than adding one-off widths at the call sites. */
+.sbxwarn     svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
+.sbxrowacts  svg { width: 14px; height: 14px; flex-shrink: 0; }
+.sbxacts     svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* The live/sandbox marker on a key or endpoint row. */
+.devmode { display: inline-block; padding: 2px 8px; border-radius: 999px;
+           font-size: 11px; font-weight: 700; letter-spacing: 0.04em; }
+.devmode--live    { background: #ecfdf5; color: #065f46; }
+.devmode--sandbox { background: #eef2ff; color: #3730a3; }
+
+/* ---------------------------------------------------------------------
+   Expanded request and response bodies in the Logs tab.
+
+   Side by side rather than stacked, because the question is almost always
+   "I sent this, why did I get that", and answering it with two panes that
+   need scrolling between them is answering it badly. Collapses to one
+   column when there is not room for two.
+   --------------------------------------------------------------------- */
+.devbodies > td { background: #f8fafc; padding: 14px 16px !important; }
+.devbodies__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 900px) { .devbodies__grid { grid-template-columns: 1fr; } }
+
+.devbodies__label { font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+                    text-transform: uppercase; color: #64748b; margin-bottom: 6px; }
+
+/* Capped rather than unbounded: a listing response can be long, and a row that
+   pushes the next request off screen stops the tab being a comparison tool. */
+.devbodies pre { max-height: 340px; overflow: auto; margin: 0; }
+
+.devbodies__note { margin: 10px 0 0; font-size: 12px; color: #64748b; line-height: 1.55; }
+.devbodies__note code { background: #e2e8f0; padding: 1px 5px; border-radius: 4px; }
+
+/* ---------------------------------------------------------------------
+   Test-event result.
+
+   The verdict leads, because the question being asked is binary: did my
+   signature verification accept it. Everything below is evidence for that
+   answer rather than the answer itself.
+   --------------------------------------------------------------------- */
+.devtest { margin-top: 16px; border-top: 1px solid #e2e8f0; padding-top: 14px; }
+
+.devtest__verdict { display: flex; gap: 10px; align-items: flex-start;
+                    padding: 11px 13px; border-radius: 9px; margin-bottom: 14px;
+                    font-size: 13px; line-height: 1.5; }
+.devtest__verdict--ok  { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
+.devtest__verdict--bad { background: #fef2f2; border: 1px solid #fecaca; color: #7f1d1d; }
+.devtest__verdict strong { display: block; }
+.devtest__verdict .soft { color: inherit; opacity: .8; }
+
+.devtest pre { max-height: 260px; overflow: auto; margin: 0 0 12px; }
+.devtest .devbodies__label { margin-top: 4px; }
+
+.devtest__verdict svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }
+
+/* Actions sharing a table cell. Nowrap so a row does not grow in height the
+   moment a second action appears next to the first. */
+.devrowacts { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: nowrap; }
+.devrowacts svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+/* Delete where there is history to lose. Shown rather than hidden, so nobody
+   hunts for a feature that is there, but visibly not the thing to press: the
+   click explains why instead of doing nothing. */
+.btn.is-unavailable { opacity: .45; }
+
+.sbxpurge { margin: 6px 0 12px; padding-left: 20px; line-height: 1.6; }
+.sbxpurge li { margin-bottom: 4px; }
+
+/* The OpenAPI callout at the top of the documentation panel. Blue rather than
+   amber or red: this is an offer, not a warning. */
+.devopenapi { display: flex; gap: 11px; align-items: flex-start; margin-bottom: 20px;
+              padding: 13px 15px; border-radius: 10px; background: #eff6ff;
+              border: 1px solid #bfdbfe; color: #1e3a8a; font-size: 13px; line-height: 1.55; }
+.devopenapi strong { display: block; margin-bottom: 3px; }
+.devopenapi p { margin: 0; }
+.devopenapi code { background: rgba(30, 58, 138, 0.1); padding: 1px 5px; border-radius: 4px; }
+.devopenapi svg { width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px; }

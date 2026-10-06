@@ -231,3 +231,33 @@
 .lt-move--down { color: var(--danger, #c0392b); }
 .lt-move--flat { color: var(--ink-mute, #8579ab); font-weight: 600; }
 .lt-move--new { color: var(--ink-mute, #8579ab); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* Position-ladder scope switch (my brand/branch vs whole company). */
+.lt-scope { display: inline-flex; gap: 6px; }
+
+/* THE RANKED COLUMN, in the body as well as the heading. Both columns are always
+   shown, so without this the only sign of which one the order follows is a small
+   arrow at the top of a table that may be fifty rows long. */
+.dt td.is-ranked { font-weight: 700; color: var(--ink); }
+
+/* THE PERIOD-THROUGHPUT NOTE, the same sentence the dashboard's funnel
+   carries, because this board's two conversion columns are the same
+   measure and a rate over 100% reads as a bug until somebody explains
+   it. Styled as the funnel's note is: quiet, one line, under the thing
+   it is about. */
+.lt-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px 0;
+  font-size: 12.5px;
+  color: var(--ink-mute);
+}
+/* THE SAME 14px AS `.funnel-note svg` ON THE DASHBOARD, which carries the
+   identical sentence. This rule set `flex` and `margin-top` and no size,
+   so the icon took the component's old no-size path and filled the card
+   while the Dashboard's copy of the same note was 14px. The component now
+   has a floor of its own, so this is no longer load-bearing; it is here so
+   the two notes match, which is why they are the same number and not
+   whatever the floor happens to be. */
+.lt-note svg { flex: none; margin-top: 2px; width: 14px; height: 14px; color: var(--sent); }

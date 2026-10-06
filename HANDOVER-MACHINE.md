@@ -1,5 +1,68 @@
 # HANDOVER-MACHINE.md
 
+> ## ⚠️ WRITTEN 6 JULY 2026, BEFORE GO-LIVE. Read HANDOVER.md first.
+>
+> This is the **original** engineering handover, written the morning after the
+> closing batch and aimed at a go-live of 15 July 2026. That date has passed and
+> a month of work has landed since, none of it reflected below.
+>
+> **It has not been line-by-line audited.** What follows is what was checked:
+>
+> | Claim | State today |
+> | ----- | ----------- |
+> | "125/125 tests" green | **127 tests, 126 passing, 1 failing.** See DEFECTS.md 16 |
+> | Go-live Wednesday 15 July 2026 | Passed |
+> | Tag `v1.0-handover` on `main` | Still there. A month of commits sits after it |
+> | The operational estate (§2) | Not re-verified. Treat as of 6 July |
+> | Teardown census (§8) | Not re-verified. Demo data may have changed |
+>
+> **What has landed since, which this document knows nothing about:** the partner
+> API and webhooks, sandbox mode (`livemode`), the Dev Centre and the `developer`
+> role, partner capabilities and org resolution by name, and fifteen recorded
+> defects in the live system.
+>
+> Still worth reading: §5 (gotchas and their lessons), §6 (environment truths)
+> and §9 (things not written anywhere else). Those are about the estate and the
+> team, not about code, and they have aged well.
+>
+> For anything about how the system works **now**, HANDOVER.md is the current
+> document.
+>
+> ---
+>
+> ### 🔍 §2, the operational estate: NOBODY HERE CAN VERIFY THIS. Balal must.
+>
+> This section describes infrastructure that cannot be seen from this working
+> copy: dashboards, accounts, DNS, billing, third-party consoles. Checking it
+> from here would produce more unverified claims dressed as verified ones, which
+> is worse than leaving it marked.
+>
+> **Do not rely on any of the following until you have checked it yourself.**
+> Each is load-bearing: something breaks quietly if it is wrong.
+>
+> | Check | Why it matters if wrong |
+> | ----- | ----------------------- |
+> | Every account listed still exists, and **we still hold the credentials** | An account nobody can sign into is discovered during an incident |
+> | Who owns each account, and whether it is a personal login | A personal login leaves with the person. This is the single most common estate failure |
+> | The Stripe account is the one the live keys belong to, and its webhook endpoints point at the **current** functions URL | A moved endpoint means payments settle and nothing downstream fires |
+> | The PandaDoc account, its template id, and that the template still has one Signature field and no Date field | A changed template breaks deed generation with a provider error, after the tenant has paid |
+> | The Resend domain is still verified, and SPF/DKIM still pass | Silent delivery failure. Nothing in the portal reports it |
+> | The Supabase project ref matches what the code expects, and the plan/quota is what you think | See defect 2 |
+> | The HubSpot Hub id, and that the token still has the scopes the sync needs | The sync 401s and the CRM quietly stops updating |
+> | Any DNS you did not set up yourself, including who controls the zone | You will need this for `api.opndoor.co`. See HANDOVER.md section 12 |
+> | Billing: card on file, expiry, and who receives the invoices | The most boring failure and the one that takes a service down without warning |
+>
+> ### 🔍 §8, the teardown census, is also unverified
+>
+> It lists demo and test data to remove before production. It was accurate on
+> 6 July. A month of work has happened since, including this one, which created
+> test partners, test users, sandbox applications and API keys on the **dev**
+> project. Re-derive the census against the real production database rather than
+> trusting the list.
+>
+> `dev_purge_sandbox()` clears sandbox applications and orgs, which is a subset of
+> what §8 covers and does not touch anything live.
+
 Engineering handover for the **opndoor Guarantee Referral Portal**.
 
 Written for **Balal**, picking this up the morning after the closing batch. You have
@@ -483,6 +546,19 @@ human clicks.
   settlement, exports and commission all read `applications.partner_rate`/`agent_rate`
   (snapshotted at creation), never the partner's current rate. If you "fix" a figure by
   reading the live partner rate, you'll silently rewrite history. Don't.
+- **`partners` and `applications` carry PER-COLUMN grants, so a new column is invisible
+  until you re-grant it.** Commission rates are confidential (a Referrer must never see
+  what opndoor pays their partner), and RLS cannot hide a column — so `authenticated`
+  holds a column-list grant on those two tables that excludes
+  `partner_rate`/`agent_rate`, and the rates reach the client through the
+  `commission_rates_for_partners()` / `commission_rates_for_applications()` readers
+  instead (migrations `20260904120000` = RPC masking + grant helper, `20260904120500` =
+  the column cut-over, split so the front end can deploy between them, `20260904130000` =
+  the two readers, which replaced owner-rights views that tripped the Security Advisor's
+  `security_definer_view` check; proof C9). If you `alter table … add column` on either table, end the
+  migration with `select public.reapply_rate_column_privileges();` or the app will not be
+  able to read the new column. If a rate ever has to reach a new surface, widen the view,
+  never the table grant.
 - **Impersonating a user in SQL:** `set_config('request.jwt.claims',
   json_build_object('sub', <user id>, 'aal','aal2','role','authenticated')::text, true)`
   then (optionally) `set local role authenticated`. `auth.uid()`/`is_aal2()` read those

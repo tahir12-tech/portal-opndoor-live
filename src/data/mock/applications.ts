@@ -1,13 +1,13 @@
 /* =====================================================================
    Seed application data.
    - APPLICATIONS_LIST: the applications-list rows (from applications.html),
-     including the lighter Zoopla / OnTheMarket rows that demonstrate
+     including the lighter Harbourside Homes / Meridian Lettings rows that demonstrate
      multi-partner scoping.
    - APPLICATION_RECORDS: richer per-application records (from portal-apps.js)
      used by the detail builder to derive dates, contact details and
      guarantee info deterministically.
    ===================================================================== */
-import type { ApplicationSummary, Status, WithdrawReason } from '../types';
+import type { ApplicationSummary, ReferencingMode, Status, WithdrawReason } from '../types';
 
 export interface AppRecord {
   ref: string;
@@ -23,8 +23,19 @@ export interface AppRecord {
   date: string;
   referrer: string;
   owner: number;
+  /** The rail (snapshot). Live mode only; drives the agent-rail journey view. */
+  referencingMode?: ReferencingMode;
+  /** The joint tenancy this applicant belongs to, and where they sit in it.
+      Absent for a tenancy of one. See ApplicationSummary for the full note. */
+  tenancyId?: string | null;
+  tenancyPosition?: number | null;
+  sharePercent?: number | null;
+  shareAmount?: number | null;
   /** #2 Withdrawal reason (present only on a withdrawn record). */
   withdrawnReason?: WithdrawReason | null;
+  /** Landlord the executed deed was last sent to (live mode; agent rail). */
+  landlordName?: string | null;
+  landlordEmail?: string | null;
   // Real tenant/property/timeline values from Supabase, present in live mode only.
   // Mock seed records omit these and the detail builder synthesises deterministic
   // stand-ins instead; their presence is what makes getApplicationDetail show the
@@ -60,6 +71,17 @@ export const APPLICATION_RECORDS: AppRecord[] = [
   { ref: 'GR-20518', name: 'Omar Farouk', title: 'Mr', role: 'Postgraduate student', addr1: '77 Old Brompton Road', postcode: 'SW7 3LQ', branch: 'South Kensington', agency: 'Foxglove Residential', rent: 2300, status: 'sent', date: '2026-06-18', referrer: 'Priya Nair', owner: 1 },
   { ref: 'GR-20240', name: 'Hannah Schmidt', title: 'Ms', role: 'Researcher', addr1: '23 Hoxton Square', postcode: 'N1 6NN', branch: 'Shoreditch', agency: 'Northbank Lettings', rent: 2050, status: 'deed', date: '2026-05-16', referrer: 'Oliver Grant', owner: 0 },
   { ref: 'GR-20463', name: 'Carlos Vega', title: 'Mr', role: 'Civil engineer', addr1: "102 St John's Hill", postcode: 'SW11 1SA', branch: 'Clapham', agency: 'Hartwell Estates', rent: 1880, status: 'paid', date: '2026-06-10', referrer: 'Marcus Lin', owner: 0 },
+  /* A JOINT TENANCY: two applicants, one property, one guarantee, one deed.
+     Note what the pair look like without the grouping the screens now do: the
+     same address twice, the WHOLE £3,000 rent on both rows, and a lead sitting
+     at "Deed Issued" beside a sibling stuck at "Paid" forever -- because
+     apply_deed_executed keys on the PandaDoc document and only the lead has
+     one. That asymmetry is not a bug to fix in the data; it is the thing the
+     presentation has to resolve, so the seed carries it faithfully. */
+  { ref: 'GR-20601', name: 'Rosa Vance', title: 'Ms', role: 'Illustrator', addr1: '14 Chalcot Road', postcode: 'NW1 8LH', branch: 'South Kensington', agency: 'Foxglove Residential', rent: 3000, status: 'deed', date: '2026-06-20', referrer: 'Priya Nair', owner: 1,
+    tenancyId: 'ten-chalcot', tenancyPosition: 1, sharePercent: 50, shareAmount: 1500 },
+  { ref: 'GR-20602', name: 'Theo Brandt', title: 'Mr', role: 'Sound engineer', addr1: '14 Chalcot Road', postcode: 'NW1 8LH', branch: 'South Kensington', agency: 'Foxglove Residential', rent: 3000, status: 'paid', date: '2026-06-20', referrer: 'Priya Nair', owner: 1,
+    tenancyId: 'ten-chalcot', tenancyPosition: 2, sharePercent: 50, shareAmount: 1500 },
 ];
 
 /** Agent (branch) office addresses, used on the referring-agent card. */
@@ -75,28 +97,35 @@ export const AGENT_ADDR: Record<string, string> = {
   Islington: '27 Upper Street, London, N1 0PN',
 };
 
-/** Applications-list rows. Rightmove rows first, then lighter Zoopla / OnTheMarket rows. */
+/** Applications-list rows. Northwind Property rows first, then lighter Harbourside Homes / Meridian Lettings rows. */
 export const APPLICATIONS_LIST: ApplicationSummary[] = [
-  { ref: 'GR-20418', tenant: 'Amelia Hartley', prop: 'Flat 4, 18 Onslow Gardens, SW7', branch: 'South Kensington', agency: 'Foxglove Residential', ben: 'Onslow Estates Ltd', rent: 2450, status: 'deed', date: '2026-06-02', owner: 1, partner: 'rightmove' },
-  { ref: 'GR-20455', tenant: 'Chen Wei', prop: '22 Cale Street, SW3', branch: 'Chelsea', agency: 'Foxglove Residential', ben: 'K&C Property Holdings', rent: 2200, status: 'paid', date: '2026-06-09', owner: 1, partner: 'rightmove' },
-  { ref: 'GR-20489', tenant: 'Mohammed Al-Rashid', prop: 'Studio 7, 5 Bina Gardens, SW5', branch: 'South Kensington', agency: 'Foxglove Residential', ben: 'Bina Gardens Mgmt', rent: 1850, status: 'sent', date: '2026-06-14', owner: 1, partner: 'rightmove' },
+  { ref: 'GR-20418', tenant: 'Amelia Hartley', prop: 'Flat 4, 18 Onslow Gardens, SW7', branch: 'South Kensington', agency: 'Foxglove Residential', ben: 'Onslow Estates Ltd', rent: 2450, status: 'deed', date: '2026-06-02', owner: 1, partner: 'northwind' },
+  { ref: 'GR-20455', tenant: 'Chen Wei', prop: '22 Cale Street, SW3', branch: 'Chelsea', agency: 'Foxglove Residential', ben: 'K&C Property Holdings', rent: 2200, status: 'paid', date: '2026-06-09', owner: 1, partner: 'northwind' },
+  { ref: 'GR-20489', tenant: 'Mohammed Al-Rashid', prop: 'Studio 7, 5 Bina Gardens, SW5', branch: 'South Kensington', agency: 'Foxglove Residential', ben: 'Bina Gardens Mgmt', rent: 1850, status: 'sent', date: '2026-06-14', owner: 1, partner: 'northwind' },
   // #2 A withdrawn (pre-payment) referral: excluded from All/Sent and every
   // conversion figure, shown only under its own Withdrawn chip.
-  { ref: 'GR-20493', tenant: 'Elena Novak', prop: '9 Sydney Street, SW3', branch: 'Chelsea', agency: 'Foxglove Residential', ben: 'Sydney Street Estates', rent: 2050, status: 'withdrawn', date: '2026-06-15', owner: 1, partner: 'rightmove', withdrawn: true },
-  { ref: 'GR-20322', tenant: 'Sofia Almeida', prop: '41 Marylebone High Street, W1U', branch: 'Marylebone', agency: 'Marylebone & Co', ben: 'Howard de Walden Est.', rent: 2800, status: 'deed', date: '2026-05-28', owner: 0, partner: 'rightmove' },
-  { ref: 'GR-20471', tenant: 'Tariq Hassan', prop: '12 Charlotte Street, W1T', branch: 'Fitzrovia', agency: 'Marylebone & Co', ben: 'Fitzroy Holdings Ltd', rent: 2350, status: 'paid', date: '2026-06-11', owner: 0, partner: 'rightmove' },
-  { ref: 'GR-20502', tenant: 'Grace Okonkwo', prop: '88 Northcote Road, SW11', branch: 'Clapham', agency: 'Hartwell Estates', ben: 'Northcote Lettings Ltd', rent: 1950, status: 'sent', date: '2026-06-16', owner: 0, partner: 'rightmove' },
-  { ref: 'GR-20288', tenant: 'Lukas Müller', prop: '30 Rivington Street, EC2A', branch: 'Shoreditch', agency: 'Northbank Lettings', ben: 'Rivington Freehold Co', rent: 2100, status: 'deed', date: '2026-05-21', owner: 0, partner: 'rightmove' },
-  { ref: 'GR-20466', tenant: 'Yuki Tanaka', prop: '14 Upper Street, N1', branch: 'Islington', agency: 'Northbank Lettings', ben: 'Angel Property Group', rent: 1780, status: 'paid', date: '2026-06-12', owner: 0, partner: 'rightmove' },
-  { ref: 'GR-20510', tenant: 'Isabella Rossi', prop: 'Flat 2, 60 Fulham Road, SW3', branch: 'Chelsea', agency: 'Foxglove Residential', ben: 'Fulham Road Estates', rent: 2650, status: 'sent', date: '2026-06-17', owner: 1, partner: 'rightmove' },
-  { ref: 'GR-20255', tenant: 'Daniel Mensah', prop: '5 Bedford Hill, SW12', branch: 'Balham', agency: 'Hartwell Estates', ben: 'Bedford Hill Homes Ltd', rent: 1690, status: 'deed', date: '2026-05-19', owner: 0, partner: 'rightmove' },
-  { ref: 'GR-20479', tenant: 'Priya Raman', prop: '9 Goodge Street, W1T', branch: 'Fitzrovia', agency: 'Marylebone & Co', ben: 'Goodge Place Estates', rent: 2500, status: 'paid', date: '2026-06-13', owner: 0, partner: 'rightmove' },
-  { ref: 'GR-20518', tenant: 'Omar Farouk', prop: '77 Old Brompton Road, SW7', branch: 'South Kensington', agency: 'Foxglove Residential', ben: 'Brompton Cross Ltd', rent: 2300, status: 'sent', date: '2026-06-18', owner: 1, partner: 'rightmove' },
-  { ref: 'GR-20240', tenant: 'Hannah Schmidt', prop: '23 Hoxton Square, N1', branch: 'Shoreditch', agency: 'Northbank Lettings', ben: 'Hoxton Square Mgmt', rent: 2050, status: 'deed', date: '2026-05-16', owner: 0, partner: 'rightmove' },
-  { ref: 'GR-20463', tenant: 'Carlos Vega', prop: "102 St John's Hill, SW11", branch: 'Clapham', agency: 'Hartwell Estates', ben: "St John's Hill Estates", rent: 1880, status: 'paid', date: '2026-06-10', owner: 0, partner: 'rightmove' },
-  { ref: 'GR-21010', tenant: 'Eva Lindqvist', prop: '14 Lavender Hill, SW11', branch: 'Battersea', agency: 'Cityscape Lettings', ben: 'Lavender Estates', rent: 2150, status: 'deed', date: '2026-06-05', owner: 0, partner: 'zoopla' },
-  { ref: 'GR-21024', tenant: 'Raj Patel', prop: '9 Mortimer Street, W1W', branch: 'Noho', agency: 'Cityscape Lettings', ben: 'Mortimer Holdings', rent: 2400, status: 'paid', date: '2026-06-12', owner: 0, partner: 'zoopla' },
-  { ref: 'GR-21037', tenant: 'Sara Nilsson', prop: '33 Bermondsey Street, SE1', branch: 'Bermondsey', agency: 'Riverside Homes', ben: 'Bermondsey Estates', rent: 1980, status: 'sent', date: '2026-06-19', owner: 0, partner: 'zoopla' },
-  { ref: 'GR-22008', tenant: 'Tom Becker', prop: '5 Stoke Newington Rd, N16', branch: 'Stoke Newington', agency: 'Northgate Property', ben: 'Stoke Estates', rent: 1820, status: 'paid', date: '2026-06-08', owner: 0, partner: 'onthemarket' },
-  { ref: 'GR-22015', tenant: 'Lucy Chambers', prop: '21 Deptford High St, SE8', branch: 'Deptford', agency: 'Northgate Property', ben: 'Deptford Holdings', rent: 1700, status: 'sent', date: '2026-06-17', owner: 0, partner: 'onthemarket' },
+  { ref: 'GR-20493', tenant: 'Elena Novak', prop: '9 Sydney Street, SW3', branch: 'Chelsea', agency: 'Foxglove Residential', ben: 'Sydney Street Estates', rent: 2050, status: 'withdrawn', date: '2026-06-15', owner: 1, partner: 'northwind', withdrawn: true },
+  { ref: 'GR-20322', tenant: 'Sofia Almeida', prop: '41 Marylebone High Street, W1U', branch: 'Marylebone', agency: 'Marylebone & Co', ben: 'Howard de Walden Est.', rent: 2800, status: 'deed', date: '2026-05-28', owner: 0, partner: 'northwind' },
+  { ref: 'GR-20471', tenant: 'Tariq Hassan', prop: '12 Charlotte Street, W1T', branch: 'Fitzrovia', agency: 'Marylebone & Co', ben: 'Fitzroy Holdings Ltd', rent: 2350, status: 'paid', date: '2026-06-11', owner: 0, partner: 'northwind' },
+  { ref: 'GR-20502', tenant: 'Grace Okonkwo', prop: '88 Northcote Road, SW11', branch: 'Clapham', agency: 'Hartwell Estates', ben: 'Northcote Lettings Ltd', rent: 1950, status: 'sent', date: '2026-06-16', owner: 0, partner: 'northwind' },
+  { ref: 'GR-20288', tenant: 'Lukas Müller', prop: '30 Rivington Street, EC2A', branch: 'Shoreditch', agency: 'Northbank Lettings', ben: 'Rivington Freehold Co', rent: 2100, status: 'deed', date: '2026-05-21', owner: 0, partner: 'northwind' },
+  { ref: 'GR-20466', tenant: 'Yuki Tanaka', prop: '14 Upper Street, N1', branch: 'Islington', agency: 'Northbank Lettings', ben: 'Angel Property Group', rent: 1780, status: 'paid', date: '2026-06-12', owner: 0, partner: 'northwind' },
+  { ref: 'GR-20510', tenant: 'Isabella Rossi', prop: 'Flat 2, 60 Fulham Road, SW3', branch: 'Chelsea', agency: 'Foxglove Residential', ben: 'Fulham Road Estates', rent: 2650, status: 'sent', date: '2026-06-17', owner: 1, partner: 'northwind' },
+  { ref: 'GR-20255', tenant: 'Daniel Mensah', prop: '5 Bedford Hill, SW12', branch: 'Balham', agency: 'Hartwell Estates', ben: 'Bedford Hill Homes Ltd', rent: 1690, status: 'deed', date: '2026-05-19', owner: 0, partner: 'northwind' },
+  { ref: 'GR-20479', tenant: 'Priya Raman', prop: '9 Goodge Street, W1T', branch: 'Fitzrovia', agency: 'Marylebone & Co', ben: 'Goodge Place Estates', rent: 2500, status: 'paid', date: '2026-06-13', owner: 0, partner: 'northwind' },
+  { ref: 'GR-20518', tenant: 'Omar Farouk', prop: '77 Old Brompton Road, SW7', branch: 'South Kensington', agency: 'Foxglove Residential', ben: 'Brompton Cross Ltd', rent: 2300, status: 'sent', date: '2026-06-18', owner: 1, partner: 'northwind' },
+  { ref: 'GR-20240', tenant: 'Hannah Schmidt', prop: '23 Hoxton Square, N1', branch: 'Shoreditch', agency: 'Northbank Lettings', ben: 'Hoxton Square Mgmt', rent: 2050, status: 'deed', date: '2026-05-16', owner: 0, partner: 'northwind' },
+  { ref: 'GR-20463', tenant: 'Carlos Vega', prop: "102 St John's Hill, SW11", branch: 'Clapham', agency: 'Hartwell Estates', ben: "St John's Hill Estates", rent: 1880, status: 'paid', date: '2026-06-10', owner: 0, partner: 'northwind' },
+  { ref: 'GR-21010', tenant: 'Eva Lindqvist', prop: '14 Lavender Hill, SW11', branch: 'Battersea', agency: 'Cityscape Lettings', ben: 'Lavender Estates', rent: 2150, status: 'deed', date: '2026-06-05', owner: 0, partner: 'harbourside' },
+  { ref: 'GR-21024', tenant: 'Raj Patel', prop: '9 Mortimer Street, W1W', branch: 'Noho', agency: 'Cityscape Lettings', ben: 'Mortimer Holdings', rent: 2400, status: 'paid', date: '2026-06-12', owner: 0, partner: 'harbourside' },
+  { ref: 'GR-21037', tenant: 'Sara Nilsson', prop: '33 Bermondsey Street, SE1', branch: 'Bermondsey', agency: 'Riverside Homes', ben: 'Bermondsey Estates', rent: 1980, status: 'sent', date: '2026-06-19', owner: 0, partner: 'harbourside' },
+  { ref: 'GR-22008', tenant: 'Tom Becker', prop: '5 Stoke Newington Rd, N16', branch: 'Stoke Newington', agency: 'Northgate Property', ben: 'Stoke Estates', rent: 1820, status: 'paid', date: '2026-06-08', owner: 0, partner: 'meridian' },
+  { ref: 'GR-22015', tenant: 'Lucy Chambers', prop: '21 Deptford High St, SE8', branch: 'Deptford', agency: 'Northgate Property', ben: 'Deptford Holdings', rent: 1700, status: 'sent', date: '2026-06-17', owner: 0, partner: 'meridian' },
+  // The joint tenancy, as the list sees it. Same tenancy id, entry order in
+  // tenancyPosition, and the fee already apportioned to the penny by
+  // public.apportion: 1153.85 + 1153.84 = one 5-week fee on a £3,000 rent.
+  { ref: 'GR-20601', tenant: 'Rosa Vance', prop: '14 Chalcot Road, NW1', branch: 'South Kensington', agency: 'Foxglove Residential', ben: 'Chalcot Estates', rent: 3000, status: 'deed', date: '2026-06-20', owner: 1, partner: 'northwind',
+    referencingMode: 'opndoor_referenced', tenancyId: 'ten-chalcot', tenancyPosition: 1, sharePercent: 50, shareAmount: 1500, fee: 1153.85 },
+  { ref: 'GR-20602', tenant: 'Theo Brandt', prop: '14 Chalcot Road, NW1', branch: 'South Kensington', agency: 'Foxglove Residential', ben: 'Chalcot Estates', rent: 3000, status: 'paid', date: '2026-06-20', owner: 1, partner: 'northwind',
+    referencingMode: 'opndoor_referenced', tenancyId: 'ten-chalcot', tenancyPosition: 2, sharePercent: 50, shareAmount: 1500, fee: 1153.84 },
 ];

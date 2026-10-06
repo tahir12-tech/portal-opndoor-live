@@ -1,0 +1,536 @@
+/* =====================================================================
+   THE COMMISSION STATEMENT, as a panel.
+
+   One component, two homes, deliberately: an agency manager reads it on
+   Reporting for their own agency, and an Opndoor admin reads the identical
+   thing on an agency's Commission tab. Two renderings of one statement is how
+   the two come to disagree, and the whole point of this screen is that it
+   agrees — with the settlement, and with itself.
+
+   It states its own basis rather than assuming the reader shares ours:
+   commission on fees PAID in the month, refunds excluded. That is the rule the
+   settlement uses, so "why is this different from what you paid me" has an
+   answer on the page.
+
+   A column that says the same thing on every line is not drawn: see
+   src/data/statementColumns.ts, which is also where the PDF and the CSV get
+   the answer, so the three cannot show different columns for one month.
+
+   WHO MAY READ IT. Directors and Opndoor staff, and nobody else: the panel
+   asks maySeeCommission itself rather than trusting the two callers to ask for
+   it. See the gate on CommissionStatement below.
+   ===================================================================== */
+import { gbpPence, possessive, formatDate } from '@/lib/format';
+import { useEffect, useMemo, useState } from 'react';
+import {
+  buildAllStatementsCsv, buildCommissionStatementDoc, downloadCsv, exportBranded,
+  getCommissionStatements, maySeeCommission,
+  statementMonths, type CommissionStatement as Statement, statementReference,
+  isPostedReference, isUnreadableReference, draftLabel, paidOnSentence } from '@/data';
+import type { PartnerScope, Role } from '@/data';
+import { SOURCE_LABEL } from '@/data/commissionSplit';
+import type { CommissionSource } from '@/data/types';
+import {
+  dimensionCollapsed, statementShape, type StatementDimension,
+} from '@/data/statementColumns';
+import { Button } from '@/components/ui/Button';
+import { Card, CardBody, CardFoot, CardHead } from '@/components/ui/Card';
+import { Icon } from '@/components/ui/Icon';
+import { PeriodSelect } from '@/components/ui/Select';
+import './CommissionStatement.css';
+import { plural } from '@/lib/plural';
+
+/* TEN, the same default the other two lists on Reporting use: the volume
+   charts and the Every customer table. A reader moving between them should
+   not have to learn a different number of rows for each. */
+const TOP_PAYEES = 10;
+
+const money = gbpPence;
+const pct = (n: number) => `${Number((n * 100).toFixed(2))}%`;
+// One format, shared. See lib/format.
+const dmy = formatDate;
+/** A frozen line's source in the reader's words. Falls back to the stored code
+    rather than to a blank, so a source we stop labelling is still legible. */
+const sourceWord = (s: string) => SOURCE_LABEL[s as CommissionSource] ?? s;
+
+/** What a payee's LEVEL is called on screen. One function because it is
+    printed twice, in the list and in the open statement's own heading, and
+    they drifted the moment a fourth level arrived: the list said "Branch" for
+    a supplier because the old expression was a two-way question with a
+    fallback. Matt, 2026-10-03: "include suppliers as payees (e.g. Kestrel
+    Lettings, Level 'Supplier', with its statement)". */
+function levelWord(level: Statement['level']): string {
+  return level === 'agency' ? 'Agency'
+    : level === 'group' ? 'Group'
+    : level === 'supplier' ? 'Supplier'
+    : 'Branch';
+}
+
+/** The columns, in the order the PDF and the CSV declare them in
+    supabase/functions/commission-statements/index.ts, so a reader can hold the
+    three side by side. No widths: the page has CSS, and the only thing this
+    list has to agree with is WHICH columns there are.
+
+    NO AGENCY COLUMN, and not an oversight: a StatementLine carries the branch
+    and not the agency, so on a group statement spanning two agencies there is
+    nothing to put in the cells. The rule already answers for that dimension
+    (statementShape().oneAgency); the day a line carries an agency, the column
+    is one entry here and one cell below. */
+const HEADS: { label: string; num?: boolean; dim?: StatementDimension }[] = [
+  { label: 'Reference' },
+  { label: 'Tenant' },
+  { label: 'Branch', dim: 'branch' },
+  { label: 'Tenancy' },
+  { label: 'Share', num: true },
+  { label: 'Paid' },
+  { label: 'Fee charged', num: true },
+  { label: 'Rate', num: true },
+  { label: 'Source', dim: 'source' },
+  { label: 'Commission', num: true },
+];
+
+type PanelProps = {
+  role: Role;
+  scope: PartnerScope;
+  /** Narrow to one payee by org id. Omitted on the agency's own Reporting page,
+      where every payee they can see is theirs anyway; supplied by the admin
+      Commission tab, which is looking at one agency out of many. */
+  orgId?: string | null;
+  title?: string;
+  /** What this card is, when it is not the headline. On a supplier's own
+      Reporting page it is the per-agency breakdown BENEATH the supplier's
+      own statement, which is a different thing from the default sentence
+      and has to say so. Matt, 2026-10-02: "show Kestrel's own statement
+      first ..., with its agencies' schedules beneath it". */
+  sub?: string;
+};
+
+/* =====================================================================
+   THE GATE, in front of the panel rather than around it.
+
+   WHAT A MANAGER COULD SEE BEFORE THIS. Both callers gated on role alone and a
+   Manager is role 'management', so Reporting drew them the agency's month in
+   full: every line's rate and commission, the payee total, the month selector
+   to walk back through earlier months, and an Export button that handed them
+   the same statement as a PDF. The database was never the leak; the screen
+   read it out of analytics and printed it.
+
+   REFUSED WHOLE, not blanked column by column. There is no version of this
+   panel that survives the rule: the total is commission, the rate is
+   commission, the month list is a list of months the agency earned in, and the
+   export is the statement entire. The one figure on it a Manager is entitled to
+   is the fee the tenant was charged, and they read that on the referral itself,
+   where it belongs, not off a settlement ledger.
+
+   WHY THE PANEL ASKS AS WELL AS THE CALLERS. Both callers do refuse a Manager
+   already, and correctly: Reporting wraps the section in <RoleOnly commission>
+   so its "Your commission" eyebrow goes with it, and the admin Commission tab
+   is not even listed without maySeeCommission. So on the two homes that exist
+   today this gate never fires. It is here for the third home: two callers is
+   already enough to forget one, and a panel that depends on being asked
+   politely is one copy-paste away from putting the agency's month back on a
+   Manager's screen.
+
+   WHY A LINE AND NOT null, for that third caller. A caller that failed to gate
+   has already drawn a heading or an eyebrow of its own, and a null under it
+   leaves a labelled section with a void in it, which reads as a page that
+   failed to load rather than a level that does not include this. One sentence
+   says which it is, in the same words the level itself uses (AGENCY_LEVELS in
+   src/data/types.ts). No CardHead of our own: a heading reading "Commission
+   statement" over a refusal promises a statement below it, and whatever the
+   caller drew is the heading already.
+
+   Directors and Opndoor staff are untouched, maySeeCommission is true for both,
+   and a Negotiator never reached this panel: their callers do not list
+   'referrer'.
+   ===================================================================== */
+export function CommissionStatement(props: PanelProps) {
+  if (!maySeeCommission(props.role)) {
+    return (
+      <Card>
+        <CardBody>
+          <p className="muted" style={{ fontSize: 13.5 }}>
+            Commission figures are not shown at your level. Every referral, every branch and the
+            team stay yours to see.
+          </p>
+        </CardBody>
+      </Card>
+    );
+  }
+  return <StatementPanel {...props} />;
+}
+
+/* The panel proper. Split out so the gate above holds no hooks: a reader whose
+   entitlement changes under a mounted page then swaps one component for the
+   other, instead of changing how many hooks this one calls between renders. */
+function StatementPanel({
+  role, scope, orgId, title = 'Commission statement',
+  sub = 'Every application that paid in the month, what it was charged, and the commission it earned. Net of refunds, and the same figures as settlement.',
+}: PanelProps) {
+  const months = useMemo(() => statementMonths(role, scope), [role, scope]);
+  const [monthKey, setMonthKey] = useState('');
+  // Default to the most recent month with money in it, and follow it if the
+  // book changes underneath — never to a month that would render empty.
+  useEffect(() => {
+    if (months.length && !months.some((m) => m.key === monthKey)) setMonthKey(months[0].key);
+  }, [months, monthKey]);
+
+  const statements: Statement[] = useMemo(() => {
+    if (!monthKey) return [];
+    const all = getCommissionStatements(role, scope, monthKey);
+    const mine = orgId ? all.filter((s) => s.orgId === orgId) : all;
+    /* NO STATEMENT FOR A PARTY WITH NO COMMISSION. The direct route hangs off a
+       placeholder agency called "Unattached", which earns nobody anything and
+       appeared in this list every month as a payee with a zero total: a
+       statement for a party that is not a party, about money that does not
+       exist. Sorted by total because that is the order the month is read in. */
+    return mine
+      .filter((s) => s.total > 0 && s.lines.length > 0)
+      .sort((a, b) => b.total - a.total);
+  }, [role, scope, monthKey, orgId]);
+
+  /* WHICH PAYEE IS OPEN. The panel used to stack every payee's full table down
+     one page: on a book with thirty agencies that is thirty tables, and finding
+     one of them meant scrolling past the other twenty-nine. The list is the
+     month; a payee is opened out of it.
+
+     ONE PAYEE NEEDS NO LIST. The agency Commission tab passes orgId and gets a
+     single statement, which is what a link from that tab should land on. */
+  const [openPayee, setOpenPayee] = useState<string | null>(null);
+  /* THE STATEMENT REFERENCE, FOR THE OPEN PAYEE ONLY.
+     Fold F3 asks for it on the screen; the screen showed none at all. It is
+     fetched rather than computed because the number is STORED -- sequential
+     per payee per month, and stable when a party is renamed, which is the
+     whole point of it.
+     ONLY THE OPEN ONE, and that is not laziness: commission_statement_ref
+     MINTS on read. Asking for every payee in the month would burn a
+     sequence number for every party an admin merely scrolled past, and the
+     numbers are meant to be a record of statements issued. */
+  const [refs, setRefs] = useState<Record<string, string>>({});
+  const [q, setQ] = useState('');
+  const [showAllPayees, setShowAllPayees] = useState(false);
+  const single = !!orgId || statements.length === 1;
+  const shown = single ? statements : statements.filter((s) => s.payeeKey === openPayee);
+
+  /* KEYED ON THE MONTH AS WELL AS THE PAYEE, 2026-10-03.
+
+     Matt: "after switching the month from October to September, the
+     on-screen heading for Regent's Lettings still shows October's
+     reference (STMT-2026-10-0001), while the export correctly says
+     STMT-2026-09-0001. The heading must update with the month."
+
+     THE CACHE WAS KEYED ON THE PAYEE ALONE. The effect re-ran on a month
+     change -- `monthKey` was already in its dependencies -- and then hit
+     `if (refs[st.payeeKey]) continue`, found October's answer still
+     sitting under that payee, and skipped the fetch. So September showed
+     October's number. Nothing "picked up" anything: the heading never
+     asked again. The export was right because it calls
+     statementReference(monthKey, ...) fresh every time.
+
+     The comment below used to say "a month change mid-flight must not
+     write a stale reference", which is the race and was handled. The
+     cache key was the other half and was not. */
+  const refKey = (monthKeyIn: string, payeeKey: string) => `${monthKeyIn}|${payeeKey}`;
+  /* POSTED IS PER PAYEE, AND THIS LINE IS PER MONTH, so it asks whether the
+     month has been posted AT ALL: on the list view there are several payees
+     and one date. A month with nothing posted yet is a draft, and the
+     sentence says so. */
+  const monthPosted = shown.length > 0
+    && shown.every((st) => isPostedReference(refs[refKey(st.monthKey, st.payeeKey)] ?? ''));
+  /* ON FIRST PAINT TOO. `monthKey` is set by an effect, so reading it alone
+     left the footer silent for a tick -- and silent in any test that renders
+     without awaiting one. The month shown is `monthKey` once chosen and
+     `months[0]` before that, which is exactly what the effect picks, so the
+     sentence is right from the first frame rather than arriving late. */
+  const shownMonth = monthKey || months[0]?.key || '';
+  const paidOn = shownMonth ? paidOnSentence(shownMonth, monthPosted) : null;
+  useEffect(() => {
+    let ignore = false;
+    void (async () => {
+      for (const st of shown) {
+        if (refs[refKey(st.monthKey, st.payeeKey)]) continue;
+        const r = await statementReference(st.monthKey, st.payeeKey);
+        // A month change mid-flight must not write a stale reference.
+        if (!ignore && r) setRefs((prev) => ({ ...prev, [refKey(st.monthKey, st.payeeKey)]: r }));
+      }
+    })();
+    return () => { ignore = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shown.map((s) => s.payeeKey).join('|'), monthKey]);
+  // A payee that vanishes under the reader (month changed, book re-hydrated)
+  // must not leave the panel showing nothing with no way back to the list.
+  useEffect(() => {
+    if (openPayee && !statements.some((s) => s.payeeKey === openPayee)) setOpenPayee(null);
+  }, [statements, openPayee]);
+  /* THE BIGGEST TEN, AND THE REST BEHIND A CHOICE.
+
+     Matt, 2026-10-03: "Same for any other list on Reporting or Home that
+     grows with the number of agencies." This is that list. Every payee owed
+     anything in the month gets a row, one per agency, group, branch and
+     supplier, so it is the one table on Reporting whose length is the size of
+     the estate -- and the figure a reader comes here for is who is owed the
+     most, which was at the top and then eleven more screens of tail.
+
+     BY TOTAL OWED, which is the only measure this table has: it is a list of
+     amounts, not of performance, so there is nothing to choose between.
+
+     AND NO LEAGUE LINK HERE, deliberately. The League ranks what each party
+     SOLD; this is what each party is OWED for one month. Sending a reader
+     from "who do we pay" to a performance board would answer a different
+     question in the same number of clicks. Show all is the way to the rest,
+     and the search already reaches any payee whether or not they are in the
+     ten -- which is the half of this rule that matters most on a page where
+     somebody is looking for one name. */
+  const matchingPayees = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    const list = needle ? statements.filter((s) => s.payeeName.toLowerCase().includes(needle)) : statements;
+    return [...list].sort((a, b) => b.total - a.total || a.payeeName.localeCompare(b.payeeName));
+  }, [statements, q]);
+  const searchingPayees = q.trim() !== '';
+  // A search is itself a narrowing, so it shows everything it found.
+  const listed = showAllPayees || searchingPayees ? matchingPayees : matchingPayees.slice(0, TOP_PAYEES);
+  const hiddenPayees = matchingPayees.length - listed.length;
+
+  if (!months.length) {
+    return (
+      <Card>
+        <CardHead title={title} sub="Commission on fees paid in the month, net of refunds." />
+        <CardBody>
+          <p className="muted" style={{ fontSize: 13.5 }}>
+            Nothing has been paid yet, so there is no statement to show. One appears here as soon as
+            a referral reaches Paid.
+          </p>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHead
+        title={title}
+        sub={sub}
+        actions={
+          <span className="stmt__tools">
+            {/* ONE FILE FOR THE MONTH. Per-payee Export sends a payee their own
+                paperwork; this is the month-end job, and doing it one agency at
+                a time was thirty downloads. */}
+            {!single && statements.length > 0 && (
+              <Button
+                variant="ghost" size="sm"
+                title={`Every payee's ${months.find((m) => m.key === monthKey)?.label ?? 'month'} lines in one sheet.`}
+                onClick={() => {
+                  const out = buildAllStatementsCsv(role, scope, monthKey);
+                  if (out) downloadCsv(out.csv, out.filename);
+                }}
+              >
+                <Icon name="download" /> Export all
+              </Button>
+            )}
+            <PeriodSelect
+              ariaLabel="Statement month"
+              value={monthKey}
+              onChange={setMonthKey}
+              options={months.map((m) => ({ value: m.key, label: m.label }))}
+            />
+          </span>
+        }
+      />
+      <CardBody>
+        {statements.length === 0 ? (
+          <p className="muted" style={{ fontSize: 13.5 }}>No commission accrued in this month.</p>
+        ) : !single && !openPayee ? (
+          /* THE MONTH, AS A LIST OF WHO IS OWED WHAT. */
+          <div className="stmt-list">
+            <div className="stmt-list__tools">
+              <input
+                type="text" className="stmt-list__q" placeholder="Search payee"
+                aria-label="Search payee" value={q} onChange={(e) => setQ(e.target.value)}
+              />
+              <span className="muted" style={{ fontSize: 12.5 }}>
+                {hiddenPayees > 0
+                  ? `Top ${listed.length} by amount owed, of ${matchingPayees.length} ${plural(matchingPayees.length, 'payee')}`
+                  : `${listed.length} of ${statements.length} ${plural(statements.length, 'payee')}`}
+              </span>
+              {hiddenPayees > 0 && (
+                <button type="button" className="stmt-list__showall" onClick={() => setShowAllPayees(true)}>
+                  Show all {matchingPayees.length}
+                </button>
+              )}
+            </div>
+            {listed.length === 0 ? (
+              <p className="muted" style={{ fontSize: 13.5 }}>No payee matches that search.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="stmt__table">
+                  <thead>
+                    <tr><th>Payee</th><th>Level</th><th className="num">Applications</th><th className="num">Total</th></tr>
+                  </thead>
+                  <tbody>
+                    {listed.map((st) => (
+                      <tr key={st.payeeKey} className="stmt-list__row" onClick={() => setOpenPayee(st.payeeKey)}>
+                        <td>
+                          <button className="stmt-list__name" onClick={(e) => { e.stopPropagation(); setOpenPayee(st.payeeKey); }}>
+                            {st.payeeName}
+                          </button>
+                        </td>
+                        <td className="muted">{levelWord(st.level)}</td>
+                        <td className="num">{st.lines.length}</td>
+                        <td className="num">{money(st.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : shown.map((st) => {
+          // PER PAYEE, not per screen. Two payees in the same month can have
+          // different answers, and each block may only say what its own lines
+          // say: a group with two branches keeps the column that the branch
+          // below it has no use for.
+          const shape = statementShape(st.lines.map((l) => ({ branch: l.branch, source: l.source })));
+          const heads = HEADS.filter((h) => !h.dim || !dimensionCollapsed(shape, h.dim));
+          return (
+            <div key={st.payeeKey} className="stmt">
+              <div className="stmt__head">
+                <div>
+                  {!single && (
+                    <button className="stmt__back" onClick={() => setOpenPayee(null)}>
+                      <Icon name="arrowLeft" size={13} /> All payees
+                    </button>
+                  )}
+                  <div className="stmt__payee">{st.payeeName}</div>
+                  <div className="stmt__level">
+                    {levelWord(st.level)} · {st.monthLabel}
+                    {/* THE REFERENCE THE DOCUMENT CARRIES. It was on the PDF
+                        and the CSV and nowhere on the page, so a payee
+                        querying a statement had nothing to quote.
+
+                        AND THE SENTENCE WHERE THERE IS NO NUMBER YET. A month
+                        nothing has been posted for has no reference, which is
+                        a fact about the month: looking at it must not take
+                        one. `stmt__ref` is the mono treatment a reference
+                        gets, so the sentence does not wear it. */}
+                    {(() => {
+                      const r = refs[refKey(st.monthKey, st.payeeKey)];
+                      if (!r) return null;
+                      if (isPostedReference(r)) return <> · <span className="stmt__ref">{r}</span></>;
+                      /* COULD NOT BE READ, WHICH IS NOT THE SAME AS NOT
+                         POSTED. Matt, 2026-10-04: "don't label it a draft.
+                         Show ... in place of the reference and status."
+                         Both, which is why this returns before the draft
+                         label is even computed: a reference we could not
+                         read says nothing about whether the statement went
+                         out, and printing "Draft: not yet posted" beside it
+                         would assert the thing we just failed to find out. */
+                      if (isUnreadableReference(r)) {
+                        return <> · <span className="stmt__unread">{r}</span></>;
+                      }
+                      /* NOT POSTED, so two things are true and the reader
+                         needs both: there is no number yet, and the figures
+                         are still moving. Matt, 2026-10-03: "label them
+                         'Draft: month in progress, figures may change' on
+                         screen and in exports." */
+                      const draft = draftLabel(st.monthKey, r);
+                      return (
+                        <>
+                          {' '}· <span className="muted">{r}</span>
+                          {draft && <> · <b className="stmt__draft">{draft}</b></>}
+                        </>
+                      );
+                    })()}
+                  </div>
+                  {/* TWO LINES, ALWAYS. A third used to appear here whenever a
+                      column collapsed, "Branch: Soho · Source: Agreement", on
+                      the principle that the value should not be lost with its
+                      column. Withdrawn: the payee knows which of their own
+                      branches this is, and a block that grows a line whenever
+                      the table loses one changes shape month to month for no
+                      gain. Dropping a column removes something that says
+                      nothing; moving it up here says the same nothing higher
+                      up. See src/data/statementColumns.ts. */}
+                </div>
+                {/* The builder is async now: it reads the statement's stored
+                    reference from the database rather than deriving one from the
+                    payee's name, which changed when an agency was renamed. */}
+                <Button
+                  variant="ghost" size="sm"
+                  title={`Download ${possessive(st.payeeName)} ${st.monthLabel} statement. Foots to the total below.`}
+                  onClick={() => void buildCommissionStatementDoc(role, scope, st.monthKey, st.payeeKey).then(exportBranded)}
+                >
+                  <Icon name="download" /> Export
+                </Button>
+              </div>
+              <div className="table-wrap">
+                <table className="stmt__table">
+                  <thead>
+                    <tr>
+                      {heads.map((h) => (
+                        <th key={h.label} className={h.num ? 'num' : undefined}>{h.label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {st.lines.map((l, i) => (
+                      <tr key={`${l.ref}-${i}`}>
+                        <td>{l.ref}</td>
+                        <td>{l.tenant}</td>
+                        {/* The house empty glyph, for the mixed statement where
+                            some lines name a branch and some cannot: that is the
+                            case the column survives for. */}
+                        {!shape.oneBranch && <td>{l.branch || '-'}</td>}
+                        {/* A tenancy of one is not a joint tenancy; saying "1 of 1" invents one. */}
+                        {/* THE COLUMN ALREADY SAYS IT. Matt, 2026-10-01:
+                            "Commission statement Tenancy column shows only
+                            'Single' or 'Joint (2)', never 'Joint, Single' or
+                            'Joint, Joint (2)'." `tenancyPlace` has been
+                            "Single" or "Joint (2)" since liveAnalytics built
+                            it; this prefixed "Joint," to both. */}
+                        <td>{l.tenancyPlace || 'Single'}</td>
+                        <td className="num">{l.sharePercent == null ? '100%' : `${l.sharePercent}%`}</td>
+                        <td>{dmy(l.paidAt)}</td>
+                        <td className="num">{money(l.fee)}</td>
+                        <td className="num">{pct(l.rate)}</td>
+                        {/* A line frozen before the source was recorded says so,
+                            rather than being labelled the standard on a guess. */}
+                        {!shape.oneSource && (
+                          <td>{l.source ? sourceWord(l.source) : <span className="muted">Not recorded</span>}</td>
+                        )}
+                        <td className="num">{money(l.commission)}</td>
+                      </tr>
+                    ))}
+                    <tr className="stmt__total">
+                      {/* Every column but the money one, however many that is today. */}
+                      <td colSpan={heads.length - 1}>Total · {st.lines.length} {plural(st.lines.length, 'application')}</td>
+                      <td className="num">{money(st.total)}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+      </CardBody>
+      <CardFoot>
+        <span className="muted" style={{ fontSize: 12.5 }}>
+          {/* WHEN THIS MONTH IS PAID, FOR THE MONTH ON SCREEN. Matt,
+              2026-10-03: "the October 2026 draft says 'Opndoor pays this on
+              15 Oct 2026'. Each month's commission is paid on the 15th of the
+              following month, so October's is 15 Nov 2026. Fix the date for
+              every month shown."
+
+              The Dashboard printed this line from `agentSettlement
+              .settlementDate`, which is the SETTLEMENT RUN's date -- right
+              for the run, wrong for a statement, because the reader picks the
+              month. It lives here now, where the month is known, so every
+              month shown is right by construction rather than right when the
+              two happen to coincide. */}
+          {paidOn && <><b>{paidOn}</b>{' '}</>}
+          Commission accrues on the date the fee was <b>paid</b>. A refunded fee earns nothing and is
+          not listed. These are the same figures Opndoor settles from.
+        </span>
+      </CardFoot>
+    </Card>
+  );
+}

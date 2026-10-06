@@ -53,6 +53,12 @@ export function MeasureSelect(p: Omit<SelectProps, 'className'>) {
 export function TrendSelect(p: Omit<SelectProps, 'className'>) {
   return <StyledSelect className="trend-select" {...p} />;
 }
+/** League's Rank by. Same pill as the period selector beside it, because the two
+    sit in one row and are the same kind of thing: a control that reframes the
+    table rather than filtering it. */
+export function RankSelect(p: Omit<SelectProps, 'className'>) {
+  return <StyledSelect className="period-select" {...p} />;
+}
 /** The org partner selector reuses the period-select pill look. */
 export function PartnerSelect(p: Omit<SelectProps, 'className'>) {
   return <StyledSelect className="period-select" {...p} />;

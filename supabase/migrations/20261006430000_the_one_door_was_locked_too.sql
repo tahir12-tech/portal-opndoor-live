@@ -1,0 +1,18 @@
+-- THE ONE DOOR WAS LOCKED TOO.
+--
+-- 20261006310000 created set_home_branch as the single sanctioned way to
+-- change users.home_branch_id, guarded it, granted it to authenticated, and
+-- put a column trigger on the table so nothing else could write that column.
+-- 20261006330000 then swept the grants and put it in the service-role bucket,
+-- because the bucket was computed from every `.rpc()` in src and every
+-- `userClient.rpc()` in the edge functions, and nothing calls it yet: the
+-- Team screen's control is still to be built.
+--
+-- So on a clean apply the column is writable through exactly one function,
+-- and that function is not callable by anybody who would want to. Found by
+-- diffing the allowlist against a replay of the migration files, which is the
+-- check that now decides what belongs on that list.
+--
+-- This is the same shape as create_invited_user and may_act_on_user: a
+-- correct lock, and nothing left able to turn the key. Three in one round.
+grant execute on function public.set_home_branch(uuid, uuid) to authenticated, service_role;

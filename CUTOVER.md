@@ -1,0 +1,497 @@
+# Cutover checklist
+
+**Everything here lives outside the code.** No migration carries any of it, so
+`db push` finishing successfully tells you nothing about whether any of it is
+done. Each item is something a person sets in a dashboard, and each one fails in
+its own way if it is missed.
+
+Written to be worked through under pressure. Every item has the same four
+fields: **what**, **where**, **value**, **verify**. Do the verify. Several of
+these fail silently, and the whole point of the list is that you cannot tell by
+looking at the app.
+
+> **Read this first.** The dangerous items are the ones that fail **silently**:
+> the app keeps working, nothing errors, and a thing that should happen simply
+> does not. They are marked **SILENT** below. Do those verifies even when you are
+> behind.
+
+---
+
+# DO NOW, not at cutover
+
+## 0. Rotate `REMINDERS_CRON_SECRET` on production
+
+**Why this is not a cutover item.** The dev value was committed to the repo at
+`supabase/EXPIRY-REMINDERS.md` and has been in git history for weeks, so it is in
+**every clone anyone has ever taken**. Production uses the same secret. The
+exposure exists today, not on cutover day.
+
+It authenticates seven functions: `ops-alert`, `hubspot-sync`,
+`payment-reminders`, `expiry-reminders`, `expiry-cohorts`, `weekly-digest` and
+`referencing-callback`. Anyone holding it can trigger any of them, which means
+firing real reminder and digest email to real partners and tenants.
+
+**The one thing that makes this safe.** Each function accepts the presented
+`x-ops-secret` against **either** the `REMINDERS_CRON_SECRET` env var **or** the
+`ops_secrets.reminders_cron` row (`hubspot-sync/index.ts:94-99`). So there is no
+window where a cron is refused, in either order.
+
+**The corollary, and the reason to do both halves in one sitting:** the old
+secret keeps working until **both** are changed. Doing one is not a rotation.
+
+### Step 1: confirm production's shape before touching it
+
+Do not assume it matches dev. Dev had **no** Vault row despite the docs
+describing one.
+
+```sql
+select name from public.ops_secrets where name = 'reminders_cron';
+select name from vault.secrets where name = 'reminders_cron_secret';
+```
+
+Expect one row from the first and **zero** from the second. If the second
+returns a row, production has a Vault copy that dev does not, and it is a
+**third** holder that must be updated too. Stop and say so before continuing.
+
+### Step 2: generate the new value
+
+```
+python3 -c "import secrets,string; print(''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(48)))"
+```
+
+Keep it in a password manager. Do not paste it into a file in this repo, which
+is how the current one got out.
+
+### Step 3: update `ops_secrets` first
+
+This is the row the cron bodies read, so updating it first means the crons
+immediately present the new value, and the function still accepts it via the old
+env var.
+
+```sql
+update public.ops_secrets set secret = '<NEW>' where name = 'reminders_cron';
+select secret = '<NEW>' as took from public.ops_secrets where name = 'reminders_cron';
+```
+
+**Check before continuing:** `took` is `true`, and
+
+```sql
+select jobname, status, start_time
+  from cron.job_run_details order by start_time desc limit 10;
+```
+
+still shows `succeeded`. Wait for at least one job to run. `hubspot-sync` fires
+every two minutes and is the fastest signal.
+
+### Step 4: update the edge function secret
+
+```
+supabase secrets set REMINDERS_CRON_SECRET='<NEW>' --project-ref <PROD_REF>
+```
+
+**This is the step that closes the exposure.** Until it lands, the old value is
+still accepted.
+
+**Check:** the old secret must now be refused and the new one accepted.
+
+```
+curl -s -o /dev/null -w "old -> %{http_code}\n" -X POST \
+  https://<PROD_REF>.supabase.co/functions/v1/hubspot-sync \
+  -H "x-ops-secret: <OLD>" -H "Content-Type: application/json" -d '{"limit":1}'
+
+curl -s -o /dev/null -w "new -> %{http_code}\n" -X POST \
+  https://<PROD_REF>.supabase.co/functions/v1/hubspot-sync \
+  -H "x-ops-secret: <NEW>" -H "Content-Type: application/json" -d '{"limit":1}'
+```
+
+**old must be 401.** If it is not, a holder was missed: re-check step 1's
+queries and whether a Vault row exists.
+
+**new should be 200.** A **500 is also a pass for the rotation**: it means auth
+succeeded and something downstream failed. On dev the 500 was
+`No HubSpot access token configured`. Read the body before treating it as a
+failure.
+
+### Step 5: watch one full cycle
+
+```sql
+select jobname, status, start_time, return_message
+  from cron.job_run_details
+ where start_time > now() - interval '30 minutes'
+ order by start_time desc;
+```
+
+Every row `succeeded`. **A 401 in `return_message` is the failure signal.**
+
+### Rollback
+
+If a cron starts 401ing, put the old value back in the row the crons read. This
+takes effect on the next tick with no deploy:
+
+```sql
+update public.ops_secrets set secret = '<OLD>' where name = 'reminders_cron';
+```
+
+That restores service immediately, because the function accepts either source
+and the env var can stay on the new value while you work out what happened.
+**The exposure reopens for as long as the old value is live**, so treat it as
+buying time rather than as a fix, and retry the same day.
+
+### Afterwards
+
+The old value remains in git history. Rotating makes it worthless, which is the
+only fix short of rewriting history and breaking every clone. Do not attempt the
+rewrite.
+
+---
+
+## 0b. Deploy every function, with the right JWT setting
+
+**Found on dev, and production will have it too.** Fourteen of twenty-seven
+functions had never been deployed, including `stripe-webhook`, `pandadoc-webhook`,
+`payment-page` and `send-deed-to-agent`. That is the entire payment and deed half
+of the product. Nothing errored: a payment simply never settled, because there
+was nothing at the URL to receive the event.
+
+**And the deploy default is wrong for fifteen of them.** `verify_jwt` defaults to
+true and **Stripe cannot send a Supabase JWT**. A correctly signed webhook comes
+back `401 UNAUTHORIZED_NO_AUTH_HEADER` before the signature check ever runs.
+`supabase/config.toml` now records the exceptions, so a plain
+`supabase functions deploy` gets it right without anybody remembering a flag.
+
+These fifteen are **not unauthenticated**. Each carries a check stronger than a
+JWT: a provider signature over the raw body for the two webhooks, `x-ops-secret`
+for the cron set, a per-agency bearer token for `referencing-inbound`, and rate
+limiting for the genuinely public ones where a tenant has no session yet.
+
+### Deploy
+
+```
+supabase functions deploy --project-ref <PROD_REF>
+```
+
+**Verify the count first**, because a partial deploy is the failure this is about:
+
+```
+supabase functions list --project-ref <PROD_REF>
+```
+
+Compare against `ls supabase/functions | grep -v '^_'`. **27 of 27.**
+
+### Verify each of the fifteen is public
+
+**Do not judge this by the status code.** A function that is correctly public and
+correctly refusing an empty request looks identical, by status, to one that is
+wrongly gated: both return 401. The difference is in the body.
+
+```bash
+for f in stripe-webhook pandadoc-webhook payment-page payment-confirmation \
+         send-password-reset tenancy-correction tenant-auth expiry-reminders \
+         expiry-cohorts payment-reminders ops-alert weekly-digest hubspot-sync \
+         referencing-inbound referencing-callback; do
+  body=$(curl -s -X POST "https://<PROD_REF>.supabase.co/functions/v1/$f" \
+           -H "Content-Type: application/json" -d '{}' | head -c 90)
+  case "$body" in
+    *UNAUTHORIZED_NO_AUTH_HEADER*) echo "$f  PLATFORM 401  <-- WRONG, still gated" ;;
+    *) echo "$f  ok: $body" ;;
+  esac
+done
+```
+
+**No line may say `PLATFORM 401`.** Everything else is a pass, including:
+
+| Function | Expected refusal, and it is correct |
+| -------- | ----------------------------------- |
+| `stripe-webhook` | `400`, no signature on the request |
+| `pandadoc-webhook` | `Invalid signature` |
+| the six cron functions | `{"ok":false,"error":"Not authorised."}`, no `x-ops-secret` |
+| `referencing-inbound` | `Missing or malformed Authorization header` |
+| `tenant-auth` | `400`, no action in the body |
+| `payment-confirmation`, `send-password-reset`, `tenancy-correction` | `200`, they answer neutrally by design |
+
+### The end-to-end proof
+
+Config being right is not the same as a payment settling. Sign a test event with
+the webhook secret and post it:
+
+```
+bad signature  -> 400
+good signature -> reaches the database
+```
+
+A **500 naming a database error is a pass**: it means the signature verified and
+the event was decoded. On dev, an event for a deliberately non-existent
+application returned `apply_stripe_payment failed: application not found`, which
+is the whole path working. A wrong secret gives 400 and never reaches SQL.
+
+---
+
+## 0c. Notes on live: the sharing we want, and the tenant files are not there
+
+**Rewritten twice on 2026-10-01, the day it was written.** The first version
+called live's behaviour an exposure, measured against a rule Matt then
+corrected twice: notes are shared with the supplier that referred the
+application, and then with the agency too, on the same terms. What the first
+version called a leak is the sharing. This item is kept rather than deleted
+because "is the tenant document hole open on live" is a question somebody
+will ask again, and the answer is written down below.
+
+**Read off `main`, not off live.** Nothing here was measured against the
+production database. It is what a clean apply of the migrations on `main`
+produces, which is what live was built from.
+
+### What live does today
+
+`20260705124804_application_notes.sql` carries:
+
+```sql
+create policy app_notes_select on public.app_notes for select to authenticated
+  using (application_id in (select id from public.applications));
+```
+
+and the inner `applications_select` is
+
+```sql
+public.is_admin()
+or (public.app_role() = 'management' and partner_id = public.app_partner())
+or (public.app_role() = 'referrer'   and referrer_id = auth.uid())
+```
+
+So on live a partner's `management` user reads every note on their partner's
+applications, and a referrer reads the notes on the ones they referred. Both
+can also write one: `add_application_note` on `main` admits the same three.
+
+### Which of that is wanted, and which is not
+
+**Almost all of it is wanted, after the second correction of 2026-10-01.**
+The rule on this branch is now "anyone who can see the application reads and
+adds notes, each showing who wrote it; tenants and other partners never see
+them" (`20261007340000`). Live's own policy is the same sentence:
+`application_id in (select id from public.applications)`.
+
+Two differences remain, and both are small:
+
+- **The write.** On live only management and the owning referrer may add a
+  note; on this branch anyone who can see the application may. Live is
+  stricter, which is not a risk, just a difference.
+- **The author.** Live stamps the author inside the RPC, which is the only
+  door into the table there, so it holds. This branch adds an insert policy
+  and therefore stamps the author in a TRIGGER instead, so the name is true
+  whichever door the row came through.
+
+Nothing here needs doing before cutover, and nothing needs patching on live.
+
+### What is NOT open on live, and why the question was asked
+
+The tenant's uploaded documents - bank statements, proof of address, P60, tax
+return - are **not reachable on live, because the feature does not exist
+there**. `application_documents`, the `applicant-docs` bucket and the
+`application-document-url` function are all absent from `main`: `git grep
+application_documents main` returns nothing. The policy fault found on this
+branch (`20261007310000`) applies to a table live does not have, and that half
+of the rule is unchanged by Matt's correction: the files stay Opndoor's on
+every rail.
+
+### Verify, before cutover
+
+Nothing, for the notes. The one thing worth a glance on the day: after
+cutover, open an application as an agency user and confirm the Notes section
+is there and names its authors, because that is the behaviour that changed
+most between live and this branch.
+
+---
+
+## 1. Supabase Auth settings
+
+### 1.1 Email OTP Expiration
+- **What.** How long a password reset link and a magic-link token stay valid.
+- **Where.** Supabase dashboard, Authentication, Emails, **Email OTP Expiration**, in seconds.
+- **Value.** `1800` (30 minutes).
+- **Verify.**
+  ```
+  curl -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+    https://api.supabase.com/v1/projects/<REF>/config/auth \
+    | python3 -c "import sys,json;d=json.load(sys.stdin);print({k:v for k,v in d.items() if 'exp' in k.lower()})"
+  ```
+  Or request a reset, then try the link at 31 minutes and confirm it is refused.
+- **Why it matters.** Three places in the product tell the user 30 minutes: the
+  reset page twice and the reset email once. Supabase's default is 3600, so
+  **doing nothing makes the product lie**, not break.
+- **Not coupled to the six-digit codes.** Those are ours: `issue_email_code`
+  writes `expires_at` into `tenant_email_codes` at issue time and
+  `verify_email_code` reads it back. Changing this setting cannot move them.
+
+### 1.2 Site URL and redirect allow list
+- **What.** Where Supabase Auth is willing to send somebody after a link.
+- **Where.** Authentication, URL Configuration.
+- **Value.** The production portal origin. Every `APP_URL` value below must be on the allow list.
+- **Verify.** Complete one real password reset end to end. A wrong value here
+  produces a link that lands on an error page rather than the reset form.
+- **The entry must allow a query string.** The staff reset link carries the tab
+  the user picked, so `send-password-reset` asks for a redirect of
+  `<APP_URL>/reset-password?tab=agent` or `?tab=supplier`. GoTrue matches the
+  redirect against this list, and an exact entry of `<APP_URL>/reset-password`
+  does **not** match once a query string is appended. Add a wildcard entry,
+  `<APP_URL>/**`, or list both tab values explicitly.
+- **What happens if you forget.** Nothing visibly breaks. `send-password-reset`
+  retries without the tab, logs `reset_redirect_tab_rejected`, and the email
+  goes out exactly as it did before, with an expired link landing a supplier on
+  the Agent tab. That fallback exists because the alternative was worse: a
+  rejected redirect makes `generateLink` error, and this endpoint reads a
+  `generateLink` error as "no such account" and sends nothing at all. So a
+  missing allow-list entry would have meant no staff reset emails, silently.
+  Search the function logs for `reset_redirect_tab_rejected` to confirm the
+  entry is right rather than assuming it.
+
+---
+
+## 2. Edge function secrets
+
+Set with `supabase secrets set NAME=value --project-ref <REF>`. The API returns
+hashes, not values, so **you cannot read one back to check it**. Verify by
+exercising the path.
+
+| Secret | Read by | Production value | If missing |
+| ------ | ------- | ---------------- | ---------- |
+| `SUPABASE_URL` | 28 fns | Set automatically | Nothing runs |
+| `SUPABASE_SERVICE_ROLE_KEY` | 27 fns | Set automatically | Nothing runs |
+| `SUPABASE_ANON_KEY` | 15 fns | Set automatically | Password checks fail |
+| `RESEND_API_KEY` | 15 fns | The live Resend key | **Registration refuses with 503.** Loud, deliberately |
+| `EMAIL_FROM` | 14 fns | An address on a **verified domain** | Resend refuses every send to anyone but the account owner. **Set it explicitly.** Each module carries its own default and they diverge: nine say `noreply@opndoor.co` and six say `payments@opndoor.co`, so leaving it unset sends from two different addresses depending on which email it is, and only whichever is verified will deliver |
+| `EMAIL_REPLY_TO` | 14 fns | `hello@opndoor.co` | Falls back to a default in code. **SILENT** |
+| `EMAIL_REVIEW_ADDRESS` | 4 fns | **UNSET.** Leave it unset | If set, **every tenant email is redirected and no tenant is ever contacted.** SILENT and severe |
+| `APP_URL` | 13 fns | The production portal origin | Links in emails point at the wrong host, or nowhere |
+| `STRIPE_SECRET_KEY` | 2 fns | `sk_live_...` | Payments cannot be created |
+| `STRIPE_SECRET_KEY_TEST` | 1 fn | `sk_test_...` | **Sandbox partners cannot transact.** SILENT for live traffic |
+| `STRIPE_PUBLISHABLE_KEY` | 1 fn | `pk_live_...` | The in-page (embedded) guarantee payment cannot mount for **live** applications; the tenant sees "Payments are not configured on this environment". The hosted `/pay` redirect flow is unaffected (it uses no publishable key) |
+| `STRIPE_PUBLISHABLE_KEY_TEST` | 1 fn | `pk_test_...` | **Sandbox applications' embedded checkout cannot mount** (the server returns no key, and the client will not fall back to a wrong-mode build key). SILENT for live traffic. Both publishable keys must match the mode of their secret key, since the server resolves them per application |
+| `STRIPE_WEBHOOK_SECRET` | webhook | Live endpoint signing secret | Every webhook fails signature. Payments never settle |
+| `PANDADOC_API_KEY` | 1 fn | Live PandaDoc key | Deeds cannot be issued |
+| `PANDADOC_API_KEY_TEST` | 1 fn | Sandbox key | Sandbox deeds fail |
+| `PANDADOC_TEMPLATE_ID` | deed fn | The live template id | Deed issue fails |
+| `PANDADOC_WEBHOOK_SHARED_KEY` | webhook | Matches the PandaDoc webhook config | Executed deeds never come back |
+| `HUBSPOT_ACCESS_TOKEN` | 1 fn | The live private-app token | CRM sync stops. **SILENT**: the cron runs and reports success |
+| `OPS_ALERT_ADDRESS` | 1 fn | The ops inbox | **Failure alerts go nowhere.** SILENT, and it is the alarm itself |
+| `REMINDERS_CRON_SECRET` | 7 fns | A **fresh** value, matching `ops_secrets.reminders_cron`. **See section 0: the current one is exposed and must be rotated now, not at cutover** | Every cron-driven function returns 401 |
+| `PORTAL_ENV` | 1 fn | `production` | Environment banner is wrong |
+| `REFERENCING_API_URL` | 1 fn | Lettings live base URL | Rail 4 cannot call back |
+| `REFERENCING_API_EMAIL` / `_PASSWORD` / `_TOKEN` | 1 fn | Lettings credentials | Rail 4 cannot call back |
+
+**`EMAIL_REVIEW_ADDRESS` is the one to check twice.** It is the switch that makes
+non-production safe, and leaving it set on production means no tenant, agent or
+landlord ever receives anything, with no error anywhere.
+
+**Verify the whole mail path in one go:** trigger a password reset for a real
+address on production and confirm it arrives at that address, not somewhere else.
+
+---
+
+## 3. Cron jobs
+
+**A migration cannot create most of these**, because it cannot know which
+project it is on: the job body posts to `https://<ref>.supabase.co/functions/v1/...`
+and the ref is not knowable from inside a migration. So they are created by hand.
+
+Two are created by migrations and will already exist: `hubspot-sync` and
+`rate-limit-cleanup`. **Everything else in this table must be created.**
+
+> On the dev project today only those two exist. Dev is not a template for this
+> section; the list below is.
+
+| Job | Schedule | What stops without it |
+| --- | -------- | --------------------- |
+| `partner-webhooks` | `* * * * *` | **Partners are never notified of anything.** SILENT: deliveries queue forever |
+| `payment-reminders-0700` / `-0800` | `0 7 * * *` / `0 8 * * *` | Unpaid referrals are never chased |
+| `expiry-reminders-0700` / `-0800` | `0 7 * * *` / `0 8 * * *` | Guarantees expire with no warning |
+| `expiry-cohorts-0700` / `-0800` | `0 7 * * *` / `0 8 * * *` | The monthly expiry cohort is never sent |
+| `weekly-digest-0700` / `-0800` | `0 7 * * 1` / `0 8 * * 1` | Partners get no weekly digest |
+| `renewal-notices-0700` / `-0800` | `0 7 * * *` / `0 8 * * *` | Guarantees end with no renewal outreach to the tenant, agent/landlord or referrer |
+| `referencing-callback` | `*/10 * * * *` | Executed deeds never reach Lettings. Rail 4 only |
+| `hubspot-map-check` | daily | Field-map drift is never noticed. **SILENT by design** |
+
+Each is documented with its exact statement: `supabase/PAYMENT-REMINDERS.md`,
+`supabase/EXPIRY-REMINDERS.md`, `supabase/EXPIRY-COHORTS.md`,
+`supabase/WEEKLY-DIGEST.md`, `PARTNER-API.md`, `TENANT-PLATFORM-SETUP.md`.
+
+**Two jobs per daily task, at 07:00 and 08:00, is deliberate**, not a mistake:
+the database runs in UTC and the second covers British Summer Time. Both fire;
+the ledger makes the second a no-op. Do not "tidy" one away.
+
+**Verify.**
+```sql
+select jobname, schedule, active from cron.job order by jobname;
+select jobname, status, start_time
+  from cron.job_run_details order by start_time desc limit 20;
+```
+A healthy row has `status = 'succeeded'`. A job that exists and has never run is
+as broken as one that does not exist, and looks fine in the first query.
+
+**Before any of them work:** `ops_secrets.functions_base_url` must hold this
+project's own URL, and `ops_secrets.reminders_cron` must match the
+`REMINDERS_CRON_SECRET` above. A mismatch gives every job a 401 that only
+appears in `cron.job_run_details`.
+
+---
+
+## 4. Stripe
+
+### 4.1 Live webhook endpoint
+- **What.** Where Stripe posts payment outcomes. **The webhook is the only thing that ever marks an application paid.** No webhook, no payments, ever, however well checkout works.
+- **Where.** Stripe dashboard, Developers, Webhooks, in **live** mode.
+- **Value.** URL `https://<REF>.supabase.co/functions/v1/stripe-webhook`. Events: **`checkout.session.completed`** and **`charge.refunded`**. Those are the only two the code handles; adding more is harmless, missing either is not.
+- **Verify.** Take one real payment, then `select count(*) from stripe_events;`. Zero after a completed checkout means the endpoint is wrong, the secret is wrong, or the events were not selected.
+
+### 4.2 Test-mode webhook endpoint
+- Same URL, registered in **test** mode, for sandbox partners. Its signing secret goes in `STRIPE_WEBHOOK_SECRET_TEST`.
+- Without it, sandbox rehearsals appear to work and never settle. **SILENT.**
+
+---
+
+## 5. PandaDoc
+
+- **What.** Where PandaDoc posts deed outcomes.
+- **Where.** PandaDoc dashboard, webhooks.
+- **Value.** URL `https://<REF>.supabase.co/functions/v1/pandadoc-webhook`, with the shared key matching `PANDADOC_WEBHOOK_SHARED_KEY`. Events handled: **`document.completed`**, **`document.viewed`**, **`document.voided`**, **`document.declined`**.
+- **Verify.** Issue one deed, sign it, then confirm `executed_pdf_path` is populated and the PDF is in the `deeds` bucket. `document.completed` is what stores the executed copy; without it a signed deed is never retrieved.
+
+---
+
+## 6. Resend
+
+- **What.** The sending domain.
+- **Where.** resend.com/domains, plus DNS.
+- **Value.** A verified domain, and `EMAIL_FROM` set to an address on it.
+- **Verify.** Send to an address that is **not** the Resend account owner. Without a verified domain Resend returns `403 validation_error` and will only deliver to the account owner, so **it appears to work when you test it yourself**. This is the trap: your own inbox is the one address that cannot detect the fault.
+
+---
+
+## 7. Storage
+
+Three private buckets: **`applicant-docs`**, **`deeds`**, **`reference-reports`**.
+
+- **Verify.** `select id, public from storage.buckets;` and confirm all three exist with `public = false`.
+- **A public bucket here exposes identity documents and executed deeds to anyone with a URL.** Check the boolean, not the dashboard's colour.
+- There are no policies on `storage.objects`: access runs through the service role in Edge Functions. If policies appear, something has been added by hand.
+
+---
+
+## 8. Database extensions
+
+`pg_cron` and `pg_net` must be enabled, or every cron item above fails at
+creation. A migration enables them, so this should already be true.
+
+**Verify.** `select extname from pg_extension where extname in ('pg_cron','pg_net');` returns both.
+
+---
+
+## Final pass
+
+Work down this list and then, in order:
+
+1. Register a tenant on production and confirm the code arrives **at their address**.
+2. Take one real payment and confirm `stripe_events` grows.
+3. Issue one deed, sign it, confirm the executed PDF lands in `deeds`.
+4. `select jobname, status from cron.job_run_details order by start_time desc limit 20;` and confirm recent successes.
+
+If all four pass, every item above is set. If any fails, the item it depends on
+is the one to check first.

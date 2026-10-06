@@ -8,10 +8,20 @@
    scoped by role/partner. In mock/test mode the deterministic parametric model
    (mock/analyticsModel) is used so the smoke suite stays meaningful. The split
    follows the established SUPABASE_ENABLED pattern.
+
+   WHO MAY BE TOLD WHAT THE AGENCY EARNS is asked here, in the model, and not only
+   at the tile. An agency Manager (role 'management', no sees_commission) reads
+   every referral, every branch, the funnel, the fees the tenants were charged, the
+   guaranteed value and the team, and is shown no commission figure anywhere. Both
+   builders below therefore hand back the same DashboardModel with its commission
+   half replaced whole (NO_COMMISSION), computed from an aggregate that carries no
+   commission either. The two questions this file used to answer with one flag are
+   kept apart now: see the note in liveDashboard.
    ===================================================================== */
 import type { LeagueRow, Period, PartnerScope, Role } from './types';
+import { OWED_TO_YOU, PAID_DIRECT_BY_OPNDOOR, PASSED_ON_BY_SUPPLIER, TOTAL_ON_YOUR_REFERRALS } from './whoPaysTheAgency';
 import { fmtRatePct } from '@/lib/format';
-import { ALL_PARTNERS } from './types';
+import { isOpndoorStaff, maySeeCommission, readsTheWholeBook } from './types';
 import { KEYS, loadString, saveString } from './storage';
 import {
   ANNUAL, AVG_RENT, BASE_PAID_FULL, BASE_PAID_REF, BASE_SENT_FULL, BASE_SENT_REF,
@@ -19,10 +29,13 @@ import {
   convFor, scaleRows, type PeriodDef, type ShapeRow,
 } from './mock/analyticsModel';
 import { getRatesFor, weightFor } from './partnersService';
-import { liveAvailable, liveAggregate, liveVolume, liveTrend, deedsWithoutContact, lapsingWithin14, type LiveAgg, type TrendRow } from './liveAnalytics';
+import { isAgencyUser, partyIsAgency, partyIsSupplier } from './capabilities';
+import { ALL_PARTNERS } from './types';
+import { liveAvailable, liveAggregate, liveVolume, liveTrend, deedsWithoutContact, lapsingWithin14, agentRailScope, type LiveAgg, type TrendRow } from './liveAnalytics';
+import { SOURCE_LABEL } from './commissionSplit';
 export type { TrendRow } from './liveAnalytics';
-export { getCommissionSettlement, getAgentCommissionSettlement, livePartnerBreakdown } from './liveAnalytics';
-export type { CommissionSettlement, PartnerSettlement, SettlementApp, AgentCommissionSettlement, AgentSettlementAgency, PartnerCommissionRow } from './liveAnalytics';
+export { getCommissionSettlement, getAgentCommissionSettlement, getCommissionStatements, statementMonths, liveScopeShape, agentRailScope, livePartnerBreakdown, liveAvailable } from './liveAnalytics';
+export type { CommissionSettlement, PartnerSettlement, SettlementApp, AgentCommissionSettlement, AgentSettlementAgency, PartnerCommissionRow, CommissionStatement, StatementLine, SettlementWindow } from './liveAnalytics';
 
 export function getPeriods(): Period[] {
   return PERIODS.map((p) => ({ ...p }));
@@ -47,7 +60,7 @@ function pct(n: number, d: number): string {
   return `${d ? Math.round((n / d) * 100) : 0}%`;
 }
 function days(n: number | null): string {
-  return n == null ? '—' : `${n.toFixed(1)}`;
+  return n == null ? '-' : `${n.toFixed(1)}`;
 }
 export function fmtBig(n: number): string {
   if (n >= 1e6) return `£${(n / 1e6).toFixed(2)}M`;
@@ -65,12 +78,61 @@ export interface DashboardModel {
   pd: string;
   overall: string;
   guaranteed: string;
+  /** The part of it whose cover has not started yet, said in words, or ''.
+      "GBP 0 with five paid tenancies" was the fault; "GBP 230.4k, GBP 230.4k
+      of it not started yet" is the truth, and both halves have to be on the
+      tile or the second reading is as misleading as the first. */
+  guaranteedNote: string;
   deedcount: string;
+  /** The same count as a NUMBER. deedcount is already grouped for display
+      ("1,284"), and copy that has to agree with its noun cannot be written
+      against a formatted string: "across 1 issued deeds" was the result. */
+  deedsIssued: number;
+  /** Paid referrals as a NUMBER, for the same reason deedsIssued exists
+      beside deedcount: copy whose noun has to agree with a count cannot be
+      written against a formatted string. */
+  paidCount: number;
+  /** Paid referrals whose fee is actually IN the net figure: paidCount less
+      the fully refunded ones. Matt, 2026-10-04: Net fees should "count paid
+      referrals excluding refunded ones, e.g. 'across 15 paid referrals (1
+      refunded)'."
+
+      THE TWO HALVES OF THE TILE DISAGREED. The money is net of refunds and
+      the count was not, so a reader dividing one by the other got a fee per
+      referral that no referral was ever charged. Carried as its own number
+      rather than subtracted at the call site, for the reason paidCount
+      exists at all: copy whose noun agrees with a count cannot be written
+      against a formatted string, and nor can it be written against
+      arithmetic done in JSX. */
+  paidNetCount: number;
   fees: string;
+  /** The commission tile's own label. It lived in the page as a d.live ternary,
+      which is where it could not see WHO was reading: an agency reads a figure
+      struck under terms they signed, and Opndoor reads what it earned. */
+  commLbl: string;
   commTag: string;
   commHeadline: string;
   commSecondLbl: string;
   commSecondVal: string;
+  /** A third line, used by the admin payable split (Agencies / Suppliers). */
+  commThirdLbl: string;
+  commThirdVal: string;
+  commThirdShown: boolean;
+  /* A FOURTH LINE, for (q)'s "Total commission on your referrals". A
+     supplier's tile has three things to say -- what opndoor owes them,
+     what the agencies get and who pays it, and the total -- and the
+     agencies' half can itself be two lines when a period holds referrals
+     frozen on both arrangements. Three slots could not carry four. */
+  commFourthLbl: string;
+  commFourthVal: string;
+  commFourthShown: boolean;
+  /** False on the agent rail, where there is no partner to pay and the second
+      line would be a structural zero presented as a figure. */
+  commSecondShown: boolean;
+  /** What the period's fees were a basis of, for the copy under Net fees: "one
+      month's rent each", "3 weeks of rent each", or "each at its agreed fee
+      basis" when the book is mixed. '' when no fees were collected. */
+  feeBasisCopy: string;
   rent: string;
   stuckSent: string;
   stuckPaid: string;
@@ -83,6 +145,9 @@ export interface DashboardModel {
   branches: LeagueRow[];
   agencies: LeagueRow[];
   referrers: LeagueRow[];
+  /** Volume by supplier, for the card alongside Volume by agency. Empty in
+      mock mode, where liveVolume is not the source. */
+  suppliers: LeagueRow[];
   /** True when computed from live records (drives the folded gross/refunds/net presentation). */
   live: boolean;
   /** Live payment breakdown, folded into the KPI cards (meaningful only when live). */
@@ -100,6 +165,39 @@ export interface DashboardModel {
   /** #86 In-force guarantees expiring within 14 days (slippage tripwire). */
   lapsing14: number;
 }
+
+/* =====================================================================
+   THE COMMISSION HALF OF THE MODEL, AND WHAT IT IS WHEN THERE IS NONE.
+
+   An agency Manager is role 'management' without sees_commission: every referral,
+   every branch, the whole team, and nothing the agency earns. The tile is gated in
+   the page now, but the MODEL is what has to be empty. A hidden figure that was
+   still computed is one refactor of the markup away from being drawn again, and
+   until then it is sitting in the page's memory for anybody who opens the console.
+
+   Picked out as a type so the two builders below cannot answer this in two
+   different ways, and so that a commission field added here later has to be given
+   its absent form in NO_COMMISSION before it will compile.
+
+   EMPTY STRINGS, NOT '£0'. These fields are strings, so absence is '' and there is
+   no null to reach for without changing what the page is handed. And £0 would be
+   the worse lie of the two: the agency did earn, a tile reading "Commission
+   (agreed terms) £0" states something false about their business, where '' states
+   nothing at all. commSecondShown is false for the same reason it is false on the
+   agent rail, which is that there is no second line to draw.
+   ===================================================================== */
+type CommissionPart = Pick<DashboardModel,
+  'commLbl' | 'commTag' | 'commHeadline' | 'commSecondLbl' | 'commSecondVal'
+  | 'commSecondShown' | 'commThirdLbl' | 'commThirdVal' | 'commThirdShown'
+  | 'commFourthLbl' | 'commFourthVal' | 'commFourthShown'
+  | 'commExcl' | 'commExclDetail'>;
+
+const NO_COMMISSION: CommissionPart = {
+  commLbl: '', commTag: '', commHeadline: '', commSecondLbl: '', commSecondVal: '',
+  commThirdLbl: '', commThirdVal: '', commThirdShown: false,
+  commFourthLbl: '', commFourthVal: '', commFourthShown: false,
+  commSecondShown: false, commExcl: '', commExclDetail: '',
+};
 
 /** Convert a synthetic ShapeRow ([name, refs, fees, sub?]) to a LeagueRow. */
 function synthEntity(key: 'branch' | 'agency' | 'referrer', rows: ShapeRow[], pRate: number, aRate: number): LeagueRow[] {
@@ -124,7 +222,33 @@ export function getDashboardData(role: Role, period: PeriodDef | Period, scope: 
 
 /** Live dashboard: every figure summed from the hydrated application set. */
 function liveDashboard(role: Role, period: Period, scope: PartnerScope): DashboardModel {
-  const isRef = role === 'referrer';
+  /* ONE FLAG WAS ANSWERING TWO QUESTIONS, AND GOT BOTH WRONG FOR A MANAGER.
+     This was `const isRef = !maySeeCommission(role)`, which was the same question
+     for as long as the only reader refused commission was a Negotiator looking at
+     their own referrals. A Manager is refused commission too and is the opposite
+     kind of reader: they see the whole book. So the flag did the two things it
+     should never have done at once.
+
+     It did not remove a single commission figure. It CHOSE ONE: the isRef branch
+     headlines agentCommNet, which is the agency's own earnings, so a Manager's
+     headline figure was the number the level exists to withhold, under "Commission
+     (agreed terms)", at the top of their dashboard.
+
+     And it demoted their book to their own referrals in the copy. "Your referrals
+     from sent through to deed issued", "your branches", "your agency", over rows
+     that scopeFull had correctly given them for the whole agency. The labels
+     contradicted the figures under them.
+
+     So: ownOnly is whether this reader sees only their own, read off the same
+     allowlist scopeFull uses, so the copy can never disagree with the rows
+     again. That allowlist is now a NAME rather than a literal written out
+     here and in three other places: it went stale in all four at once when
+     opndoor_manager was added, and this copy then said "your referrals" over
+     Opndoor's whole estate -- the very defect the paragraph above records,
+     one role later. seesComm is the other predicate, and it decides money and
+     nothing else. */
+  const ownOnly = !readsTheWholeBook(role);
+  const seesComm = maySeeCommission(role);
   const a: LiveAgg = liveAggregate(role, scope, period);
   const vol = liveVolume(role, scope, period);
   // Descriptor percentages are the EFFECTIVE rate implied by the actual snapshotted
@@ -133,56 +257,237 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
   // and never moves when a partner's live rate is later edited. Only when the period
   // has no fees at all (nothing to reconcile) do we fall back to the current headline
   // rate as an indicative label.
-  const live = getRatesFor(scope);
+  //
+  // THAT FALLBACK IS A REAL RATE, so it is not fetched for a reader who may not see
+  // one. An empty period would otherwise have handed a Manager the partner's live
+  // percentage as the label, which is the one path here that is not already zeroed
+  // by the aggregate. Both percentages feed the commission tag and nothing else.
+  const live = seesComm ? getRatesFor(scope) : { partner: 0, agent: 0 };
   const effRate = (net: number, excl: number, fallback: number) =>
     a.feesGross ? (net + excl) / a.feesGross : fallback;
   const pPct = fmtRatePct(effRate(a.partnerCommNet, a.partnerCommExcl, live.partner));
   const aPct = fmtRatePct(effRate(a.agentCommNet, a.agentCommExcl, live.agent));
-  // Under an all-partners scope the £ amounts blend per-partner rates, so a single
-  // "%" descriptor would not reconcile with the figure - label it per-partner.
-  const blended = !isRef && scope === ALL_PARTNERS;
+  /* `blended` lived here: under an all-partners scope the amounts blend
+     per-partner rates, so a single "%" descriptor would not reconcile with the
+     figure, and the tag said "per-partner rates" instead. The admin tag no
+     longer states a rate at all, because the tile is now Commission PAYABLE
+     split by who is owed rather than a rate applied to a fee, so there is
+     nothing left for it to qualify. */
+
+  // THE ESTATE. One of our agencies has no supplier above it, so every
+  // partner-commission figure on this screen is a structural zero. Read off the
+  // scope rather than off the period's rows, so a quiet month does not make the
+  // partner line reappear on an agency that will never have one.
+  const noPartner = agentRailScope(scope);
+  /* NO RATE ON AN AGENCY'S OWN COMMISSION TILE.
+     The tag read "Agreement · 23% of 3 weeks of rent, net of refunds". That 23%
+     is an EFFECTIVE rate, gross commission over gross fees across every
+     agreement that paid in the period, and it was computed that way so it would
+     always reconcile with the pound figure beside it. It reconciles and it is
+     still not a rate anybody agreed to: a director with a 25% branch and a 20%
+     branch has agreed to both and to neither, and the blend moves every month on
+     mix alone. So the tile states the amount and says the terms are agreed; the
+     rates themselves are named line by line, per agreement, in the commission
+     statement further down the same page, which is the one place a rate can be
+     stated truthfully.
+
+     Read off isAgencyUser, not off noPartner: an Opndoor admin filtered to one
+     of our agencies answers true to noPartner and is still Opndoor, looking
+     across a book where the blend is the thing being measured. They keep the
+     rate they have always had. */
+  /* THE TILE'S WORDS FOLLOW THE PARTY, NOT THE READER. Under View as, an
+     Opndoor admin reading an agency's Reporting is not an agency user, but
+     the page is that agency's page and the tile has to say what the agency
+     would read -- "Commission (agreed terms)", no blended rate -- rather than
+     Opndoor's "Commission payable". Same question the page itself asks in
+     Dashboard.tsx; written here too because this function is given the scope
+     and not the session. */
+  const agencyFacing = isAgencyUser(role, scope)
+    || (role === 'superadmin' && scope !== ALL_PARTNERS && partyIsAgency(scope));
+  /* AND THE THIRD READER, which every gate below was missing. "Not an agency"
+     was read as "Opndoor" throughout this tile, so a supplier scoped to its own
+     partner was handed the payable split: "Agencies £X / Suppliers £Y" is the
+     shape of OPNDOOR's book, not of theirs. Asked of the SCOPE, so a supplier's
+     own director and an admin under View as of them get the same page. */
+  const supplierFacing = partyIsSupplier(scope);
+  // What the rates in the headline actually are. Named from the frozen lines, so
+  // a negotiated 20% is called an agreement and not "the Opndoor standard".
+  const srcWord = a.sources.length === 1 ? SOURCE_LABEL[a.sources[0]]
+    : a.sources.length > 1 ? 'Agreed rates' : null;
+  const sourcePrefix = srcWord ? `${srcWord} · `
+    : ownOnly ? 'Your agent commission · ' : 'Agent commission · ';
+  // "the guarantee fee" is the honest fallback for a period with no fees in it:
+  // there is no basis to name, and naming a month's rent would be a guess.
+  const basisPhrase = a.feeBasis.phrase || 'the guarantee fee';
+  const feeBasisCopy = a.feeBasis.kind === 'none' ? ''
+    : a.feeBasis.kind === 'mixed' ? 'each at its agreed fee basis'
+    : `${a.feeBasis.phrase} each`;
+
+  /* THE COMMISSION TILE, OR NOTHING WHERE IT WAS. Every field in here is earnings
+     or a rate on earnings, including the tag (an effective percentage) and the
+     refund reversal (commission taken back). A Manager was shown all of it, so it
+     goes as one block rather than field by field: a half-built tile is how the next
+     figure gets left behind. The aggregate behind it is already zero for them (see
+     liveAggregate), so there is no £ anywhere in this model to recover. */
+  const comm: CommissionPart = !seesComm ? NO_COMMISSION : {
+    // THE HEADLINE IS THE MONEY THE VIEWER EARNS.
+    //
+    // It used to be partner commission for everyone but a referrer, which read
+    // correctly for a supplier — Rightmove's manager IS the partner — and read as
+    // nonsense for one of our agencies, whose own commission was demoted to a
+    // footnote under a partner figure that is structurally zero. On the agent
+    // rail the agency's own lines ARE the commission, so they lead, and the
+    // partner line is dropped rather than shown as £0.
+    //
+    // The rate is named by its SOURCE, off the frozen lines. "20% of one month's
+    // rent" was wrong twice for Regent: the 20% is their agreement, not the
+    // standard, and the basis is three weeks, not a month. All of which is how
+    // OPNDOOR reads this tile; an agency's carries no rate at all, for the reason
+    // set out at agencyFacing above.
+    /* PAYABLE, FOR OPNDOOR. An admin reading this page is not looking at what
+       opndoor EARNED, they are looking at what it owes out, which is a
+       different number: the house route's partner cut is opndoor's own margin
+       and is not owed to anybody. supplierCommNet excludes it. An agency's own
+       tile is unchanged and still reads as their agreed terms. */
+    /* "YOUR COMMISSION, NET OF REFUNDS", in one line. Matt, 2026-10-01:
+       'Rename "Commission (agreed terms) · Agreement · net of refunds" to
+       "Your commission, net of refunds".'
+
+       The old pair said the same thing three times in two registers:
+       "(agreed terms)" and the source pill both answer "where does this
+       rate come from", which is a question an agency reading their own
+       earnings is not asking. The source prefix stays off the agency's
+       tag with it. */
+    /* (ce) THE SUPPLIER'S HEADLINE IS "Owed to you". Matt: "the headline
+       label still reads 'Commission payable'; it must read 'Owed to
+       you'." (q) had already corrected the FIGURE under it to the
+       supplier's own cut rather than the total; the label kept the old
+       word, so the right number sat under a heading that still invited
+       the reader to expect the total. */
+    commLbl: agencyFacing
+      ? (isOpndoorStaff(role) ? 'Agency commission' : 'Your commission')
+      : supplierFacing ? OWED_TO_YOU
+      : ownOnly ? 'Commission earned' : 'Commission payable',
+    commTag: agencyFacing
+      ? 'net of refunds'
+      : ownOnly || noPartner
+      ? `${sourcePrefix}${aPct} of ${basisPhrase}, net of refunds`
+      // No "partner" pill on the admin tile: the split below names who is owed,
+      // and "partner" is our word for one of the two kinds.
+      : 'Net of refunds',
+    /* "OWED TO YOU" IS THE SUPPLIER'S OWN CUT, not the total. Matt (q):
+       "the 'Commission payable' headline still shows £840; it must show
+       what Opndoor owes the supplier itself (£600)."
+
+       The old expression handed a supplier `agentCommNet +
+       supplierCommNet`, which on a siblings arrangement is their own
+       commission PLUS money opndoor pays their agencies directly -- so the
+       headline over the words "payable to you" was a number nobody owed
+       them. The total still appears, on its own line, named as a total. */
+    commHeadline: supplierFacing ? fmtMoney(a.supplierCommNet)
+      : ownOnly || noPartner ? fmtMoney(a.agentCommNet)
+      : fmtMoney(a.agentCommNet + a.supplierCommNet),
+    // Rate-free for an agency even though commSecondShown is false for them and
+    // this string is not currently drawn: the rule is about the TILE, and the
+    // next person to draw a second line there must not smuggle the blend back in.
+    /* THE AGENCIES' SHARE, WORDED BY WHO PAYS IT. Matt (q), per referral and
+       from the setting FROZEN on it: "Paid by Opndoor directly to your
+       agencies" where opndoor pays the agents, and "Your agencies' share,
+       included above for you to pass on" where the supplier does.
+
+       TWO LINES, BECAUSE A PERIOD CAN HOLD BOTH. The flag is frozen per
+       application, so an arrangement changed mid-month leaves referrals on
+       either side of it, and Matt says to show both lines when it does.
+       Each is shown only when it has money in it, so the ordinary month
+       with one arrangement still reads as one line. */
+    commSecondLbl: agencyFacing
+      ? 'Agent commission (net of refunds)'
+      : supplierFacing
+      ? PAID_DIRECT_BY_OPNDOOR
+      : ownOnly
+      ? `Passed to opndoor as partner (${pPct}, net)`
+      : 'Agencies',
+    commSecondVal: supplierFacing ? fmtMoney(a.agentCommOpndoorPays)
+      : ownOnly ? fmtMoney(a.partnerCommNet) : fmtMoney(a.agentCommNet),
+    commSecondShown: supplierFacing
+      ? a.agentCommOpndoorPays > 0
+      : !noPartner && !supplierFacing,
+    /* The other half of the payable split. Admin only: an agency has no
+       suppliers and a single-partner reader is looking at their own cut.
+
+       "ADMIN ONLY" IS WHAT THE COMMENT SAID AND NOT WHAT THE CODE DID.
+       `ownOnly` is `!readsTheWholeBook(role)`, and a supplier's management
+       DOES read the whole book -- their own -- so every term here was true
+       for them and the split drew. The gate now says what the sentence above
+       it always claimed. */
+    commThirdLbl: supplierFacing ? PASSED_ON_BY_SUPPLIER : 'Suppliers',
+    commThirdVal: supplierFacing ? fmtMoney(a.agentCommSupplierPasses) : fmtMoney(a.supplierCommNet),
+    commThirdShown: supplierFacing
+      ? a.agentCommSupplierPasses > 0
+      : !agencyFacing && !ownOnly && !noPartner && !supplierFacing,
+    /* AND THE TOTAL, ALWAYS, on a supplier's tile. Matt (q) asks for it by
+       name, and it is the figure that used to be the headline: showing it
+       as a total rather than as "payable" is the whole correction. */
+    commFourthLbl: TOTAL_ON_YOUR_REFERRALS,
+    commFourthVal: fmtMoney(a.supplierCommNet + a.agentCommNet),
+    commFourthShown: supplierFacing,
+    commExcl: signedNeg(a.partnerCommExcl + a.agentCommExcl),
+    commExclDetail: noPartner
+      ? fmtMoney(a.agentCommExcl)
+      : `Partner ${fmtMoney(a.partnerCommExcl)} · Agent ${fmtMoney(a.agentCommExcl)}`,
+  };
 
   return {
-    sub: isRef
+    sub: ownOnly
       ? 'Your referrals from sent through to deed issued, computed from your live records.'
       : 'Live view of referrals from sent through to deed issued, computed from live records.',
-    funnelScope: isRef ? 'Sent to Paid to Deed Issued · your referrals' : 'Sent to Paid to Deed Issued · all branches',
+    funnelScope: ownOnly ? 'Sent to Paid to Deed Issued · your referrals' : 'Sent to Paid to Deed Issued · all branches',
     sent: a.sent.toLocaleString('en-GB'),
     paid: a.paid.toLocaleString('en-GB'),
+    paidCount: a.paid,
+    // A PART refund is not a refund here, exactly as it is not in the money:
+    // refundCount counts fully refunded applications only, so the two sides
+    // of the tile come off the same rule.
+    paidNetCount: a.paid - a.refundCount,
     deed: a.deed.toLocaleString('en-GB'),
     sp: pct(a.paid, a.sent),
+    /* APPLICANT GRAIN ON BOTH SIDES, AGAIN.
+       These were switched to tenancy denominators earlier today, correctly at
+       the time: one deed covered a whole let and only the lead reached Deed
+       Issued, so deeds-over-applicants read a three-person let as 33%
+       converted. The per-tenant deed ruling inverts that. Every tenant now has
+       their own deed, so `deed` counts applicants again, and dividing by lets
+       would report the same three-person let as 300%. Both halves of every
+       ratio here count people. */
     pd: pct(a.deed, a.paid),
     overall: pct(a.deed, a.sent),
     guaranteed: fmtBig(a.guaranteed),
+    guaranteedNote: a.guaranteedNotStarted > 0
+      ? `${fmtBig(a.guaranteedNotStarted)} of it on tenancies that have not started yet`
+      : '',
     deedcount: a.deed.toLocaleString('en-GB'),
+    deedsIssued: a.deed,
     fees: fmtMoney(a.feesGross),
-    commTag: isRef
-      ? `Your agent commission · ${aPct} of one month's rent, net of refunds`
-      : blended ? `Partner commission · per-partner rates, net of refunds` : `Partner · ${pPct} of one month's rent, net of refunds`,
-    commHeadline: isRef ? fmtMoney(a.agentCommNet) : fmtMoney(a.partnerCommNet),
-    commSecondLbl: isRef
-      ? `Passed to opndoor as partner (${pPct}, net)`
-      : blended ? 'Agent commission (per-partner rates, net of refunds)' : `Agent commission (${aPct} of one month's rent, net)`,
-    commSecondVal: isRef ? fmtMoney(a.partnerCommNet) : fmtMoney(a.agentCommNet),
+    ...comm,
+    feeBasisCopy,
     rent: fmtMoney(a.avgRent),
     stuckSent: a.stuckSent.toLocaleString('en-GB'),
     stuckPaid: a.stuckPaid.toLocaleString('en-GB'),
     avgSentToPaid: days(a.avgSentToPaidDays),
     avgPaidToDeed: days(a.avgPaidToDeedDays),
-    branchScope: isRef ? 'your branches' : 'top branches',
-    agencyScope: isRef ? 'your agency' : 'by agency',
-    referrerTitle: isRef ? 'Your monthly volume' : 'Volume by referrer',
-    referrerScope: isRef ? 'recent months' : 'top performers',
+    branchScope: ownOnly ? 'your branches' : 'top branches',
+    agencyScope: ownOnly ? 'your agency' : 'by agency',
+    referrerTitle: ownOnly ? 'Your monthly volume' : 'Volume by referrer',
+    referrerScope: ownOnly ? 'recent months' : 'top performers',
     branches: vol.branches,
     agencies: vol.agencies,
     referrers: vol.referrers,
+    suppliers: vol.suppliers,
     live: true,
     feesGross: fmtMoney(a.feesGross),
     refunds: signedNeg(a.refundValue),
     refundCount: a.refundCount,
     net: fmtMoney(a.feesNet),
-    commExcl: signedNeg(a.partnerCommExcl + a.agentCommExcl),
-    commExclDetail: `Partner ${fmtMoney(a.partnerCommExcl)} · Agent ${fmtMoney(a.agentCommExcl)}`,
     awaiting: a.awaiting,
     awaitingAged: a.awaitingAged,
     deedsNoContact: deedsWithoutContact(role, scope),
@@ -192,59 +497,151 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
 
 /** Synthetic dashboard (mock/test mode): the deterministic parametric model. */
 function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerScope): DashboardModel {
-  const isRef = role === 'referrer';
-  const w = isRef ? 1 : weightFor(scope);
-  const sent = isRef ? Math.max(1, Math.round(period.fSent * REF_FRACTION)) : Math.round(period.fSent * w);
+  /* THE SAME TWO QUESTIONS, and here the conflation also SHRANK THE BOOK.
+     `isRef = !maySeeCommission(role)` drove the size of the synthetic funnel as
+     well as the copy, so a Manager in mock or demo mode was modelled as a single
+     referrer: REF_FRACTION of the referrals sent, the referrer shapes instead of
+     the full ones, and the referrer's own stuck counts. They are supposed to see
+     every referral in the agency. See liveDashboard for the whole argument; both
+     builders now split it the same way. */
+  const ownOnly = !readsTheWholeBook(role);
+  const seesComm = maySeeCommission(role);
+  const w = ownOnly ? 1 : weightFor(scope);
+  const sent = ownOnly ? Math.max(1, Math.round(period.fSent * REF_FRACTION)) : Math.round(period.fSent * w);
   const paid = Math.round(sent * period.sp);
   const deed = Math.round(paid * period.pd);
   const feesNum = paid * AVG_RENT;
-  const shape = isRef ? SHAPE_REF : SHAPE_FULL;
-  const baseSent = isRef ? BASE_SENT_REF : BASE_SENT_FULL;
-  const basePaid = isRef ? BASE_PAID_REF : BASE_PAID_FULL;
+  const shape = ownOnly ? SHAPE_REF : SHAPE_FULL;
+  const baseSent = ownOnly ? BASE_SENT_REF : BASE_SENT_FULL;
+  const basePaid = ownOnly ? BASE_PAID_REF : BASE_PAID_FULL;
   const kc = sent / baseSent;
   const kf = paid / basePaid;
-  const baseStuck = isRef ? [8, 3] : [74, 27];
-  const rates = getRatesFor(scope);
+  const baseStuck = ownOnly ? [8, 3] : [74, 27];
+  /* THE RATES ARE THE WHOLE OF THE COMMISSION HERE, so a reader who may not see
+     money is never given them. Everything downstream of this line is earnings: the
+     two percentages in the tag, the tile's own figures, and the partnerComm /
+     agentComm on every breakdown row (the agency's income split by office and by
+     person, which the League page ranks and exports). LeagueRow's two commission
+     fields are numbers, so absence there is zero, and the honest way to hold a zero
+     is never to have applied a rate to anything. */
+  const rates = seesComm ? getRatesFor(scope) : { partner: 0, agent: 0 };
   const pPct = fmtRatePct(rates.partner);
   const aPct = fmtRatePct(rates.agent);
+  // The same reader test as the live path, so mock and demo mode show an agency
+  // the tile they will meet in the real portal rather than a rate-bearing one.
+  /* THE TILE'S WORDS FOLLOW THE PARTY, NOT THE READER. Under View as, an
+     Opndoor admin reading an agency's Reporting is not an agency user, but
+     the page is that agency's page and the tile has to say what the agency
+     would read -- "Commission (agreed terms)", no blended rate -- rather than
+     Opndoor's "Commission payable". Same question the page itself asks in
+     Dashboard.tsx; written here too because this function is given the scope
+     and not the session. */
+  const agencyFacing = isAgencyUser(role, scope)
+    || (role === 'superadmin' && scope !== ALL_PARTNERS && partyIsAgency(scope));
+  /* AND THE THIRD READER, which every gate below was missing. "Not an agency"
+     was read as "Opndoor" throughout this tile, so a supplier scoped to its own
+     partner was handed the payable split: "Agencies £X / Suppliers £Y" is the
+     shape of OPNDOOR's book, not of theirs. Asked of the SCOPE, so a supplier's
+     own director and an admin under View as of them get the same page. */
+  const supplierFacing = partyIsSupplier(scope);
+
+  /* And the tile itself, all of it or none of it, exactly as on the live path. The
+     synthetic model multiplies the scope's rates by the period's fees right here,
+     so this is where the figure has to not be computed: there is no aggregate
+     upstream to have zeroed. */
+  const comm: CommissionPart = !seesComm ? NO_COMMISSION : {
+    /* THE SAME WORDS AS THE LIVE PATH, which is the whole point of this
+       branch existing: the demo must not teach a different vocabulary.
+       Matt, 2026-10-01: "Your commission, net of refunds". */
+    commLbl: agencyFacing
+      ? (isOpndoorStaff(role) ? 'Agency commission' : 'Your commission')
+      : supplierFacing ? OWED_TO_YOU
+      : ownOnly ? 'Commission earned to date' : 'Commission payable',
+    // No frozen lines to name a source from here and no refunds in the model, so
+    // the agency tag is the bare "whose money is this", with no rate.
+    commTag: agencyFacing ? 'net of refunds'
+      : ownOnly ? `Your agent commission · ${aPct} of one month's rent` : 'Net of refunds',
+    /* THE HEADLINE IS THE READER'S OWN MONEY, as it already is on the live path.
+       This branched on isRef alone, so an agency DIRECTOR was handed the partner
+       cut as their headline with their own commission demoted underneath. Live
+       mode has dropped that shape for the agent rail for a while (see noPartner
+       in liveDashboard); the synthetic model kept it because the model itself
+       assumes a supplier above every referral. Relabelling the tile "Commission
+       (agreed terms)" over Opndoor's cut would have made a wrong figure read as
+       a promise, so the mock path now answers the same way the real one does. */
+    commHeadline: ownOnly || agencyFacing ? fmtMoney(feesNum * rates.agent) : fmtMoney(feesNum * rates.partner),
+    commSecondLbl: agencyFacing ? 'Agent commission'
+      : ownOnly ? `Passed to opndoor as partner (${pPct})` : 'Agencies',
+    commSecondVal: ownOnly ? fmtMoney(feesNum * rates.partner) : fmtMoney(feesNum * rates.agent),
+    /* The synthetic model has no notion of a house route, so every partner in
+       it is a real supplier and the payable split is the pair it already had.
+       Mock and demo therefore read the same words as live rather than a
+       different tile. */
+    commThirdLbl: 'Suppliers',
+    commThirdVal: fmtMoney(feesNum * rates.partner),
+    commThirdShown: !agencyFacing && !ownOnly && !supplierFacing,
+    /* NO FOURTH LINE IN MOCK MODE, and not because it is hard: the synthetic
+       model multiplies one pair of rates by the period's fees, so it has no
+       frozen per-referral arrangement to split by and no honest total to
+       report under (q)'s wording. An invented one would be demo furniture
+       sitting where a real figure goes. */
+    commFourthLbl: '', commFourthVal: '', commFourthShown: false,
+    // The synthetic model prices every referral at one month's rent by
+    // construction, so it always has a partner line and a single basis. One of
+    // our own agencies is the exception: there is no supplier above them, and a
+    // £0 partner line reads as money withheld rather than as a party that does
+    // not exist.
+    commSecondShown: !agencyFacing && !supplierFacing,
+    // No refunds in the synthetic model, so there is nothing reversed to state.
+    commExcl: signedNeg(0),
+    commExclDetail: '',
+  };
 
   return {
-    sub: isRef
+    sub: ownOnly
       ? 'Your referrals from sent through to deed issued, across every agency and branch you refer to.'
       : 'Live view of referrals from sent through to deed issued across all agencies and branches.',
-    funnelScope: isRef ? 'Sent to Paid to Deed Issued · your referrals' : 'Sent to Paid to Deed Issued · all branches',
+    funnelScope: ownOnly ? 'Sent to Paid to Deed Issued · your referrals' : 'Sent to Paid to Deed Issued · all branches',
     sent: sent.toLocaleString('en-GB'),
     paid: paid.toLocaleString('en-GB'),
+    paidCount: paid,
+    // The synthetic book has no refunds, so net equals gross.
+    paidNetCount: paid,
     deed: deed.toLocaleString('en-GB'),
     sp: pct(paid, sent),
     pd: pct(deed, paid),
     overall: pct(deed, sent),
     guaranteed: fmtBig(deed * ANNUAL),
+    guaranteedNote: '',
     deedcount: deed.toLocaleString('en-GB'),
+    deedsIssued: deed,
     fees: fmtMoney(feesNum),
-    commTag: isRef ? `Your agent commission · ${aPct} of one month's rent` : `Partner · ${pPct} of one month's rent`,
-    commHeadline: isRef ? fmtMoney(feesNum * rates.agent) : fmtMoney(feesNum * rates.partner),
-    commSecondLbl: isRef ? `Passed to opndoor as partner (${pPct})` : `Agent commission (${aPct} of one month's rent)`,
-    commSecondVal: isRef ? fmtMoney(feesNum * rates.partner) : fmtMoney(feesNum * rates.agent),
+    ...comm,
+    feeBasisCopy: "one month's rent each",
     rent: '£2,180',
     stuckSent: Math.round(baseStuck[0] * kc).toString(),
     stuckPaid: Math.round(baseStuck[1] * kc).toString(),
     avgSentToPaid: '4.2',
     avgPaidToDeed: '1.8',
-    branchScope: isRef ? 'your branches' : 'top branches',
-    agencyScope: isRef ? 'your agency' : 'by agency',
-    referrerTitle: isRef ? 'Your monthly volume' : 'Volume by referrer',
-    referrerScope: isRef ? 'recent months' : 'top performers',
+    branchScope: ownOnly ? 'your branches' : 'top branches',
+    agencyScope: ownOnly ? 'your agency' : 'by agency',
+    referrerTitle: ownOnly ? 'Your monthly volume' : 'Volume by referrer',
+    referrerScope: ownOnly ? 'recent months' : 'top performers',
     branches: synthEntity('branch', scaleRows(shape.branches, kc, kf), rates.partner, rates.agent),
     agencies: synthEntity('agency', scaleRows(shape.agencies, kc, kf), rates.partner, rates.agent),
+    /* EMPTY IN MOCK MODE, DELIBERATELY. The synthetic book has no
+       suppliers to rank -- it models one agency estate -- so inventing
+       bars here would put a chart on the demo that means nothing and
+       would be the only card whose numbers came from nowhere. The
+       Dashboard draws the card only when there is more than one, so an
+       empty list simply omits it. */
+    suppliers: [],
     referrers: synthEntity('referrer', scaleRows(shape.referrers, kc, kf), rates.partner, rates.agent),
     live: false,
     feesGross: fmtMoney(feesNum),
     refunds: signedNeg(0),
     refundCount: 0,
     net: fmtMoney(feesNum),
-    commExcl: signedNeg(0),
-    commExclDetail: '',
     awaiting: 0,
     awaitingAged: 0,
     deedsNoContact: 0,
@@ -262,10 +659,24 @@ export type TrendMeasure = 'commission' | 'value' | 'count';
  */
 export function getTrend(view: TrendView, role: Role, scope: PartnerScope): TrendRow[] {
   if (liveAvailable()) return liveTrend(view, role, scope);
-  const rate = getRatesFor(scope).partner;
+  /* TrendRow.comm IS the commission measure of the monthly volume card, and that
+     card used to OPEN on it: twelve bars of what the agency earned were the first
+     thing a Manager saw on Reporting. The label, the referral count and the fees
+     collected are all theirs, so the row keeps its shape and loses its money. Zero
+     rather than absent because comm is a number the chart reads unconditionally;
+     the measure is refused in the page as well, and this is what is underneath it
+     if it ever is not. */
+  const rate = maySeeCommission(role) ? getRatesFor(scope).partner : 0;
   if (view === 'month') {
-    return TREND_MONTHS.map((m) => { const fees = Math.round(m[1] * AVG_RENT * 0.8); return { label: m[0], count: m[1], fees, comm: Math.round(fees * rate) }; });
+    /* The mock path carries the two new measures too. `payable` uses the
+       same modelled rate: this is the synthetic book, so there is no real
+       split to apportion and a zero would make the mock disagree with live
+       about whether the measure exists at all. */
+    return TREND_MONTHS.map((m) => {
+      const fees = Math.round(m[1] * AVG_RENT * 0.8);
+      return { label: m[0], count: m[1], fees, comm: Math.round(fees * rate), deeds: Math.round(m[1] * 0.6), payable: Math.round(fees * rate) };
+    });
   }
   const key = view === 'branch' ? 'branches' : view === 'agency' ? 'agencies' : 'referrers';
-  return scaleRows(SHAPE_FULL[key], 3.754, 3.832).map((r) => ({ label: r[0], count: r[1], fees: r[2], comm: Math.round(r[2] * rate), sub: r[3] }));
+  return scaleRows(SHAPE_FULL[key], 3.754, 3.832).map((r) => ({ label: r[0], count: r[1], fees: r[2], comm: Math.round(r[2] * rate), deeds: Math.round(Number(r[1]) * 0.6), payable: Math.round(Number(r[2]) * rate), sub: r[3] }));
 }
