@@ -73,95 +73,6 @@ Deno.serve(async (req) => {
       const type = ev?.event ?? ev?.event_type ?? "unknown";
       if (!docId) continue;
 
-<<<<<<< HEAD
-  for (const ev of events) {
-    const docId = ev?.data?.id;
-    const status = ev?.data?.status;
-    const type = ev?.event ?? ev?.event_type ?? "unknown";
-    if (!docId) continue;
-
-    const evId = `${docId}:${status ?? type}`;
-    const { error: insErr } = await service.from("pandadoc_events").insert({ id: evId, type });
-    if (insErr) continue; // duplicate delivery -> skip
-
-    const { data: app } = await service.from("applications")
-      .select("id, guarantee_ref, payment_state, branch_id, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, tenancy_start, agency:agencies(name)")
-      .eq("pandadoc_document_id", docId).maybeSingle();
-
-    if (status === "document.completed") {
-      // A refunded application must never be issued a deed. If a signing link
-      // outlived the refund (the void timed out or was rejected), this is the last
-      // line of defence: nothing is executed, no deed emails go out, the link is
-      // retired now, and ops are alerted rather than the signature passing unnoticed.
-      if (app && app.payment_state === "refunded") {
-        await voidDocument(docId);
-        await service.from("applications").update({ deed_state: "voided", pandadoc_document_id: null }).eq("id", app.id);
-        await service.from("activity_log").insert({ application_id: app.id, kind: "deed_error", message: "BLOCKED: the tenant signed the deed after the payment was refunded. No deed has been issued and no deed emails were sent. Review required.", actor: "System", visibility: "internal" });
-        try {
-          await service.rpc("report_ops_incident", { p_type: "deed_signed_after_refund", p_detail: `App ${app.guarantee_ref}: PandaDoc document ${docId} was signed after the payment was refunded. Deed issuance was blocked.` });
-        } catch { /* never mask */ }
-        continue;
-      }
-  let path: string | null = null;
-
-      console.log("=== DEED PDF DEBUG START ===");
-      console.log("Document ID:", docId);
-      console.log("Guarantee Ref:", app?.guarantee_ref);
-      console.log("Application ID:", app?.id);
-
-      const pdf = await downloadPdf(docId);
-
-      console.log("PDF RESULT:", {
-        exists: !!pdf,
-        bytes: pdf?.length ?? 0,
-      });
-
-      // PDF download fail ho to deed ko executed mark mat karo
-      if (!pdf) {
-        throw new Error(
-          `Executed PDF is not ready/downloadable for PandaDoc document ${docId}`
-        );
-      }
-
-      if (app) {
-        path = `${app.id}/${app.guarantee_ref}.pdf`;
-
-        console.log("PDF STORAGE PATH:", path);
-
-        const { error: uploadError } = await service.storage
-          .from("deeds")
-          .upload(path, pdf, {
-            contentType: "application/pdf",
-            upsert: true,
-          });
-
-        console.log("PDF UPLOAD RESULT:", {
-          success: !uploadError,
-          error: uploadError?.message ?? null,
-        });
-
-        if (uploadError) {
-          throw new Error(`PDF upload failed: ${uploadError.message}`);
-        }
-      }
-
-      console.log("FINAL PDF PATH:", path);
-      console.log("=== DEED PDF DEBUG END ===");
-      // supabase-js returns a DB error object rather than throwing: check it, or a
-      // transient failure would leave the deed un-executed while the "signed and
-      // issued" emails below still send. Delete the dedup row (so a PandaDoc retry
-      // re-processes rather than being deduped) and throw -> 500 -> retry.
-      const { error: execErr } = await service.rpc("apply_deed_executed", { p_document_id: docId, p_pdf_path: path });
-      if (execErr) {
-        await service.from("pandadoc_events").delete().eq("id", evId);
-        throw new Error(`apply_deed_executed failed: ${execErr.message}`);
-      }
-      if (app) {
-        // The signing event. The "Deed Issued" milestone (status/timeline) is
-        // driven by apply_deed_executed above; this is the distinct signed entry.
-        await service.from("activity_log").insert({ application_id: app.id, kind: "deed_signed", message: "Deed signed by the tenant.", actor: "PandaDoc", visibility: "business" });
-        await service.from("pandadoc_events").update({ application_id: app.id }).eq("id", evId);
-=======
       const evId = `${docId}:${status ?? type}`;
       const { error: insErr } = await service.from("pandadoc_events").insert({ id: evId, type });
       if (insErr) {
@@ -175,7 +86,6 @@ Deno.serve(async (req) => {
         if (insErr.code === "23505") continue;
         throw new Error(`Could not record PandaDoc event ${evId}: ${insErr.message}`);
       }
->>>>>>> partner-api
 
       const { data: app, error: appErr } = await service.from("applications")
         .select("id, guarantee_ref, branch_id, tenant_title, tenant_first_name, tenant_last_name, tenant_email, prop_addr1, prop_postcode, tenancy_start, livemode, deed_delivered_at, deed_delivered_to, deed_issued_at, agency:agencies(name)")
