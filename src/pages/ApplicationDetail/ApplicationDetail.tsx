@@ -288,8 +288,6 @@ export function ApplicationDetail() {
   const [soEmail, setSoEmail] = useState('');
   const [soSave, setSoSave] = useState(false);
   const [sendBusy, setSendBusy] = useState(false);
-<<<<<<< HEAD
-=======
 
   // send-deed-to-landlord (agency staff send to their own client)
   const [landlordOpen, setLandlordOpen] = useState(false);
@@ -297,7 +295,6 @@ export function ApplicationDetail() {
   const [llEmail, setLlEmail] = useState('');
   const [llNote, setLlNote] = useState('');
   const [llBusy, setLlBusy] = useState(false);
->>>>>>> partner-api
 
   // payment (Stripe, real mode)
   const [searchParams] = useSearchParams();
@@ -1058,10 +1055,6 @@ export function ApplicationDetail() {
   //our code update
  async function saveAmend(confirmReissue = false) {
     const parsedDate = parseInput(amendInput);
-<<<<<<< HEAD
-    if (!parsedDate || parsedDate.getTime() === currentStart.getTime() || !isTenancyStartInAllowedRange(parsedDate)) {
-      toast('Enter a valid tenancy start date within 7 days in the past and 2 years in the future.','warning');
-=======
     /* AN EMPTY BOX AND A WRONG DATE ARE NOT THE SAME COMPLAINT, and the one
        sentence answered both: somebody who had typed nothing was told about a
        seven-day window they had not been anywhere near. */
@@ -1073,7 +1066,6 @@ export function ApplicationDetail() {
     }
     if (!isTenancyStartInAllowedRange(parsedDate)) {
       toast('Enter a tenancy start date within 7 days in the past and 2 years in the future.');
->>>>>>> partner-api
       return;
     }
     // #82 On a signed deed, require the explicit consequence confirmation first.
@@ -1084,11 +1076,7 @@ export function ApplicationDetail() {
     } catch (err) {
       // Defence in depth: if the server still asks for confirmation, prompt for it.
       if (err && typeof err === 'object' && (err as { needsConfirm?: boolean }).needsConfirm) { setConfirmReissueOpen(true); return; }
-<<<<<<< HEAD
-      toast(err instanceof Error ? err.message : 'Could not amend the tenancy start date.','error');
-=======
       toast(err instanceof Error ? err.message : 'Could not amend the tenancy start date.', 'error');
->>>>>>> partner-api
       return;
     }
     setConfirmReissueOpen(false);
@@ -1224,11 +1212,7 @@ export function ApplicationDetail() {
       if (isReferrer) await sendDeedToAgent(d.ref);
       else await sendDeedToAgent(d.ref, c.email, sendSel === 'other' ? soSave : false);
     } catch (err) {
-<<<<<<< HEAD
-      toast(err instanceof Error ? err.message : 'Could not send the deed.','error');
-=======
       toast(err instanceof Error ? err.message : 'Could not send the deed.', 'error');
->>>>>>> partner-api
       return;
     } finally {
       setSendBusy(false);
@@ -2154,80 +2138,6 @@ export function ApplicationDetail() {
                   (az): 'guarantee details show "Cancelled on 4 Oct 2026"
                   instead of expiry, "Pending" or guaranteed rent.'
 
-<<<<<<< HEAD
-          <Card>
-            <CardHead title="Guarantee deed" actions={SUPABASE_ENABLED && pandadocSandbox() ? <span className="pay-badge">Sandbox</span> : undefined} />
-            <CardBody>
-              {isDeed ? (
-                <>
-                  <div className="deed">
-                    <span className="deed__ic"><Icon name="file" strokeWidth={1.8} /></span>
-                    <div className="grow">
-                      <div className="deed__t">{deedName}</div>
-                      <div className="deed__s">{deedMeta}</div>
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 14 }}>
-                    <Button variant="primary" block onClick={doDownloadDeed}><Icon name="download" /> Download deed</Button>
-                  </div>
-                  {canSend && (
-                    <div style={{ marginTop: 10 }}>
-                      <Button variant="ghost" block onClick={openSend}><Icon name="send" /> Send deed to agent</Button>
-                    </div>
-                  )}
-                </>
- ) : SUPABASE_ENABLED && pi && d.status === 'paid' && pi.deedState ? (
-                pi.deedState === 'awaiting_tenant' ? (
-                  <>
-                    <div className="deed" style={{ opacity: 0.95 }}>
-                      <span className="deed__ic" style={{ color: 'var(--sent)' }}><Icon name="clock" strokeWidth={1.8} /></span>
-                      <div className="grow">
-                        <div className="deed__t">Deed sent for signature, awaiting tenant</div>
-                        <div className="deed__s">The tenant's signing journey so far</div>
-                      </div>
-                    </div>
-                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--sent)', flex: '0 0 auto' }} />
-                        <span style={{ fontWeight: 600 }}>Sent</span>
-                        <span style={{ marginLeft: 'auto', color: 'var(--ink-mute)' }}>{pi.deedSentAt ? fmtStamp(new Date(pi.deedSentAt)) : '—'}</span>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: pi.deedViewedAt ? 'var(--paid)' : 'rgba(39,29,95,0.18)', flex: '0 0 auto' }} />
-                        <span style={{ fontWeight: 600, color: pi.deedViewedAt ? undefined : 'var(--ink-mute)' }}>{pi.deedViewedAt ? 'Viewed by tenant' : 'Not yet viewed'}</span>
-                        {pi.deedViewedAt && <span style={{ marginLeft: 'auto', color: 'var(--ink-mute)' }}>{fmtStamp(new Date(pi.deedViewedAt))}</span>}
-                      </div>
-                    </div>
-                    {pi.paymentState !== 'refunded' && (
-                      <div style={{ marginTop: 12 }}>
-                        <Button variant="primary" size="sm" block onClick={doResendDeed} disabled={deedBusy}><Icon name="send" /> {deedBusy ? 'Sending…' : 'Resend signature request'}</Button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <div className="pay-anomaly">
-                      <Icon name="alert" strokeWidth={2.2} />
-                      <span>{pi.deedState === 'declined' ? 'Tenant declined to sign the deed. Review required.' : pi.deedState === 'voided' ? 'Deed document voided in PandaDoc. Review required.' : 'Deed could not be generated. Check the branch has an agent contact, then retry.'}</span>
-                    </div>
-                    {pi.paymentState !== 'refunded' && (
-                      <div style={{ marginTop: 10 }}>
-                        <Button variant="primary" size="sm" block onClick={doResendDeed} disabled={deedBusy}><Icon name="file" /> {deedBusy ? 'Working…' : 'Generate deed'}</Button>
-                      </div>
-                    )}
-                  </>
-                )
-              ) : (
-  <div className="deed" style={{ opacity: 0.85 }}>
-    <span className="deed__ic" style={{ color: 'var(--ink-mute)' }}><Icon name="clock" strokeWidth={1.8} /></span>
-    <div className="grow">
-      <div className="deed__t">Deed not yet issued</div>
-      <div className="deed__s">
-        {d.status === 'paid' ? 'Deed sent for signature shortly after payment' : 'Issued once the guarantor fee is paid'}
-      </div>
-    </div>
-  </div>)}
-=======
                   An expiry date is a promise about how long cover runs, and
                   on a cancelled guarantee it is a date nothing happens on.
                   Worse on the unsigned case, where it read "Pending": cover
@@ -2265,7 +2175,6 @@ export function ApplicationDetail() {
                   <span className="v">{d.annual}</span>
                 </div>
               )}
->>>>>>> partner-api
             </CardBody>
           </Card>
 
