@@ -270,15 +270,10 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
   );
 
   const partnerSlug = new Map<string, string>(partners.map((p) => [p.id, p.slug]));
-  // Rates from the governed views, keyed by partner id / application id. A key
-  // that is absent means "withheld from this viewer", which is why the maps are
-  // read with .get() (undefined -> null) and never defaulted to a rate.
-  const partnerRates = new Map<string, { partner: number; agent: number }>(
-    ((partnerRatesRes.data ?? []) as any[]).map((r) => [r.partner_id, { partner: num(r.partner_rate), agent: num(r.agent_rate) }]),
-  );
-  const appRates = new Map<string, { partner: number; agent: number }>(
-    ((appRatesRes.data ?? []) as any[]).map((r) => [r.application_id, { partner: num(r.partner_rate), agent: num(r.agent_rate) }]),
-  );
+  // Fallback rates by partner (only used if a row somehow lacks its snapshot;
+  // the applications columns are NOT NULL, so this is belt-and-braces).
+  const partnerRateById = new Map<string, number>(partners.map((p) => [p.id, num(p.partner_rate)]));
+  const agentRateById = new Map<string, number>(partners.map((p) => [p.id, num(p.agent_rate)]));
   const slugOfApp = (a: any): string => emb(a.partner)?.slug ?? partnerSlug.get(a.partner_id) ?? '';
   const fullName = (a: any): string => `${a.tenant_first_name} ${a.tenant_last_name}`;
   const ownerFlag = (a: any): number => (a.referrer_id === userId ? 1 : 0);

@@ -113,24 +113,7 @@ function ToastPortal({
 
   if (!mounted) return null;
 
-  const getIconName = (type: ToastType) => {
-    switch (type) {
-      case "success":
-        return "check";
 
-      case "error":
-        return "x";
-
-      case "warning":
-        return "alert";
-
-      case "info":
-        return "info";
-
-      default:
-        return "check";
-    }
-  };
 
   return createPortal(
     <div className="toast-wrap">
