@@ -149,7 +149,6 @@ Deno.serve(async (req) => {
       // the row entirely rather than printing £0 at somebody who owes money.
       ...(paid || amountDue == null ? {} : { amountDue }),
       paid,
-      refunded,
       deedReady,
       deedSigned,
       deedError,
