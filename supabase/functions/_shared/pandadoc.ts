@@ -296,7 +296,7 @@ export async function createAndSend(a: DeedApp, livemode: boolean): Promise<Deed
 }
 
 
-const VOID_TIMEOUT_MS = 10_000;
+
 const TERMINAL_STATUSES = ["document.completed", "document.declined", "document.voided", "document.expired", "document.paid"];
 function prettyStatus(s: string): string {
   return ({
@@ -505,7 +505,6 @@ export async function voidDocument(documentId: string, livemode: boolean): Promi
   } catch (e) {
     return { ok: false, error: `PandaDoc void failed: ${e instanceof Error ? e.message : String(e)}` };
   }
-  return null;
 }
 
 /** Download the executed PDF (available once the document is completed). */
@@ -526,17 +525,7 @@ export interface PdfResult {
    asynchronously AFTER it fires document.completed, so a download issued the
    moment the callback lands can legitimately 404 for a few seconds. That is the
    commonest reason a deed ends up executed with no stored document. */
-export async function downloadPdf(documentId: string, livemode: boolean): Promise<PdfResult> {
-  const cfg = pandadocConfigFor(livemode);
-  if (!cfg.ok) return { ok: false, error: cfg.error };
-  try {
-    const res = await fetch(`${API}/documents/${documentId}/download`, { headers: { Authorization: `API-Key ${cfg.value.key}` } });
-    if (!res.ok) return { ok: false, error: `PandaDoc download ${res.status}: ${(await res.text()).slice(0, 200)}` };
-    return { ok: true, bytes: new Uint8Array(await res.arrayBuffer()) };
-  } catch (e) {
-    return { ok: false, error: `PandaDoc download failed: ${e instanceof Error ? e.message : String(e)}` };
-  }
-}
+
 
 /**
  * PandaDoc signs webhooks with HMAC-SHA256 of the raw body using the shared key.
@@ -687,46 +676,7 @@ export async function downloadPdf(documentId: string): Promise<Uint8Array | null
 
 
 
-/** PandaDoc signs webhooks with HMAC-SHA256 of the raw body using the shared key. */
-export async function verifyWebhook(
-  rawBody: string,
-  signature: string
-): Promise<boolean> {
-  if (!WEBHOOK_KEY || !signature) {
-    console.log("WEBHOOK KEY OR SIGNATURE MISSING");
-    return false;
-  }
 
-
-  const key = await crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(WEBHOOK_KEY),
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"]
-  );
-
-
-  const mac = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    new TextEncoder().encode(rawBody)
-  );
-
-
-  const expected = [...new Uint8Array(mac)]
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-
-
-  console.log("Received signature length:", signature.length);
-  console.log("Expected signature length:", expected.length);
-  console.log("Signature format valid:", /^[a-f0-9]+$/i.test(signature));
-  console.log("Signature match:", expected.toLowerCase() === signature.toLowerCase());
-
-
-  return expected.toLowerCase() === signature.toLowerCase();
-}
 
 
 /**
