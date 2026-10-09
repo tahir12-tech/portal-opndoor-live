@@ -28,10 +28,13 @@ values
   ('ea300000-0000-0000-0000-00000000f002'::uuid, 'zzz-bf-supp', 'ZZZ BF Supplier',
    'active', 'supplier', 'pre_referenced_open', 0.25, 0.10),
   /* THE HAND-OVER RAIL'S SHAPE. partner_kind 'house' is what
-     referencing-partner carries: is_supplier_estate is FALSE for it, so the
-     first version of this migration included it, and is_our_estate_partner
-     is also false because that predicate's own comment says the rail "holds
-     no estate". One fixture row forces the choice to be stated. */
+     referencing-partner carries, and it is the ONLY partner the two estate
+     predicates disagree about: is_supplier_estate is false for it and
+     is_our_estate_partner is false too. 20261009030000 ruled which one wins,
+     the same day: "'supplier' EXACTLY, not \"anything that is not our
+     estate\" ... Refusing there would be a change Matt did not ask for." So
+     this row DOES get an office, and the fixture exists to hold that choice
+     still rather than to leave it unstated. */
   ('ea300000-0000-0000-0000-00000000f003'::uuid, 'zzz-bf-house', 'ZZZ BF Hand-over Rail',
    'active', 'house', 'pre_referenced_open', 0.25, 0.10);
 
@@ -54,7 +57,7 @@ insert into public.agencies (id, name, partner_id, review_state, livemode, is_pl
   -- SKIPPED: already has one.
   ('ea300000-0000-0000-0000-0000000000a6'::uuid, 'ZZZ BF Already Has One',
    'ea300000-0000-0000-0000-00000000f001'::uuid, 'confirmed', true, false),
-  -- SKIPPED: the hand-over rail holds no estate.
+  -- QUALIFIES: the rail is Opndoor's own plumbing, not a supplier's book.
   ('ea300000-0000-0000-0000-0000000000a7'::uuid, 'ZZZ BF Hand-over Agency',
    'ea300000-0000-0000-0000-00000000f003'::uuid, 'confirmed', true, false);
 
@@ -70,6 +73,11 @@ select is(
       and not exists (select 1 from public.branches b where b.agency_id = a.id)),
   6,
   'the fixture has six branchless agencies and one that already has an office');
+
+/* AND THREE OF THE SIX QUALIFY, which is the number every count below turns
+   on: the Regent-shaped one, the sandbox one and the hand-over rail one. The
+   other three are a supplier's agency, a house placeholder and an agency
+   awaiting review. */
 
 -- ===========================================================================
 -- 1. THE DOOR IS SHUT. Checked first, because everything below is worthless
@@ -109,7 +117,7 @@ select is(
 select throws_ok(
   $$select public.place_the_missing_single_offices(1)$$,
   '22023', null,
-  'asked to place one when two qualify, it refuses');
+  'asked to place one when three qualify, it refuses');
 
 select throws_like(
   $$select public.place_the_missing_single_offices(1)$$,
@@ -129,9 +137,9 @@ select is(
 -- 3. RUN IT PROPERLY, AND IT PLACES EXACTLY THE TWO THAT QUALIFY.
 -- ===========================================================================
 select is(
-  public.place_the_missing_single_offices(2),
-  2,
-  'told two, it places exactly two');
+  public.place_the_missing_single_offices(3),
+  3,
+  'told three, it places exactly three');
 
 /* THE BLAST RADIUS, ASSERTED. The function walks the WHOLE agencies table, so
    an exact count of what it wrote across the whole database is the only thing
@@ -140,8 +148,8 @@ select is(
 select is(
   (select count(*)::int from public.org_audit
     where detail like '%created for an agency that had no office%'),
-  2,
-  'and wrote two offices in total, nowhere else in the database');
+  3,
+  'and wrote three offices in total, nowhere else in the database');
 
 -- ===========================================================================
 -- 4. THE PLAIN CASE: ONE OFFICE, THE AGENCY'S OWN NAME.
@@ -185,13 +193,17 @@ select is(
   0,
   'and nor does a supplier''s agency');
 
-/* THE ASSERTION THE FIRST VERSION COULD NOT MAKE. Its fixture held only an
-   'agency' and a 'supplier' partner, about which the two estate predicates
-   agree, so "OUR OWN ESTATE ONLY" was untested and untrue. */
+/* AND THE ONE THE TWO PREDICATES DISAGREE ABOUT GETS ITS OFFICE. The filter
+   is supplier-ness, by 20261009030000's ruling, and the hand-over rail is
+   Opndoor's own plumbing rather than a third party's book: capabilities.ts
+   calls it "our own plumbing, and a reader scoped to one of them is Opndoor
+   looking at its own rail". This assertion exists so that a future reader of
+   the loose phrase "our own estate" cannot quietly narrow it again, which is
+   what 20261009120000 did before 20261009130000 put it back. */
 select is(
   (select count(*)::int from public.branches where agency_id = 'ea300000-0000-0000-0000-0000000000a7'::uuid),
-  0,
-  'and nor does an agency on the hand-over rail, which holds no estate');
+  1,
+  'an agency on the hand-over rail does get one: that rail is ours, not a supplier''s');
 
 select results_eq(
   $$select b.name from public.branches b

@@ -72,7 +72,7 @@ import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/Position
 import { AgencyGrow } from './AgencyGrow';
 import { AgreementEditor, agreementSummary, dealWords } from './AgreementEditor';
 import { CommissionStatement } from '@/components/CommissionStatement';
-import { showsOffices } from '@/data/agencyOffices';
+import { officeNameAddsNothing, showsOffices } from '@/data/agencyOffices';
 import './AgencyHome.css';
 import { plural } from '@/lib/plural';
 import { AgencyChanges } from './AgencyChanges';
@@ -1555,7 +1555,22 @@ export function AgencyHome() {
                     const soleLine = lines.length === 1 ? lines[0] : null;
                     return (
                       <tr key={b.id ?? b.name}>
-                        <td className="dt__name">{b.name}<span className="dt__sub">{a.name}</span></td>
+                        {/* THE AGENCY'S NAME ONLY WHERE IT ADDS SOMETHING.
+                            `dt__sub` is not display:block for this table, so
+                            the two strings run together inline: where the one
+                            office is named after its agency the cell read the
+                            name twice, "Regent LettingsRegent Lettings".
+                            Found by an adversarial review of the office
+                            backfill and reproduced on dev with New
+                            Independent, so it predates all of it; what
+                            changed is that 20261009090000 made every newly
+                            added agency carry that shape, which turned an
+                            oddity into the normal case. */}
+                        <td className="dt__name">
+                          {b.name}
+                          {!officeNameAddsNothing(a.name ?? '', b.name ?? '')
+                            && <span className="dt__sub">{a.name}</span>}
+                        </td>
                         {/* EVERY BAND, WHERE THE DEAL HAS MORE THAN ONE.
                             Matt (v): "when the deal varies by tenant count,
                             show both, e.g. '20% (1 tenant), 25% (2 or
