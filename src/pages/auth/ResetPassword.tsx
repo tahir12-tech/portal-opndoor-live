@@ -229,7 +229,20 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
               <h2 className="auth__title">This link is not valid</h2>
               <p className="auth__sub">{c.invalidLead}</p>
               <div className="auth__form"><Button variant="primary" block to={invalidCta.to}>{invalidCta.label}</Button></div>
-              <p className="auth__foot"><Link to={backToSignIn}>Back to sign in</Link></p>
+              {/* ONE WAY BACK, NOT THE SAME WAY TWICE. Matt, 2026-10-09, on
+                  live: "The 'This link is not valid' page shows 'Back to sign
+                  in' twice, as a button and as a link."
+
+                  He is reading the INVITE arm, where the button already IS
+                  "Back to sign in": an expired invitation has no self-service
+                  retry, because only an administrator can send another, which
+                  is what invalidLead says. The RESET arm has two genuinely
+                  different offers, "Request a new link" and a way out of it,
+                  and keeps both. So the test is the destination rather than
+                  the mode: a footer that repeats the button is not a footer. */}
+              {invalidCta.to !== backToSignIn && (
+                <p className="auth__foot"><Link to={backToSignIn}>Back to sign in</Link></p>
+              )}
             </div>
           )}
 
