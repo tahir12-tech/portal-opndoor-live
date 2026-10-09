@@ -462,7 +462,17 @@ describe('the definer allowlist', () => {
        whether some other uuid is a person. It is a definer only
        because users RLS hides opndoor staff from a customer, which is
        exactly why the browser could not answer the question itself. */
-    expect(allowlist.length).toBeLessThanOrEqual(171);
+    /* 171 -> 172, RAISED WITH resolve_pricing_agreement_for_agency.
+
+       WHY IT IS SAFE: it is the same resolver the referral path already
+       runs, asked of an agency rather than of one of its offices, and it
+       returns one agreement id, a basis and a rate. It takes an agency id
+       and checks nothing about the caller, which is deliberate: the only
+       thing the browser can reach is agreement_for_agency, which opens with
+       is_aal2, app_may_reach_agency and may_see_commission and then asks
+       this. Handing the resolver its own permission test would put the
+       commission gate in two places and let them disagree. */
+    expect(allowlist.length).toBeLessThanOrEqual(172);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {
