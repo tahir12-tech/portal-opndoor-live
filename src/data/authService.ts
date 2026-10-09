@@ -63,6 +63,30 @@ export async function requestPasswordReset(
   return { ok: true };
 }
 
+/**
+ * Spend a seven-day staff invitation token and get back the short-lived
+ * Supabase link that signs the invitee in.
+ *
+ * An invitation email carries the portal's OWN token, not a GoTrue action
+ * link, because GoTrue's expiry is one project-wide number shared with
+ * password resets, whose copy promises thirty minutes. accept-invite checks
+ * the token under the service role and mints the sign-in link at the moment
+ * the person clicks.
+ *
+ * IT RETURNS THE SERVER'S SENTENCE RATHER THAN THROWING. Expired, already
+ * used, cancelled and never issued are four different things to tell
+ * somebody, and only one of them means "ask your administrator for another",
+ * so the screen shows the reason instead of replacing it with "not valid".
+ *
+ * Mock mode cannot mint anything, so it refuses in the same shape.
+ */
+export async function openInvitation(token: string): Promise<{ ok: boolean; link?: string; error?: string }> {
+  if (!SUPABASE_ENABLED) return { ok: false, error: 'Invitations cannot be opened in this environment.' };
+  const { data, error } = await sb().functions.invoke('accept-invite', { body: { token } });
+  if (data && data.ok && typeof data.link === 'string') return { ok: true, link: data.link };
+  return { ok: false, error: (data && data.error) || error?.message || 'We could not open your invitation. Please ask for a new one.' };
+}
+
 /* -------------------- Supabase mode -------------------- */
 
 export interface AuthResult {

@@ -44,6 +44,14 @@ export interface ManagedUser extends User {
       a Negotiator, whose role already withholds commission, and on Opndoor's
       own roles. See agencyLevelOf in types.ts. */
   seesCommission?: boolean;
+  /** The live invitation's state: 'live', 'expired', 'used', 'cancelled', or
+      'none' for somebody invited before staff_invites existed or who never
+      needed an invitation. The wording in the Last active cell is built from
+      it in hydrate.ts; this is here so a screen can act on it without
+      parsing that sentence. */
+  inviteState?: 'live' | 'expired' | 'used' | 'cancelled' | 'none';
+  /** When the live invitation link stops working. Null off Supabase. */
+  inviteExpiresAt?: string | null;
 }
 
 /* AN INVITATION SENT JUST NOW. The row a screen shows until the next

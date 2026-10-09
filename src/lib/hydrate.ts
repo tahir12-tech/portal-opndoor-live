@@ -89,9 +89,35 @@ function eventTs(a: any): number {
    old one, and "3 weeks ago" against an outstanding invitation reads as
    somebody active. `invitedAt` comes from list_managed_users, which
    20261007480000 added it to. */
-function relTime(ts: string | null, status: string, invitedAt?: string | null): string {
+/* AND WHEN IT RUNS OUT. Matt, 2026-10-09: "7-day links, Accept invite page,
+   sent date, expiry, resend and cancel."
+
+   THE SENT DATE IS THE LIVE LINK'S, not the account's. `invitedAt` is
+   auth.users.invited_at, set once when the account is made and never moved
+   again, so after a resend it named the wrong day: Matt pressed Resend for
+   Ethan Li at 11:20 and the row still showed the previous afternoon.
+   `inviteSentAt` is the day the working link went out, so it prefers it and
+   falls back for anybody invited before staff_invites existed.
+
+   FOUR STATES, AND EACH SAYS WHAT TO DO. An expired or cancelled invitation
+   needs a resend and says so in the cell, because "Invited 2 October" beside
+   a person who cannot get in reads as patience rather than as a job. 'used'
+   is somebody who accepted but has not finished enrolling their
+   authenticator, which is where Ethan sat for a day. */
+function relTime(
+  ts: string | null, status: string, invitedAt?: string | null,
+  invite?: { sentAt?: string | null; expiresAt?: string | null; state?: string | null },
+): string {
   if (status === 'pending') {
-    const on = formatDate(invitedAt);
+    const on = formatDate(invite?.sentAt ?? invitedAt);
+    const until = formatDate(invite?.expiresAt);
+    switch (invite?.state) {
+      case 'expired':   return until ? `Invite expired ${until}` : 'Invite expired';
+      case 'cancelled': return 'Invite cancelled';
+      case 'used':      return on ? `Opened ${on}, two-factor not set up` : 'Two-factor not set up';
+      case 'live':      return until ? `Invited ${on}, expires ${until}` : `Invited ${on}`;
+      default: break;
+    }
     return on ? `Invited ${on}` : 'Pending invite';
   }
   if (!ts) return '-';
@@ -384,7 +410,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     role: u.role,
     // Truthful: relative time since the real last sign-in (auth.users), or a
     // "Pending invite" / "Never signed in" placeholder from status.
-    lastActive: relTime(u.last_sign_in_at, u.status, u.invited_at),
+    lastActive: relTime(u.last_sign_in_at, u.status, u.invited_at, {
+      sentAt: u.invite_sent_at, expiresAt: u.invite_expires_at, state: u.invite_state,
+    }),
+    inviteState: u.invite_state ?? 'none',
+    inviteExpiresAt: u.invite_expires_at ?? null,
     status: u.status,
     partner: (u.role === 'superadmin' || u.role === 'opndoor_manager') ? 'opndoor' : (u.partner_slug ?? ''),
     homeBranchId: u.home_branch_id ?? null,
