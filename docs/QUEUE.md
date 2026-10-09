@@ -5978,6 +5978,90 @@ guessed at. Numbered as they came up.
   file have to be safe, so the insert is guarded on there being no office
   rather than on the migration not having run before.
 
+#### What the adversarial review found, and why 20261009110000 was deleted
+
+Five independent reviewers over the first version of the backfill, each
+finding verified by a separate agent told to refute it. Three defects, all of
+which I then confirmed myself by reading the source rather than taking on
+trust, and one of them changes the rule rather than the code.
+
+**1. A BRANCHLESS AGENCY IS A SUPPORTED PRODUCT STATE, not only the Regent
+fault, and this conflicts with one of Matt's own earlier rulings.**
+`20260927100000_agency_without_branch.sql` says it outright:
+
+> "Group onboarding is often a skeleton: the group and its agencies are set up
+> by Opndoor, and the director or each agency manager adds their own branches
+> on first login, because they are the ones who know them ... the only way to
+> stand a group up was to invent branch names on the operator's behalf and let
+> somebody rename them later."
+
+That migration **rejected inventing offices by name**, and the first version
+of the backfill did exactly the rejected thing to every branchless agency.
+The two shapes are indistinguishable in the data: Regent came through
+`admin_add_agency`, which created no office, and a skeleton comes through
+`admin_create_agency_and_branch` with no branch name, which is deliberate.
+`20261009090000` did not touch the second door, so it still makes them.
+
+**SO IT IS BOUNDED RATHER THAN NARROWED**, because narrowing would mean
+guessing at intent from data. `place_the_missing_single_offices(p_expected)`
+counts the candidates before writing anything and refuses, naming them, if
+there are more than expected. The migration passes 1, because exactly one
+agency is known to need it and Matt named it. Rehearsed on dev: with three
+candidates it refuses with their names and places nothing.
+
+**2. `not is_supplier_estate` IS NOT "our own estate".** This repo's own
+predicate is `is_our_estate_partner`, `partner_kind = 'agency' or slug =
+'opndoor-direct'`, whose comment says "`referencing-partner` is NOT one ... it
+is the hand-over rail and holds no estate". That rail's `partner_kind` is
+`'house'`, so the supplier test let it through. A reviewer proved it on dev
+inside a rolled-back transaction. **`admin_add_agency` had the same gap** and
+is corrected in the same file.
+
+**3. AN INHERITED `pending_review` OFFICE COULD NEVER HAVE BEEN CONFIRMED.**
+`confirm_org_entity` sweeps an agency's pending office by name and only
+`lower(nm || ', Head office')`, "only that exact name". An office named
+exactly after its agency is never swept, so pressing Confirm as new would
+confirm the agency and leave the office pending for ever, whereupon
+`reconciliation_queue` stops folding it and it reappears as its own queue item
+nobody created. Agencies awaiting review are therefore skipped: one in the
+queue is one somebody is about to judge, and inventing an office under it
+pre-empts that judgement.
+
+**4. AND THE REVOKE WAS A NO-OP.** The default ACL for a function in this
+schema is `{postgres=X/postgres,service_role=X/postgres}`, so revoking from
+public, anon and authenticated removed three grants that were never there and
+left the one role that could call it holding EXECUTE. Measured on dev:
+`service_role_can` was true. It now reads `from public, anon, authenticated,
+service_role` and the ACL is `{postgres=X/postgres}`.
+
+**WHY THE FILE WAS DELETED RATHER THAN CORRECTED ON TOP OF.**
+`20261009110000` carried its own `do` block, so on a clean filename-order
+apply it would have done its damage and only then been fixed. It was never
+applied anywhere but dev, where it placed zero rows because dev has no
+branchless agency, and no ledger anywhere holds it. Deleting it is the only
+way to make the ORDER right. This is a deliberate departure from "corrections
+go in a new migration", taken because the thing being corrected had not
+reached anything but dev and `npm run drift` confirms dev still matches a
+clean apply of the files.
+
+**ALSO FOUND AND FIXED IN THE TEST.** `cmp_ok(made, '>=', 3)` was green at 3,
+at 4 and at 40, and every other assertion was scoped to a fixture uuid, so
+nothing pinned the blast radius. The fixture held only an `agency` and a
+`supplier` partner, about which the two estate predicates agree, so "our own
+estate only" was untested. One assertion was strictly implied by another.
+The test is now 25 assertions on a seven-agency fixture of which five must
+come out untouched, with an exact count of what the function wrote across the
+whole database.
+
+**RECORDED AS SOUND, so nobody re-does it:** no abort risk on live (every
+constraint on `branches` has a twin on `agencies` that the source row already
+satisfies, and the unique index is unreachable because the loop only visits
+agencies with zero branches); all three filter arms null-safe; nothing leaks
+to dev; every assertion really executes and every pgTAP function used is in
+the runner's `TAP_FNS`; and the `livemode` inheritance is genuinely tested,
+because assertion 12 fails in a no-op run.
+
+
 ### The answers, as found (2026-10-09)
 
 **A. The PandaDoc document is DEV'S, and it says live and dev share one

@@ -2469,7 +2469,7 @@ and these are the names to check his twelve against:
 | `20261009080000` | `suppliers_that_can_take_referrals` (new) |
 | `20261009090000` | `agreement_for_agency`, `create_agreement`, `admin_add_agency`, `resolve_pricing_agreement_for_agency` (new) |
 | `20261009100000` | `list_managed_users`, `mint_staff_invite` (new), `claim_staff_invite` (new) |
-| `20261009110000` | `place_the_missing_single_offices` (new) |
+| `20261009120000` | `place_the_missing_single_offices` (new), `admin_add_agency` (again) |
 
 **Balal: run this on live and send the output.** It is read-only and it is the
 only thing needed to answer it.
@@ -2482,7 +2482,7 @@ order by version;
 ```
 
 Any of his twelve that touches a name in the table above has to be re-applied
-as a NEW migration after ours, with a timestamp later than `20261009110000`.
+as a NEW migration after ours, with a timestamp later than `20261009120000`.
 That is this repo's standing rule and it is the same rule either way round: a
 correction to an earlier migration goes in a new file, never by editing or
 re-running one.
@@ -2502,7 +2502,7 @@ Eleven files, already written and already proven against dev:
 20261009080000_the_suppliers_that_can_take_a_referral.sql
 20261009090000_an_agency_with_no_office_still_has_a_deal.sql
 20261009100000_a_staff_invite_lasts_seven_days.sql
-20261009110000_every_agency_on_our_estate_has_its_office.sql
+20261009120000_the_office_backfill_knows_our_own_estate.sql
 ```
 
 `supabase db push --project-ref <LIVE_REF>` applies only the ones live's
@@ -2513,31 +2513,49 @@ is real (492 rows), unlike dev's.
 nothing reads it except the two functions in the same file and
 `list_managed_users`.
 
-**`20261009110000` is the only one of the eleven that writes ROWS**, and it is
+**`20261009120000` is the only one of the eleven that writes ROWS**, and it is
 the only one that needs anything looked at before and after. Everything else
 in the set replaces functions.
 
 #### 16.1a Before you apply it: count what it will create
 
-It gives every agency on Opndoor's own estate that has no office exactly one,
-named after the agency. Run this first, read-only, and keep the output:
+It gives every **confirmed** agency on Opndoor's **own** estate that has no
+office exactly one, named after the agency. Run this first, read-only, and keep
+the output:
 
 ```sql
-select a.id, a.name, p.slug as partner, a.livemode, a.review_state
+select a.id, a.name, p.slug as partner, p.partner_kind, a.livemode, a.review_state
 from public.agencies a
 join public.partners p on p.id = a.partner_id
-where p.partner_kind <> 'supplier'
+where (p.partner_kind = 'agency' or p.slug = 'opndoor-direct')
   and not a.is_placeholder
+  and a.review_state = 'confirmed'
   and not exists (select 1 from public.branches b where b.agency_id = a.id)
 order by a.name;
 ```
 
-Expected: **Regent Letting & Property Management, and probably nothing else.**
-Every name in that list is getting an office, so if there is a name in it
-neither of us expects, stop and say so before applying. An agency on a
-supplier's estate and the house "Unattached" placeholders are excluded by the
-function itself; this query uses the same three tests so that what you see is
-what it will do.
+Expected: **Regent Letting & Property Management, and nothing else.**
+
+**The migration will REFUSE if that query returns more than one row**, and it
+will name them in the error. That is deliberate, not a bug. A branchless
+agency is not always a fault: `20260927100000_agency_without_branch.sql` stood
+up the skeleton-group case on purpose, where Opndoor creates a group and its
+agencies and each manager adds their own offices on first login, and it
+rejected "invent branch names on the operator's behalf" by name. The two
+shapes cannot be told apart in the data, so if there are several, a person has
+to look at the list before offices are invented under them.
+
+If it refuses: send Matt the list from this query. Once he has agreed the
+names, run the function yourself with the real count and then carry on:
+
+```sql
+select public.place_the_missing_single_offices(<the number of rows above>);
+```
+
+The four shapes the function excludes by construction, so this query excludes
+them too and what you see is what it will do: a supplier's agencies, the
+`referencing-partner` hand-over rail (which holds no estate), the house
+"Unattached" placeholders, and any agency still awaiting review.
 
 If Matt has already added Regent's office by hand on the screen, the list
 comes back empty and the migration correctly does nothing: the insert is
