@@ -2433,3 +2433,181 @@ else's.
 
 Anything that fails goes to us with the evidence section 14.5 asks for, not as
 a description.
+
+---
+
+## 16. Bringing live up to `matt-fixes`, after Matt's walk of 2026-10-09
+
+Live is on `partner-api` plus about twelve migrations of Balal's own. This
+section is the whole of what moves, in order, and the one thing that needs an
+answer before any of it starts.
+
+### 16.0 THE QUESTION THAT COMES FIRST, and nothing else should start until it
+### is answered
+
+Balal's repo has **492 migration files**, latest
+`20261008290100_picker_search_all_authorised_routes.sql`. `partner-api` has
+480 and this branch has 490, so he holds about twelve migrations that are in
+neither of ours.
+
+`20261008290100` sorts between our `20261008290000` and our `20261009000000`,
+so on filename order his extras land BEFORE everything on this branch. That
+is lucky rather than safe: **wherever one of his twelve redefines a function
+that one of our ten also redefines, ours sorts later and wins, and his change
+is discarded in silence.** The ten on this branch redefine these, and these
+are the names to check his twelve against:
+
+| our migration | functions it redefines |
+| --- | --- |
+| `20261009000000` | `report_portal_incident` |
+| `20261009010000` | `opndoor_user_ids` (new) |
+| `20261009030000` | `set_agency_referencing_mode` |
+| `20261009040000` | `org_shares_contact_email` (new), `reconciliation_queue` |
+| `20261009050000` | `set_agency_details`, `set_branch_details` |
+| `20261009060000` | `tenant_invite_summary` |
+| `20261009070000` | `merge_branches` (new), grant on `merge_agencies` |
+| `20261009080000` | `suppliers_that_can_take_referrals` (new) |
+| `20261009090000` | `agreement_for_agency`, `create_agreement`, `admin_add_agency`, `resolve_pricing_agreement_for_agency` (new) |
+| `20261009100000` | `list_managed_users`, `mint_staff_invite` (new), `claim_staff_invite` (new) |
+
+**Balal: run this on live and send the output.** It is read-only and it is the
+only thing needed to answer it.
+
+```sql
+select version, name
+from supabase_migrations.schema_migrations
+where version > '20261008290000'
+order by version;
+```
+
+Any of his twelve that touches a name in the table above has to be re-applied
+as a NEW migration after ours, with a timestamp later than `20261009100000`.
+That is this repo's standing rule and it is the same rule either way round: a
+correction to an earlier migration goes in a new file, never by editing or
+re-running one.
+
+### 16.1 Migrations
+
+Ten files, already written and already proven against dev:
+
+```
+20261009000000_the_unreadable_incident_names_the_error.sql
+20261009010000_which_of_these_referrers_are_opndoor.sql
+20261009030000_a_supplier_estate_agency_cannot_set_its_own_mode.sql
+20261009040000_the_duplicate_check_sees_the_other_pending_row.sql
+20261009050000_a_change_says_what_it_changed_from.sql
+20261009060000_the_invite_knows_who_it_was_sent_to.sql
+20261009070000_two_offices_can_be_merged.sql
+20261009080000_the_suppliers_that_can_take_a_referral.sql
+20261009090000_an_agency_with_no_office_still_has_a_deal.sql
+20261009100000_a_staff_invite_lasts_seven_days.sql
+```
+
+`supabase db push --project-ref <LIVE_REF>` applies only the ones live's
+ledger does not already hold, which is the right behaviour here: live's ledger
+is real (492 rows), unlike dev's.
+
+`20261009100000` creates a table, `public.staff_invites`. It is additive and
+nothing reads it except the two functions in the same file and
+`list_managed_users`.
+
+### 16.2 Edge functions
+
+**One new:** `accept-invite`. **One changed:** `invite-user`.
+
+```
+supabase functions deploy accept-invite invite-user --project-ref <LIVE_REF>
+```
+
+`accept-invite` MUST be deployed with **`verify_jwt = false`**. The invitee has
+no session: that is the entire situation the function exists for. It is
+recorded in `supabase/config.toml`, so a deploy run from the repo root with no
+flags gets it right; a deploy run from somewhere else needs
+`--no-verify-jwt`. With verification on, every invitee is rejected with a 401
+before a line of it runs and nobody can accept an invitation at all.
+
+**Migrations before functions.** `invite-user` calls `mint_staff_invite`, which
+`20261009100000` creates. Deployed first, every invite fails.
+
+### 16.3 Website build
+
+The React bundle has to be rebuilt and redeployed, and it is the leg nobody
+checked on the 7th. `npm ci && npm run build`, then publish `dist/`.
+
+These need the new bundle to work at all:
+
+- `/accept-invite` reading `?token=` (D). Without it, the seven-day link in
+  every invitation email loads a page that ignores the token and then tells
+  the invitee the link is not valid.
+- The Agreement card and Commission tab reading a branchless agency's deal
+  (C) work from the server, so those are fixed by the migration alone. The
+  Team list's invitation dates and states are client-side and need the build.
+
+**Tell us the deployed commit sha.** A stale bundle against a current database
+is the exact shape of "it worked on dev", and it is invisible from both the
+Supabase dashboard and SQL.
+
+### 16.4 The five missing cron jobs
+
+Matt found 14 of 19 on live. Missing, with what each one stops:
+
+| job | schedule | what is not happening on live right now |
+| --- | --- | --- |
+| `partner-webhooks` | `* * * * *` | **Partners are never notified of anything.** Deliveries queue in `partner_webhook_deliveries` forever, silently |
+| `renewal-notices-0700` | `0 7 * * *` | Guarantees end with no renewal outreach |
+| `renewal-notices-0800` | `0 8 * * *` | the BST half of the same job |
+| `referencing-callback` | `*/10 * * * *` | Executed deeds never reach Lettings. Rail 4 only, so it can wait if rail 4 is not live |
+| `hubspot-map-check` | daily | Field-map drift is never noticed. Silent by design |
+
+Exact statements are in `supabase/PAYMENT-REMINDERS.md`, `PARTNER-API.md` and
+`TENANT-PLATFORM-SETUP.md`. `partner-webhooks` is the one to do first: it is
+every minute, it is silent, and the queue it drains is already filling.
+
+After creating them, check with
+
+```sql
+select j.jobname, max(d.start_time) filter (where d.status = 'succeeded') as last_ok
+from cron.job j left join cron.job_run_details d on d.jobid = j.jobid
+group by j.jobname order by j.jobname;
+```
+
+A job that exists and has never run is as broken as one that does not exist.
+
+### 16.5 Getting Balal's twelve migrations and his `pandadoc-webhook` back into
+### this repo
+
+Two different problems with two different answers.
+
+**The twelve migrations.** They cannot be reconstructed from live, because a
+database is the result of a migration and not the migration. He has the files.
+He sends the twelve `.sql` files; they go into `supabase/migrations/` under
+their own existing names, which already sort between `20261008290000` and
+`20261009000000`, so nothing is renamed and nothing moves. Then
+`npm run drift` is run against a database they have been applied to. Anything
+that clashes with 16.0's table is re-issued as a new migration after
+`20261009100000` rather than edited.
+
+**The `pandadoc-webhook` redeploy.** A function body CAN be read back, so this
+one is answerable without asking him to remember what he changed:
+
+```
+curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  https://api.supabase.com/v1/projects/<LIVE_REF>/functions/pandadoc-webhook/body \
+  -o live-pandadoc-webhook.bundle
+```
+
+That returns the deployed bundle. Diff its `index.ts` against the repo's. If
+they differ, the live one is the authority for whatever he fixed, and it comes
+back as an ordinary commit to `supabase/functions/pandadoc-webhook/index.ts`.
+If they do not differ, the redeploy was a redeploy and there is nothing to
+recover.
+
+### 16.6 The order, in one list
+
+1. Answer 16.0. Do not start until the list of his twelve is in hand.
+2. Apply the ten migrations (16.1).
+3. Deploy `accept-invite` and `invite-user`, verification off on the first (16.2).
+4. Rebuild and redeploy the website, and report the commit sha (16.3).
+5. Create the five cron jobs, `partner-webhooks` first (16.4).
+6. Send the twelve migration files and the `pandadoc-webhook` bundle (16.5).
+7. Run `npm run drift` against live's schema and confirm it is clean.

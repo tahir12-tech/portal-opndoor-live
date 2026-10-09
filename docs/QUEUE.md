@@ -5958,6 +5958,95 @@ guessed at. Numbered as they came up.
 - **G AND H ARE READ-ONLY ANSWERS.** No secret value is printed, and no digest
   is computed from anything but what is already committed to this repo or
   already on dev.
+### The answers, as found (2026-10-09)
+
+**A. The PandaDoc document is DEV'S, and it says live and dev share one
+PandaDoc account.** `XCLqRpHTcYPwXAbsa42GRV` is application
+`26db24a0-9a71-4a88-86c8-3f8902d78650` on **dev**: Regent's Lettings, status
+`deed`, created 2026-10-07 08:36:58 UTC, paid 08:38:22 UTC. Live's alert is
+stamped 08:38 UTC the same day. A deed issued on dev completed, and PandaDoc
+posted its webhook to live, which had never heard of the document and
+correctly said so. The alert is right and the document is not live's. What it
+means is that one PandaDoc account serves both projects, so the reverse can
+happen too, and whether it CAN depends on whether the two projects share
+`PANDADOC_WEBHOOK_SHARED_KEY` -- which is the comparison G could not make.
+
+**B. The 4.35-week standard agreement is correct, and is a migration's.**
+`resolve_fee` reads `when pa.is_standard then p_rent`, so a standard
+agreement charges exactly one month's rent and never multiplies by the basis.
+`20260929110000`'s own header says why: "4.35 weeks on that definition is
+rent * 1.0038, and using it would move every standard price by 0.38% while
+claiming nothing had changed." The 4.35 is documentation of the basis, not a
+multiplier. It is only dangerous if `is_standard` is FALSE on that row, and
+that is the one thing to check. `agent_rate = null` is also right: the
+agreement's rate is passed into the additive split's standard slot, and null
+means the party's own ladder decides, which falls through to
+`partners.agent_rate`, the 10% standard. A rate written there would override
+the ladder. The row came from the seed in `20260928120000`
+(`effective_from = '2000-01-01'`, which `create_agreement` can never produce
+because it uses `current_date`), marked standard by `20260929110000`; the
+6 Oct 18:43 `created_at` is just when the migration ran.
+
+**C. Built.** `20261009090000`, four parts. The cause of all three symptoms
+was `agreement_for_agency` resolving the price from the agency's FIRST BRANCH.
+Proved both ways on dev inside a rolled-back transaction: 0 rows from the
+branch-keyed resolver, 1 from the new agency-keyed one, same agency, same
+deal. The permission gate had to move out of the branch CTE in the same
+change, because a branchless agency ran no authorisation test at all.
+
+**D. Built, and it was NOT under way.** `20261009100000` plus the
+`accept-invite` edge function. The decision the shape rests on is recorded
+above: `mailer_otp_exp` is one project-wide number shared with password
+resets, so seven days has to be our token. It closes three things Matt had
+already reported separately, including item 9's double-live link.
+
+**E.** HANDOVER-BALAL.md section 16, written from the twelve-migration
+problem outwards. 16.0 is a blocking question and nothing should start before
+it is answered.
+
+**F. Item 9 is a DELETE and a RE-CREATE, and `invite-user` cannot do it.**
+No update the function makes can clear `email_confirmed_at` and
+`last_sign_in_at` and put a `confirmation_token` back: `generateLink` type
+recovery writes `recovery_token` and touches neither of the other two. What
+CAN produce that state on live's code is `admin_cancel_invite` followed by a
+fresh invite, because cancel does `delete from auth.users` and the next
+invite's `generateLink({type:'invite'})` creates a NEW account with the same
+email and the same portal row id. Item 11 fixed on the branch.
+
+**G. Neither live digest matches anything ever committed here.** 25,242
+distinct secret-shaped literals hashed, at HEAD and across 905 historical
+versions of the 45 files that name either secret: no match. So live's
+`REMINDERS_CRON_SECRET` is not the exposed value. **The dev comparison for
+`PANDADOC_WEBHOOK_SHARED_KEY` was BLOCKED** by the sandbox classifier
+(Credential Materialization) on the management secrets endpoint, and was not
+pursued another way. Matt has to read dev's digest off the dashboard himself.
+
+**H. No drift at all.** Balal's 23-off / 13-on split is exactly what
+`supabase/config.toml` declares, name for name, in both directions. The only
+contradiction is internal to this repo and was already recorded in
+config.toml's own comments: `create-referral` and `invite-user` carry header
+comments saying `verify_jwt = true` while config.toml says false. Both do
+their own `getUser()`, and neither is exposed: `invite-user` returns 401 on no
+caller, `create-referral` refuses an empty Authorization header and does every
+write through the caller's own client, and `anon` holds EXECUTE on none of
+`create_referral`, `create_joint_referral` or `create_referral_target`.
+
+### Three things found while answering, not asked for
+
+1. **CUTOVER.md's secret table is stale in three places.**
+   `OPS_ALERT_ADDRESS` is read nowhere any more (Q-04 replaced it with
+   `ops_route_recipients`, which has a `support@opndoor.co` floor for critical
+   types). `PORTAL_ENV` is commented out in `dev-centre`.
+   `STRIPE_PUBLISHABLE_KEY` is only reachable through `payment-page`'s
+   `checkout_embedded` action, which has no caller in the client at all.
+2. **`EMAIL_REPLY_TO`'s defaults diverge**: `hello@opndoor.co` in ops-alert,
+   weekly-digest and expiry-cohorts, `support@opndoor.co` in
+   `_shared/pandadoc.ts`. Unset on live, so deed emails reply to a different
+   address from everything else.
+3. **`create_referral_target` has two overloads on dev**, with and without
+   `p_partner_slug`. PostgREST resolves by argument name, so this is the same
+   shape as the `report_portal_incident` fault. Not touched.
+
 
 ---
 
