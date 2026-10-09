@@ -2453,8 +2453,8 @@ neither of ours.
 `20261008290100` sorts between our `20261008290000` and our `20261009000000`,
 so on filename order his extras land BEFORE everything on this branch. That
 is lucky rather than safe: **wherever one of his twelve redefines a function
-that one of our eleven also redefines, ours sorts later and wins, and his
-change is discarded in silence.** The eleven on this branch redefine these,
+that one of our twelve also redefines, ours sorts later and wins, and his
+change is discarded in silence.** The twelve on this branch redefine these,
 and these are the names to check his twelve against:
 
 | our migration | functions it redefines |
@@ -2470,6 +2470,7 @@ and these are the names to check his twelve against:
 | `20261009090000` | `agreement_for_agency`, `create_agreement`, `admin_add_agency`, `resolve_pricing_agreement_for_agency` (new) |
 | `20261009100000` | `list_managed_users`, `mint_staff_invite` (new), `claim_staff_invite` (new) |
 | `20261009120000` | `place_the_missing_single_offices` (new), `admin_add_agency` (again) |
+| `20261009130000` | `place_the_missing_single_offices`, `admin_add_agency` (again) |
 
 **Balal: run this on live and send the output.** It is read-only and it is the
 only thing needed to answer it.
@@ -2482,14 +2483,14 @@ order by version;
 ```
 
 Any of his twelve that touches a name in the table above has to be re-applied
-as a NEW migration after ours, with a timestamp later than `20261009120000`.
+as a NEW migration after ours, with a timestamp later than `20261009130000`.
 That is this repo's standing rule and it is the same rule either way round: a
 correction to an earlier migration goes in a new file, never by editing or
 re-running one.
 
 ### 16.1 Migrations
 
-Eleven files, already written and already proven against dev:
+Twelve files, already written and already proven against dev:
 
 ```
 20261009000000_the_unreadable_incident_names_the_error.sql
@@ -2503,6 +2504,7 @@ Eleven files, already written and already proven against dev:
 20261009090000_an_agency_with_no_office_still_has_a_deal.sql
 20261009100000_a_staff_invite_lasts_seven_days.sql
 20261009120000_the_office_backfill_knows_our_own_estate.sql
+20261009130000_the_supplier_test_is_a_supplier_test.sql
 ```
 
 `supabase db push --project-ref <LIVE_REF>` applies only the ones live's
@@ -2513,9 +2515,11 @@ is real (492 rows), unlike dev's.
 nothing reads it except the two functions in the same file and
 `list_managed_users`.
 
-**`20261009120000` is the only one of the eleven that writes ROWS**, and it is
-the only one that needs anything looked at before and after. Everything else
-in the set replaces functions.
+**`20261009120000` and `20261009130000` are the only ones that write ROWS**,
+and they are the only ones that need anything looked at before and after.
+Everything else in the set replaces functions. They are a pair: the second
+corrects one filter in the first and re-runs the same bounded backfill, which
+is free because it is idempotent.
 
 #### 16.1a Before you apply it: count what it will create
 
@@ -2527,7 +2531,7 @@ the output:
 select a.id, a.name, p.slug as partner, p.partner_kind, a.livemode, a.review_state
 from public.agencies a
 join public.partners p on p.id = a.partner_id
-where (p.partner_kind = 'agency' or p.slug = 'opndoor-direct')
+where p.partner_kind <> 'supplier'
   and not a.is_placeholder
   and a.review_state = 'confirmed'
   and not exists (select 1 from public.branches b where b.agency_id = a.id)
@@ -2552,10 +2556,14 @@ names, run the function yourself with the real count and then carry on:
 select public.place_the_missing_single_offices(<the number of rows above>);
 ```
 
-The four shapes the function excludes by construction, so this query excludes
-them too and what you see is what it will do: a supplier's agencies, the
-`referencing-partner` hand-over rail (which holds no estate), the house
-"Unattached" placeholders, and any agency still awaiting review.
+The three shapes the function excludes by construction, so this query excludes
+them too and what you see is what it will do: a supplier's agencies, the house
+"Unattached" placeholders, and any agency still awaiting review. The
+`referencing-partner` hand-over rail is NOT excluded, deliberately:
+`20261009030000` ruled that the filter is supplier-ness exactly, because that
+rail is Opndoor's own plumbing rather than a third party's book. On dev its
+only agency is an "Unattached" placeholder that already has an office, so
+nothing is expected from it.
 
 If Matt has already added Regent's office by hand on the screen, the list
 comes back empty and the migration correctly does nothing: the insert is
@@ -2672,7 +2680,7 @@ recover.
 ### 16.6 The order, in one list
 
 1. Answer 16.0. Do not start until the list of his twelve is in hand.
-2. Run 16.1a, read the list, then apply the eleven migrations (16.1), then
+2. Run 16.1a, read the list, then apply the twelve migrations (16.1), then
    run 16.1b.
 3. Deploy `accept-invite` and `invite-user`, verification off on the first (16.2).
 4. Rebuild and redeploy the website, and report the commit sha (16.3).
