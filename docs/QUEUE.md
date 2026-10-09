@@ -6009,13 +6009,33 @@ there are more than expected. The migration passes 1, because exactly one
 agency is known to need it and Matt named it. Rehearsed on dev: with three
 candidates it refuses with their names and places nothing.
 
-**2. `not is_supplier_estate` IS NOT "our own estate".** This repo's own
-predicate is `is_our_estate_partner`, `partner_kind = 'agency' or slug =
-'opndoor-direct'`, whose comment says "`referencing-partner` is NOT one ... it
-is the hand-over rail and holds no estate". That rail's `partner_kind` is
-`'house'`, so the supplier test let it through. A reviewer proved it on dev
-inside a rolled-back transaction. **`admin_add_agency` had the same gap** and
-is corrected in the same file.
+**2. THE ESTATE PREDICATE: RAISED, ACTED ON, AND THEN REVERTED, which is
+worth recording as a mistake of mine rather than quietly undoing.** A reviewer
+pointed out that the comment said "OUR OWN ESTATE ONLY" while the code tested
+only supplier-ness, and that this repo's own `is_our_estate_partner` is
+`partner_kind = 'agency' or slug = 'opndoor-direct'` and excludes the
+`referencing-partner` hand-over rail by name. True as a reading. I changed the
+predicate in `20261009120000`, in both the backfill and `admin_add_agency`,
+and that was the wrong half to change.
+
+`20261009030000`, which I wrote earlier the same day, had already ruled on
+exactly this choice:
+
+> "'supplier' EXACTLY, not \"anything that is not our estate\". The hand-over
+> rail `referencing-partner` is neither a supplier estate nor ours, and its
+> Unattached agency does hold a mode of its own. **Refusing there would be a
+> change Matt did not ask for.**"
+
+The verifier made the same case independently and added the evidence: the rail
+is Opndoor's own plumbing, not a third party's book (`capabilities.ts` calls
+`opndoor-agents`, `opndoor-direct` and `referencing-partner` "our own
+plumbing, and a reader scoped to one of them is Opndoor looking at its own
+rail"), it has no portal referrals, no API access, no keys and no users on
+dev, and widening the filter would have made the backfill refuse the exact
+agency the creation path hands an office to. `20261009130000` puts both
+predicates back and corrects the prose instead. The test's hand-over-rail
+fixture row now asserts that it DOES get an office, with the ruling quoted
+beside it, so nobody narrows it again on the strength of a loose phrase.
 
 **3. AN INHERITED `pending_review` OFFICE COULD NEVER HAVE BEEN CONFIRMED.**
 `confirm_org_entity` sweeps an agency's pending office by name and only
@@ -6052,6 +6072,26 @@ estate only" was untested. One assertion was strictly implied by another.
 The test is now 25 assertions on a seven-agency fixture of which five must
 come out untouched, with an exact count of what the function wrote across the
 whole database.
+
+**AND ONE CONFIRMED DEFECT THAT WAS NOT THE BACKFILL'S, but is mine now.**
+`AgencyHome.tsx`'s "What each branch pays out" Branch cell printed the office
+name and then the agency name in a `dt__sub` span, and that class has no
+`display: block` for `.dt.ah-table`, so the two run together inline: where
+the one office is named after its agency the cell read the name twice,
+"Regent LettingsRegent Lettings". A verifier reproduced it on dev with `New
+Independent` on `opndoor-agents` with no migration applied, so it predates all
+of this. What changed is that `20261009090000` made every newly added agency
+carry that shape and the backfill gives it to Regent, so it stopped being an
+oddity and became the normal case. `officeNameAddsNothing` is exported for it,
+which is the predicate the single-office display rule already uses, so the two
+cannot disagree about which names are the system's.
+
+**THE TALLY: 18 findings raised across five dimensions, 7 confirmed after an
+independent agent was told to refute each one, 11 refuted.** Two of the
+refutations were worth more than the findings they killed: the one that
+rescued the estate predicate, and the one that showed the first test's
+`is(made_again, 0)` was already an exact unscoped assertion and so a better
+guard than the `>= 3` it sat beside.
 
 **RECORDED AS SOUND, so nobody re-does it:** no abort risk on live (every
 constraint on `branches` has a twin on `agencies` that the source row already
