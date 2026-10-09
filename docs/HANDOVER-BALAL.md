@@ -2453,9 +2453,9 @@ neither of ours.
 `20261008290100` sorts between our `20261008290000` and our `20261009000000`,
 so on filename order his extras land BEFORE everything on this branch. That
 is lucky rather than safe: **wherever one of his twelve redefines a function
-that one of our ten also redefines, ours sorts later and wins, and his change
-is discarded in silence.** The ten on this branch redefine these, and these
-are the names to check his twelve against:
+that one of our eleven also redefines, ours sorts later and wins, and his
+change is discarded in silence.** The eleven on this branch redefine these,
+and these are the names to check his twelve against:
 
 | our migration | functions it redefines |
 | --- | --- |
@@ -2469,6 +2469,7 @@ are the names to check his twelve against:
 | `20261009080000` | `suppliers_that_can_take_referrals` (new) |
 | `20261009090000` | `agreement_for_agency`, `create_agreement`, `admin_add_agency`, `resolve_pricing_agreement_for_agency` (new) |
 | `20261009100000` | `list_managed_users`, `mint_staff_invite` (new), `claim_staff_invite` (new) |
+| `20261009110000` | `place_the_missing_single_offices` (new) |
 
 **Balal: run this on live and send the output.** It is read-only and it is the
 only thing needed to answer it.
@@ -2481,14 +2482,14 @@ order by version;
 ```
 
 Any of his twelve that touches a name in the table above has to be re-applied
-as a NEW migration after ours, with a timestamp later than `20261009100000`.
+as a NEW migration after ours, with a timestamp later than `20261009110000`.
 That is this repo's standing rule and it is the same rule either way round: a
 correction to an earlier migration goes in a new file, never by editing or
 re-running one.
 
 ### 16.1 Migrations
 
-Ten files, already written and already proven against dev:
+Eleven files, already written and already proven against dev:
 
 ```
 20261009000000_the_unreadable_incident_names_the_error.sql
@@ -2501,6 +2502,7 @@ Ten files, already written and already proven against dev:
 20261009080000_the_suppliers_that_can_take_a_referral.sql
 20261009090000_an_agency_with_no_office_still_has_a_deal.sql
 20261009100000_a_staff_invite_lasts_seven_days.sql
+20261009110000_every_agency_on_our_estate_has_its_office.sql
 ```
 
 `supabase db push --project-ref <LIVE_REF>` applies only the ones live's
@@ -2510,6 +2512,53 @@ is real (492 rows), unlike dev's.
 `20261009100000` creates a table, `public.staff_invites`. It is additive and
 nothing reads it except the two functions in the same file and
 `list_managed_users`.
+
+**`20261009110000` is the only one of the eleven that writes ROWS**, and it is
+the only one that needs anything looked at before and after. Everything else
+in the set replaces functions.
+
+#### 16.1a Before you apply it: count what it will create
+
+It gives every agency on Opndoor's own estate that has no office exactly one,
+named after the agency. Run this first, read-only, and keep the output:
+
+```sql
+select a.id, a.name, p.slug as partner, a.livemode, a.review_state
+from public.agencies a
+join public.partners p on p.id = a.partner_id
+where p.partner_kind <> 'supplier'
+  and not a.is_placeholder
+  and not exists (select 1 from public.branches b where b.agency_id = a.id)
+order by a.name;
+```
+
+Expected: **Regent Letting & Property Management, and probably nothing else.**
+Every name in that list is getting an office, so if there is a name in it
+neither of us expects, stop and say so before applying. An agency on a
+supplier's estate and the house "Unattached" placeholders are excluded by the
+function itself; this query uses the same three tests so that what you see is
+what it will do.
+
+If Matt has already added Regent's office by hand on the screen, the list
+comes back empty and the migration correctly does nothing: the insert is
+guarded on there being no office, not on the migration not having run.
+
+#### 16.1b After you apply it: confirm what it created
+
+```sql
+select oa.at, oa.detail, b.name as office, a.name as agency, b.livemode, b.review_state
+from public.org_audit oa
+join public.branches b on b.id = oa.entity_id
+join public.agencies a on a.id = b.agency_id
+where oa.detail like '%created for an agency that had no office%'
+order by oa.at;
+```
+
+A good result is one row per name from 16.1a, each office carrying the
+agency's own name and the agency's own `livemode` and `review_state`, and
+`actor` reading `opndoor` rather than a person. No rows, when 16.1a listed
+some, means the function did not run and the `do` block at the bottom of the
+file was skipped.
 
 ### 16.2 Edge functions
 
@@ -2605,7 +2654,8 @@ recover.
 ### 16.6 The order, in one list
 
 1. Answer 16.0. Do not start until the list of his twelve is in hand.
-2. Apply the ten migrations (16.1).
+2. Run 16.1a, read the list, then apply the eleven migrations (16.1), then
+   run 16.1b.
 3. Deploy `accept-invite` and `invite-user`, verification off on the first (16.2).
 4. Rebuild and redeploy the website, and report the commit sha (16.3).
 5. Create the five cron jobs, `partner-webhooks` first (16.4).
