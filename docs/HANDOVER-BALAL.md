@@ -2549,6 +2549,10 @@ rejected "invent branch names on the operator's behalf" by name. The two
 shapes cannot be told apart in the data, so if there are several, a person has
 to look at the list before offices are invented under them.
 
+**The bound of 1 is Matt's ruling, not a default**, 2026-10-09: "on live it
+should only ever be Regent, and anything more should stop the deploy." So do
+not raise it to make the deploy pass. A refusal is the designed behaviour.
+
 If it refuses: send Matt the list from this query. Once he has agreed the
 names, run the function yourself with the real count and then carry on:
 

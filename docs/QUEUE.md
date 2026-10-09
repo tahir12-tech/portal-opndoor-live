@@ -6102,6 +6102,35 @@ the runner's `TAP_FNS`; and the `livemode` inheritance is genuinely tested,
 because assertion 12 fails in a no-op run.
 
 
+### THE BOUND STAYS AT 1, AND B IS CLOSED (instruction, 2026-10-09, verbatim)
+
+> is_standard on 5bc6dc7a-0905-461b-bcfb-14748481490c is true, effective_from 2000-01-01, created_by null, partner rate 0.1000. Keep the backfill's bound at 1: on live it should only ever be Regent, and anything more should stop the deploy.
+
+**B IS ANSWERED AND THERE IS NOTHING TO FIX.** All four readings are exactly
+what a seeded standard agreement looks like, and each one closes a different
+question:
+
+| reading | what it settles |
+| --- | --- |
+| `is_standard = true` | `resolve_fee` takes its `when pa.is_standard then p_rent` arm, so the fee is **exactly one month's rent** and 4.35 is never used as a multiplier. The 0.38% the basis would imply is the thing `20260929110000` refused to do by name |
+| `effective_from = 2000-01-01` | the seed in `20260928120000`. `create_agreement`, the hand route, uses `current_date` and cannot produce it |
+| `created_by = null` | a migration has no `auth.uid()`. No person entered it |
+| partner `agent_rate = 0.1000` | `agent_rate` null on the band means "the additive split decides", which falls through to this: the standard 10% |
+
+So the 6 Oct 18:43 `created_at` is when the migration ran, and no money has
+moved wrongly. The remaining query in B (whether any live application was
+priced from it) is now a confirmation rather than a hunt: with
+`is_standard = true` the code cannot charge anything but the rent, so
+`fee_amount <> monthly_rent` on a standard-priced row would mean something
+other than this agreement.
+
+**AND THE BOUND IS NOW A RULING, not a default I chose.** It stays at 1. That
+matters for whoever reads the migration later: a refusal is the designed
+behaviour and not an oversight to be "helpfully" raised, because the thing it
+is protecting against is a skeleton group agency (`20260927100000`) getting an
+office invented under it. Recorded in HANDOVER-BALAL.md 16.1a so Balal does
+not raise it either.
+
 ### The answers, as found (2026-10-09)
 
 **A. The PandaDoc document is DEV'S, and it says live and dev share one
