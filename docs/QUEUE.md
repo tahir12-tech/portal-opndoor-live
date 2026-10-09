@@ -5958,6 +5958,26 @@ guessed at. Numbered as they came up.
 - **G AND H ARE READ-ONLY ANSWERS.** No secret value is printed, and no digest
   is computed from anything but what is already committed to this repo or
   already on dev.
+### The addition to C (instruction, 2026-10-09, verbatim). ACTIVE.
+
+> Add to fix C: when the migration runs, it should also create the one office for any existing agency on our own estate that has none, named after the agency, the same as admin_add_agency now does for new ones. On live that includes Regent Letting & Property Management. Test it on dev with a branchless agency, update the bundle, and tell me if section 16 of Balal's handover needs to change.
+
+- **IT GOES IN A NEW MIGRATION, NOT INTO 20261009090000.** That file is
+  committed (`758b62d`) and applied to dev, and the standing rule is that a
+  correction to an earlier migration goes in a NEW migration, never by editing
+  or re-running one. The effect Matt asked for is identical either way: Balal
+  runs the files in filename order, so a backfill in `20261009110000` runs
+  "when the migration runs" exactly as if it had been inside the first one.
+- **"THE SAME AS admin_add_agency NOW DOES" IS THE SPECIFICATION**, and it is
+  worth reading literally rather than approximately: our own estate only, one
+  office, the agency's own name, `review_state = 'confirmed'`, an org_audit
+  row. Where the backfill MUST differ from it is `livemode`, because
+  admin_add_agency takes the column default and a backfill is walking over
+  rows that already have one.
+- **AND IT MUST BE IDEMPOTENT.** Balal's live run and any later rerun of the
+  file have to be safe, so the insert is guarded on there being no office
+  rather than on the migration not having run before.
+
 ### The answers, as found (2026-10-09)
 
 **A. The PandaDoc document is DEV'S, and it says live and dev share one
