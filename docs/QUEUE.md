@@ -5896,6 +5896,71 @@ guessed at. Numbered as they came up.
 
 ---
 
+## THE LIVE WALK REPORT, A TO H (instruction, 2026-10-09, verbatim). ACTIVE. TOP OF THE LIST.
+
+> Report from my read-only checks on live, plus answers from Balal. Change nothing on live.
+>
+> EMAIL_REVIEW_ADDRESS is not in live's edge function secrets, so emails go to real recipients. EMAIL_FROM was set 7 Oct.
+>
+> What I found:
+> 1. Live is on partner-api, not matt-fixes. Balal says live's GitHub main (repo portal-opndoor-live, merge commit 826aa0d, "Merge latest all update from test into live main") came from his test repo's main, which had partner-api merged in. He says it has 492 migration files, latest 20261008290100_picker_search_all_authorised_routes.sql, which is in neither of our branches. partner-api has 480, so his repo has about 11 migrations ours doesn't.
+> 2. Edge functions: all 36 are deployed and were updated at cutover. pandadoc-webhook was redeployed a day after the rest.
+> 3. Cron jobs: 14 exist and all are succeeding, and functions_base_url and the cron secret are set correctly. Missing: partner-webhooks, renewal-notices (0700 and 0800), referencing-callback and hubspot-map-check.
+> 4. Regent's deal is stored correctly (1 tenant 3 weeks at 20%, 2 or more 5 weeks at 25%). It shows as "standard terms", and the change log said "worst branch total 0.00%", because Regent was created with no office. I haven't added one yet.
+> 5. The partner-level standard agreement for the agency house partner (id 5bc6dc7a-0905-461b-bcfb-14748481490c, created 6 Oct 18:43) has fee basis 4.35 weeks and agent_rate null. The rule is exactly one month's rent and 10% standard commission.
+> 6. Jordan Axten is a Director attached to Regent at agency level. The invite worked; he accepted at 10:53 today.
+> 7. Four sign-in accounts exist with no portal user, all yopmail test addresses created 7 and 8 Oct. Mathias Property Group was Balal's team testing Resend invite on live "after the issue was identified"; he says it has now been removed.
+> 8. One ops alert since cutover: PandaDoc document XCLqRpHTcYPwXAbsa42GRV completed but matches no application, 7 Oct 08:38 UTC.
+> 9. Ethan Li (ethan@brithive.com, Management at supplier Brithive) clicked an invite link yesterday at 17:17 and signed in but never finished, so stayed pending. I pressed Resend invite at about 11:20 today and his account showed a recovery_token. By 11:30 his sign-in account looked brand new: last_sign_in_at and email_confirmed_at both empty and a confirmation_token instead, still matched to his portal user. I don't know what replaced it. He then got "This link is not valid", most likely from clicking an older email.
+> 10. I set Ethan's password by hand in the SQL editor using the script you wrote. He is to sign in and enrol two-factor himself.
+> 11. The "This link is not valid" page shows "Back to sign in" twice, as a button and as a link.
+> 12. Live has 10 custom edge function secrets: APP_URL, EMAIL_FROM, RESEND_API_KEY, STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, PANDADOC_TEMPLATE_ID, PANDADOC_API_KEY, PANDADOC_WEBHOOK_SHARED_KEY, REMINDERS_CRON_SECRET and HUBSPOT_ACCESS_TOKEN. SHA256 digests from the dashboard: REMINDERS_CRON_SECRET 7eb79bcb138e0ce7efec8bc43afc4579f78c160050dcc90de3310ee016c174cd (updated 4 Sep), PANDADOC_WEBHOOK_SHARED_KEY 6b3bc6db75f0ba411bc2bd4667d41fe710b189a1d6aa6c1171e359f784b01a15 (updated 18 Sep).
+> 13. Balal deployed these 23 functions with --no-verify-jwt: stripe-webhook, pandadoc-webhook, payment-page, payment-confirmation, payment-reminders, expiry-reminders, expiry-cohorts, renewal-notices, weekly-digest, hubspot-sync, ops-alert, commission-statements, partner-api, partner-webhooks, send-password-reset, tenancy-correction, tenant-auth, tenant-portal, referencing-inbound, referencing-callback, create-referral, invite-user, deed-sweep. The other 13 with verification on: resend-payment-email, pandadoc-resend, pandadoc-void-regenerate, deed-download, amend-tenancy-start, send-deed-to-agent, send-deed-to-landlord, send-mfa-reset-notice, withdraw-notice, approve-application, decline-application, application-document-url, dev-centre.
+>
+> What I need from you:
+> A. Check whether that PandaDoc document ID belongs to any application on dev.
+> B. Explain item 5: what a tenant is actually charged under that band compared with one month's rent, what commission an agency on standard terms gets with agent_rate null, and whether the row came from a migration or was set by hand. Give me a read-only query to check whether any live application has been priced from it. Don't fix it yet.
+> C. An independent agency should get its one office created automatically when it's added. An agency with no office should still show its deal on the Agreement card and Commission tab, without the change log printing a 0.00% total. Fix on the branch and test on dev. Also tell me what I should do for Regent on live right now.
+> D. Build the invite change I asked for earlier (7-day links, Accept invite page, sent date, expiry, resend and cancel), if not already under way.
+> E. Write me the list of what Balal must do to bring live up to matt-fixes plus the fixes above: migrations, edge functions, website build, the missing cron jobs, and how his extra migrations and the pandadoc-webhook redeploy get back into our repo without clashing.
+> F. Explain item 9: what in the code, on live's version, could have replaced Ethan's sign-in account between 11:20 and 11:30 when all I did was press Resend invite once. Fix item 11 on the branch.
+> G. Compare live's secrets list with the 20 in CUTOVER.md and tell me which missing ones break something on live's current code, and which can wait. Check whether REMINDERS_CRON_SECRET's digest matches the SHA256 of the value that was committed to the repo, and whether PANDADOC_WEBHOOK_SHARED_KEY's digest matches dev's. Don't print any secret values.
+> H. Compare item 13 with the repo's config.toml. For every function deployed with verification off that the repo says should have it on, tell me whether that function checks who is calling by itself, and whether it's a security problem on live right now.
+>
+> Report in plain English.
+
+### My reading, before starting
+
+- **D IS NOT UNDER WAY AND WAS NEVER RECORDED.** There is no instruction in
+  this file for 7-day invite links, an Accept invite page, a sent date, an
+  expiry, resend or cancel. `grep -i invite` over the whole queue finds walk
+  fixes 31 to 34 (the invite email's wording and its redirect), round 5's H3
+  and round 6's H4 (resend refused a positioned Director), and nothing about
+  expiry or cancellation. `admin_cancel_invite` exists on this branch from
+  earlier work, and `tenant_invite_summary` gained first name, last name and
+  phone in `20261009060000`, but neither came from this instruction. So D is
+  built from scratch, from the six words Matt used.
+- **THE 7 DAYS IS NOT OURS TO SET IN SQL.** The invite link's life is
+  `mailer_otp_exp` on the Supabase project, one setting shared with password
+  resets and magic links, and CUTOVER.md 1.1 asks for 1800 seconds because
+  three places in the reset copy say 30 minutes. 7 days for an invite and 30
+  minutes for a reset cannot both come from that one number, so a 7-day invite
+  has to be OUR token, carried in our own table, with the Accept invite page
+  reading it. That is the shape D is built in.
+- **C AND ITEM 4 ARE ONE SUBJECT, and NM-P already ruled on it:** a
+  single-office agency is just the agency. An independent agency arriving with
+  no office is the same ruling read the other way, and `agreement_for_agency`
+  picking the agency's first branch is what turns it into "standard terms".
+- **ITEM 9 IS A DELETE AND A RE-CREATE, not an edit.** An auth account cannot
+  lose `email_confirmed_at` and `last_sign_in_at` and gain a fresh
+  `confirmation_token` through any update `invite-user` makes. F reports what
+  on live's code can do that.
+- **G AND H ARE READ-ONLY ANSWERS.** No secret value is printed, and no digest
+  is computed from anything but what is already committed to this repo or
+  already on dev.
+
+---
+
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
 
 Checked against the code and dev, not against the queue. Where something is
