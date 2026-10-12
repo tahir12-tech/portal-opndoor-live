@@ -41,7 +41,7 @@ import {
   getPositionsForUsers, getDeedRecipients, getOrgDeedReadiness, agencySees, officeOf,
   type DeedReadiness,
 } from '@/data/positionsService';
-import { setNodeRate, getCommissionSplits, previewNodeRate, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
+import { setNodeRate, getCommissionSplits, previewNodeRate, setAgencyReferencingMode, agencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
 import { cancelInvite, deleteUser, resendInvite, resetUserMfa, resetUserPassword, setUserStatus } from '@/data/usersService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -1968,29 +1968,109 @@ export function AgencyHome() {
                       <div className="ah-route">
                         <span className="ah-route__lbl">How are {possessive(a.name)} tenants checked?</span>
                         <div className="ah-route__opts">
-                          {([
-                            ['opndoor_referenced', 'Opndoor checks eligibility', 'The tenant completes eligibility before paying.'],
-                            ['pre_referenced_open', 'Agency has already referenced them', 'The tenant goes straight to payment.'],
-                          ] as const).map(([value, label, why]) => {
-                            const chosen = value === 'opndoor_referenced'
-                              ? a.referencingMode === 'opndoor_referenced'
-                              : a.referencingMode !== 'opndoor_referenced';
-                            return (
-                              <label key={value} className={`ah-route__opt${chosen ? ' is-on' : ''}`}>
-                                <input
-                                  type="radio"
-                                  name={`tenant-check-${a.id}`}
-                                  checked={chosen}
-                                  onChange={() => { if (!chosen) doSetMode(a.id!, a.name, value); }}
-                                />
-                                <span>
-                                  <b>{label}</b>
-                                  <span className="ah-route__why">{why}</span>
-                                </span>
-                              </label>
-                            );
-                          })}
+                          {(() => {
+                            /* THE MODE IN FORCE, NOT THE COLUMN.
+                               Matt, 2026-10-12, from live: "Regent (an
+                               Opndoor-estate agency) had referencing_mode =
+                               null, so it inherited opndoor_referenced from
+                               the opndoor-agents partner, but the agency page
+                               showed 'Agency has already referenced them' as
+                               selected. A real referral would have gone to
+                               eligibility and the £20."
+
+                               This read `a.referencingMode` raw, so a NULL
+                               fell into the `!== 'opndoor_referenced'` arm and
+                               lit the pre-referenced option -- the OPPOSITE of
+                               the journey a referral would take. Not a display
+                               nicety: an operator reading it believed no
+                               eligibility step and no fee applied.
+
+                               agencyReferencingMode is the helper written for
+                               exactly this and never used here. It mirrors
+                               resolve_referencing_mode's coalesce, agency then
+                               route partner, so the screen and the function
+                               that actually decides the journey cannot
+                               disagree. */
+                            const effective = agencyReferencingMode(a, partnerMode);
+                            /* AND PINNING A SCREENED MODE MUST NOT TURN IT
+                               OPEN. The two radios are Matt's, and both
+                               pre-referenced modes answer the second one; but
+                               `pre_referenced_open` means opndoor applies NO
+                               criteria, which is a commercial position granted
+                               deliberately. So the value this option WRITES is
+                               the one already in force where that is a
+                               pre-referenced mode, and only otherwise the open
+                               one the confirmation describes. */
+                            const preValue = effective === 'pre_referenced_screened'
+                              ? 'pre_referenced_screened' : 'pre_referenced_open';
+                            return ([
+                              ['opndoor_referenced', 'Opndoor checks eligibility', 'The tenant completes eligibility before paying.'],
+                              [preValue, 'Agency has already referenced them', 'The tenant goes straight to payment.'],
+                            ] as const).map(([value, label, why]) => {
+                              /* NEITHER, WHERE THE MODE CANNOT BE RESOLVED,
+                                 which is the same mistake one level up:
+                                 partners.referencing_mode is NOT NULL, so this
+                                 only happens when the partner is not in the
+                                 hydrated store, and lighting a guess there is
+                                 what this whole change is undoing. */
+                              const chosen = effective == null ? false
+                                : value === 'opndoor_referenced'
+                                  ? effective === 'opndoor_referenced'
+                                  : effective !== 'opndoor_referenced';
+                              return (
+                                <label key={value} className={`ah-route__opt${chosen ? ' is-on' : ''}`}>
+                                  <input
+                                    type="radio"
+                                    name={`tenant-check-${a.id}`}
+                                    checked={chosen}
+                                    /* AND CHOOSING AN OPTION ALWAYS SAVES IT.
+                                       Matt, same message. The guard was
+                                       `if (!chosen)`, so clicking the option
+                                       already lit did nothing -- and where the
+                                       mode was INHERITED that is precisely the
+                                       click that needs to write, because it is
+                                       how an admin pins the agency's own value
+                                       and stops it following the partner's.
+                                       The test is now the stored column, not
+                                       the lit radio, so an explicit value
+                                       re-clicked still writes nothing and
+                                       leaves no empty audit row.
+
+                                       onClick AND NOT onChange, which is the
+                                       half that actually makes it work. A
+                                       radio fires no change event when it is
+                                       already checked, in jsdom and in every
+                                       browser, so an onChange handler can
+                                       never see the one click that matters
+                                       here. onClick fires either way, and
+                                       keyboard selection fires it too.
+                                       onChange stays as a no-op only because
+                                       React warns about a controlled input
+                                       without one. */
+                                    onChange={() => { /* see onClick */ }}
+                                    onClick={() => {
+                                      if (a.referencingMode !== value) doSetMode(a.id!, a.name, value);
+                                    }}
+                                  />
+                                  <span>
+                                    <b>{label}</b>
+                                    <span className="ah-route__why">{why}</span>
+                                  </span>
+                                </label>
+                              );
+                            });
+                          })()}
                         </div>
+                        {/* AND IT SAYS WHERE AN INHERITED ANSWER CAME FROM,
+                            so the lit option is not mistaken for a choice
+                            somebody made, and so the sentence explains why
+                            clicking it does something. */}
+                        {a.referencingMode == null && (
+                          <span className="ah-route__why">
+                            Inherited from {getPartner(partner)?.name ?? 'its partner'}. Choosing an option here
+                            records it against {a.name}, so it stops following the partner.
+                          </span>
+                        )}
                       </div>
                     )}
                     {open && isAdmin && (
