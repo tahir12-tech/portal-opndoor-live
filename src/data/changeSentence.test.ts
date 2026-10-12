@@ -12,6 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { REFERENCING_MODES } from '@/data/types';
 import { changeSentence, isNoOpChange } from './changeSentence';
 
 const say = (field: string, oldValue: string, newValue: string) =>
@@ -66,10 +67,39 @@ describe('never a raw field name or a raw value', () => {
   });
 
   /* THE ENUMS ARE THE WORST OF IT: `pre_referenced_open` is a database
-     value and means nothing to the person reading the trail. */
-  it('and the value the way the control that sets it does', () => {
+     value and means nothing to the person reading the trail.
+
+     AND THE FIRST ANSWER TO THAT WAS STILL NOT THE SCREEN'S. Matt,
+     2026-10-12: "Recent changes says 'Referencing changed from
+     Pre-referenced, screened to Pre-referenced, open'. Use the same wording
+     as the setting on screen." `label` is the field's old name and the form
+     shows it nowhere; `choice` is the line somebody clicked, which is the
+     ruling PartnerManagement.tsx already made for the confirmation dialog.
+     Both the field name and the values move, because "Referencing" beside
+     the sibling event's "Tenant checks" is one setting with two names. */
+  it('and the value in the words of the option somebody clicked', () => {
     expect(say('referencing_mode', 'pre_referenced_open', 'opndoor_referenced'))
-      .toBe('Referencing changed from Pre-referenced, open to opndoor referenced');
+      .toBe('Tenant checks changed from “They check tenants, and Opndoor accepts them as sent”'
+        + ' to “Opndoor checks tenants itself”');
+  });
+
+  /* THE WORDS ARE THE SCREEN'S, NOT A SECOND COPY OF THEM. Taken from
+     REFERENCING_MODES, so a change to the option's wording moves the audit
+     trail with it and this assertion is what says so. */
+  it('taken from the list the setting itself is built from', () => {
+    for (const m of REFERENCING_MODES) {
+      expect(say('referencing_mode', 'opndoor_referenced', m.id))
+        .toContain(`“${m.choice}”`);
+    }
+  });
+
+  /* AND THE OLD NAMES APPEAR NOWHERE, which is the half a wording change
+     usually forgets: the point is not that the new words are present, it is
+     that the ones the reader has never seen are gone. */
+  it('and never the field’s old name or its old values', () => {
+    const said = say('referencing_mode', 'pre_referenced_screened', 'pre_referenced_open');
+    expect(said).not.toContain('Referencing changed');
+    expect(said).not.toContain('Pre-referenced');
   });
 
   it('including the leaderboard, which had a second set of words', () => {
