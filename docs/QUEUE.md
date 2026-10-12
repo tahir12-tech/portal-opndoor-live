@@ -6239,6 +6239,18 @@ write through the caller's own client, and `anon` holds EXECUTE on none of
 >
 > Same rules as before: each item complete and tested before committing, full gate at the end, then tell me what's done, and give me anything for live as steps I run myself.
 
+### ITEM 9 IS WITHDRAWN (instruction, 2026-10-12, verbatim, sent mid-run)
+
+> Item 9 is done. I deleted the empty tenancy on live myself. Skip it.
+
+Nothing was built or written for it. The empty tenancy
+`ef3bcd08-1649-4ea2-8c81-b13391224325` is gone from live by Matt's own hand.
+What is worth keeping from it is the shape rather than the row: deleting a
+joint application by SQL hits `applications_tenancy_shares` and can leave a
+tenancy with no applications, so a future hand-delete of a joint test needs
+the tenancy cleared in the same transaction. Recorded here because it is the
+sort of thing that bites twice.
+
 ### How I am reading this before starting
 
 - **FIVE BUILDS, THREE EXPLANATIONS, ONE PIECE OF LIVE SQL.** 1, 5, 6, 7 and 8
@@ -6255,10 +6267,7 @@ write through the caller's own client, and `anon` holds EXECUTE on none of
   on a rail where the partner is not a payee. The answer is either "nothing
   reads it as a payment" with the five surfaces named, or it is a live money
   defect, and I must not report the first without having checked each one.
-- **ITEM 9 NEEDS THE CONSTRAINT READ FIRST.** `applications_tenancy_shares` is
-  what refused Matt's delete, and an empty tenancy is the residue. The SQL has
-  to prove the tenancy is empty, and prove nothing else points at it, before
-  it deletes anything.
+- **ITEM 9 IS WITHDRAWN**, above. Matt did it himself mid-run.
 
 ---
 
