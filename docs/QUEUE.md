@@ -6223,6 +6223,45 @@ write through the caller's own client, and `anon` holds EXECUTE on none of
 
 ---
 
+## THE WALK OF 2026-10-12, NINE THINGS (instruction, verbatim). ACTIVE. TOP OF THE LIST.
+
+> Findings from walking live today. Work on dev only, never touch live. For anything that needs doing on live, give me the exact steps or SQL to run myself.
+>
+> 1. Agency checking setting shows the wrong thing. On live, Regent (an Opndoor-estate agency) had referencing_mode = null, so it inherited opndoor_referenced from the opndoor-agents partner, but the agency page showed "Agency has already referenced them" as selected. A real referral would have gone to eligibility and the £20. I fixed Regent by SQL (pre_referenced_open). Fix the screen so it always shows the mode actually in force, including when inherited, and make sure choosing an option always saves it. Add a test with a null-mode agency under opndoor-agents.
+> 2. September commission statements are not posted. Reference My Tenant's shows "Reference assigned when the statement is posted" and today is 12 October; partners invoice by the 8th for payment on the 15th. Explain how a month gets posted (automatic or manual), why September didn't post after the cutover, and give me the exact steps to post it on live now.
+> 3. Every daily cron appears twice (0700 and 0800 UTC), both showing "Succeeded, 1 row". Confirm from the code that only one of each pair does the work, so nobody gets duplicate payment reminders, expiry reminders or statements. If both act, tell me.
+> 4. Every Regent referral stores partner_rate 0.25 (the opndoor-agents partner's rate) beside Regent's own agent_rate. Confirm nobody is paid that 25% on Regent referrals, on screen, statements, settlements or exports.
+> 5. Reporting's Net fees caption says "one month's rent each". Wrong for Regent and Brithive. Make it true for any fee basis.
+> 6. The payment panel showed "£1.16 · 5.03 weeks of rent" on a £2 rent joint test with a 5-week deal. Show the agreed weeks, not a figure back-calculated from the rounded pence.
+> 7. Recent changes says "Referencing changed from Pre-referenced, screened to Pre-referenced, open". Use the same wording as the setting on screen.
+> 8. After I deleted test application GR-20608, its "New referral sent" notification stayed in my bell, linking to a referral that no longer exists. Notifications for a deleted application should go.
+> 9. Deleting a joint test application by SQL hit the applications_tenancy_shares check and left an empty tenancy (ef3bcd08-1649-4ea2-8c81-b13391224325) on live. Give me the SQL to remove that empty tenancy safely.
+>
+> Same rules as before: each item complete and tested before committing, full gate at the end, then tell me what's done, and give me anything for live as steps I run myself.
+
+### How I am reading this before starting
+
+- **FIVE BUILDS, THREE EXPLANATIONS, ONE PIECE OF LIVE SQL.** 1, 5, 6, 7 and 8
+  are changes on the branch; 2, 3 and 4 are questions to answer from the code;
+  9 is SQL for Matt to run. Item 2 also ends in steps for live.
+- **ITEM 1 IS THE SERIOUS ONE AND IT IS A MONEY BUG, not a display bug.** The
+  screen showed the opposite of the mode in force, so an operator reading it
+  would have believed no eligibility step and no £20 applied. Matt has already
+  corrected Regent by hand, so the live fault is closed; what is left is the
+  screen that told him the wrong thing, and it has to be fixed for the
+  INHERITED case specifically, which is the case that was never on screen.
+- **ITEM 4 IS A CONFIRMATION, NOT A FIX, unless it is not.** `partner_rate` is
+  frozen on every application by design, and 0.25 is the house partner's rate
+  on a rail where the partner is not a payee. The answer is either "nothing
+  reads it as a payment" with the five surfaces named, or it is a live money
+  defect, and I must not report the first without having checked each one.
+- **ITEM 9 NEEDS THE CONSTRAINT READ FIRST.** `applications_tenancy_shares` is
+  what refused Matt's delete, and an empty tenancy is the residue. The SQL has
+  to prove the tenancy is empty, and prove nothing else points at it, before
+  it deletes anything.
+
+---
+
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
 
 Checked against the code and dev, not against the queue. Where something is
