@@ -2766,9 +2766,29 @@ Run it from the repo root so `supabase/config.toml` sets the flags.
 session); config.toml records that, and a deploy from elsewhere needs
 `--no-verify-jwt`.
 
-`tenant-auth` is deliberately **not** in that list. It has used `hashed_token`
-since it was written, which is why Matt was right that tenant links are
-unchanged.
+**`tenant-auth` is in the list too, as of the tenant fix later the same day.**
+It had used `hashed_token` since it was written, but in the URL FRAGMENT and
+exchanged on page load, which a plain fetch cannot touch and a scanner that
+RENDERS the page can. Both its reset senders now emit
+`/apply/reset?token_hash=...&type=recovery`, and that page waits for a button.
+
+So the deploy line is:
+
+```
+supabase functions deploy accept-invite invite-user send-password-reset tenant-auth --project-ref <LIVE_REF>
+```
+
+Measured with real headless Chrome against dev, both ways: the old page's
+render spent the token, the new page's render left it live.
+
+**One thing the tenant fix does NOT change, and it is worth knowing.** A
+rendering scanner that opens a tenant's `/pay?token=` link still trips
+`first_viewed_at` and writes a `tenant_viewed_payment_page` activity row, so an
+agent can be shown "the tenant viewed the payment page" when only a scanner
+did. That token is a durable door rather than a one-time credential, so
+nothing is spent and the link keeps working; what is wrong is a signal, not an
+account. Left as it is, and recorded here rather than fixed, because telling a
+scanner from a tenant is not something the page can do.
 
 ### 17.4 Then re-invite everyone still waiting
 
