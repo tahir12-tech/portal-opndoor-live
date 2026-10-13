@@ -6239,6 +6239,26 @@ write through the caller's own client, and `anon` holds EXECUTE on none of
 > - the exact live deploy steps, including any change he must make by hand in the Supabase dashboard (email templates, redirect URL allow-list) or to edge function secrets
 > - the SQL to list everyone still pending on live, so he can resend their invites after deploying (all of Regent and Ethan at Brithive)
 
+### AND A CHANGE PASSWORD SCREEN (instruction, 2026-10-13, verbatim, sent mid-run)
+
+> Also: check whether a signed-in user can change their own password anywhere in the portal (account menu or settings). If not, add "Change password" for every signed-in user: current password, new password twice, at least 8 characters, using supabase.auth.updateUser. No email involved. Include it in the same bundle for Balal.
+
+- **THE ANSWER TO HIS QUESTION IS NO, and I established it on 2026-10-09**
+  answering how Ethan Li would change the temporary password I had him set by
+  hand: there is no profile or account-settings screen for staff anywhere in
+  the product. The only staff password paths are `/forgot-password` into
+  `send-password-reset`, and an admin pressing Reset password on somebody
+  else's row. Both go through email, which is exactly what he does not want.
+- **"CURRENT PASSWORD" IS NOT A PARAMETER OF updateUser**, so it has to be
+  checked by something. The honest way is to re-authenticate with it first:
+  sign in with the current password to prove the holder knows it, then
+  updateUser. Anything less means a borrowed tab can change the password.
+- **AND MFA IS THE OTHER HALF.** Supabase will not change an MFA user's
+  password below AAL2, and every member of staff here holds a verified factor
+  because enrolment is part of accepting an invitation. A signed-in session is
+  already AAL2, so this works where the reset page needs a step-up -- but the
+  refusal has to be handled rather than assumed away.
+
 ### What I already know about this, before starting
 
 - **I REPORTED THIS EXACT MECHANISM ON 2026-10-09 AND IT IS IN THIS FILE.** Asked
