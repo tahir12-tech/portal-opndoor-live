@@ -6223,6 +6223,56 @@ write through the caller's own client, and `anon` holds EXECUTE on none of
 
 ---
 
+## URGENT: THE SCANNER IS SPENDING EVERY AUTH LINK (instruction, 2026-10-13, verbatim). TOP OF THE LIST.
+
+> Urgent live issue. Every Regent invitee gets "This link is not valid. Your invitation may have expired or already been used." The links aren't expired. Regent's corporate email scanner (Microsoft Safe Links, Mimecast or similar) opens each link to scan it, and our links verify the one-time token on page load (auth.opndoor.co/auth/v1/verify?token=...&type=invite), so the token is used up before the person clicks. Evidence on live: 14 Regent invites sent 07:45 to 07:50 UTC on 13 Oct; by 07:57 UTC, 13 had last_sign_in_at set while public.users.status is still pending.
+>
+> Fix it on matt-fixes, dev only, never touch live:
+>
+> 1. Find how invite and password reset emails build their links (Supabase email templates, or our own function using auth.admin.generateLink). Change every emailed auth link (invite, recovery, and any email change or magic link we use) to point at a portal page, e.g. https://portal.opndoor.co/auth/confirm?token_hash=...&type=invite&next=..., built from the hashed token, not the verify URL.
+> 2. The /auth/confirm page must do nothing with the token on load. It shows the branded "Set your password" screen with a button, and only the button click calls supabase.auth.verifyOtp({ token_hash, type }), then continues to set password and two-factor as now.
+> 3. Keep the existing redirect and tab behaviour (tab=agent, tab=supplier). A used or expired token still shows the existing "This link is not valid" screen.
+> 4. Test on dev: load an invite link with a plain curl (what a scanner does), then open it in a browser and complete sign-up. It must still work. Same for a password reset. A completed link then shows "not valid". Normal sign-in, two-factor and tenant links unchanged. Add tests that pin this.
+>
+> When done: full gate, commit, remake ~/Downloads/matt-fixes.bundle from 4a39fe6 to the new tip, verify it, confirm no keys, and give me:
+> - Balal's commands to load and merge it
+> - the exact live deploy steps, including any change he must make by hand in the Supabase dashboard (email templates, redirect URL allow-list) or to edge function secrets
+> - the SQL to list everyone still pending on live, so he can resend their invites after deploying (all of Regent and Ethan at Brithive)
+
+### What I already know about this, before starting
+
+- **I REPORTED THIS EXACT MECHANISM ON 2026-10-09 AND IT IS IN THIS FILE.** Asked
+  then whether a scanner opening an invite link would use it up, the answer was
+  yes, with the reason: the email's button is a bare GET on
+  `/auth/v1/verify`, there is no interstitial page, and the implicit flow puts
+  the session in the URL fragment so the scanner gains nothing and the invitee
+  gets a dead link. Matt has now met it on fourteen people at once.
+- **HALF THE FIX IS ALREADY ON THIS BRANCH AND IS NOT ON LIVE.**
+  `20261009100000` plus the `accept-invite` function moved INVITES onto our own
+  seven-day token, redeemed by a POST the page makes, so a scanner fetching the
+  page does nothing. Live runs `partner-api`, where `invite-user` still emails
+  `data.properties.action_link` directly. So the live fault is real and the
+  deployed code is the old code.
+- **AND THE OTHER HALF WAS NEVER COVERED.** `send-password-reset` still emails
+  the raw action link, on this branch as well as on live. Matt's instruction is
+  wider than what I built and is the right shape: one mechanism for every
+  emailed auth link rather than a special case for invites.
+- **THE TWO FIXES SOLVE DIFFERENT THINGS AND BOTH ARE NEEDED.** The seven-day
+  token answers EXPIRY, because `mailer_otp_exp` is one project-wide number
+  shared with password resets whose copy promises thirty minutes. The
+  token_hash confirm page answers SCANNERS. Replacing the first with the second
+  would quietly put invites back on a one-hour life, which is the fault I fixed
+  four days ago. So the invite path keeps its seven-day wrapper and ends in a
+  token_hash the page verifies on click; the reset path, which is meant to be
+  short lived, goes straight to a token_hash.
+- **THE EVIDENCE MATT GIVES IS THE PROOF, and worth keeping:** 13 of 14 rows
+  with `last_sign_in_at` set within twelve minutes of sending while
+  `public.users.status` is still `pending`. A scanner cannot set
+  `last_sign_in_at`; GoTrue does, when the verify endpoint is hit. So the
+  session was minted and nobody human was ever in it.
+
+---
+
 ## THE WALK OF 2026-10-12, NINE THINGS (instruction, verbatim). ACTIVE. TOP OF THE LIST.
 
 > Findings from walking live today. Work on dev only, never touch live. For anything that needs doing on live, give me the exact steps or SQL to run myself.
