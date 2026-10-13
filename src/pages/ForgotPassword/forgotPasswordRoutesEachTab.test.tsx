@@ -84,14 +84,27 @@ describe('what the senders put in the email', () => {
     }
   });
 
-  /* THE TENANT'S SHAPE, STATED. A fragment is never sent to a server, so a
-     plain fetch cannot spend it; a scanner that RENDERS the page would, because
-     the exchange is in a mount effect. Pinned so that the difference between
-     the two rails is visible and a change to either is deliberate. */
-  it('tenant-auth still uses a fragment on /apply/reset', () => {
+  /* THIS ASSERTION HAS REVERSED, AND THAT IS THE POINT OF IT.
+     It was written the day before to pin the difference between the two rails:
+     the tenant's token rode in the URL FRAGMENT, which is never sent to a
+     server, so a plain fetch could not spend it -- but a scanner that RENDERS
+     the page would, because the exchange sat in a mount effect.
+
+     Matt read that and said fix it. So the tenant rail is now the staff rail's
+     shape: a query parameter, nothing spent on load, a button that spends it.
+     Measured with real headless Chrome against dev, both ways: the old page's
+     render SPENT the token, the new page's render left it live. */
+  it('tenant-auth now uses a query parameter on /apply/reset, not a fragment', () => {
     const src = fn('tenant-auth');
-    expect(src).toContain('/apply/reset#');
-    expect(src).toContain('token_hash=');
+    expect(src).toContain('/apply/reset?token_hash=');
+    expect(src).not.toContain('/apply/reset#');
+  });
+
+  /* BOTH TENANT SENDERS, not only the one the Forgot password tab reaches.
+     The second is a quiet secondary link inside the "you already have an
+     account" email, which is exactly the kind that gets missed. */
+  it('and both of its reset senders carry it that way', () => {
+    expect([...fn('tenant-auth').matchAll(/\/apply\/reset\?token_hash=/g)]).toHaveLength(2);
   });
 });
 

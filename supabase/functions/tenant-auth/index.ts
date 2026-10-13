@@ -264,7 +264,14 @@ Deno.serve(async (req) => {
           return json({ ok: true, exists: true });
         }
         const { data: link } = await service.auth.admin.generateLink({ type: "recovery", email });
-        const resetUrl = `${origin}/apply/reset#${(link?.properties as any)?.hashed_token ? `token_hash=${(link!.properties as any).hashed_token}&type=recovery` : ""}`;
+        /* A QUERY PARAMETER, NOT A FRAGMENT, and the page spends nothing
+           until a button is pressed. See the note on the reset below: a
+           fragment is invisible to a plain fetch but not to a scanner that
+           renders the page. */
+        const hashedExisting = (link?.properties as { hashed_token?: string } | undefined)?.hashed_token ?? "";
+        const resetUrl = hashedExisting
+          ? `${origin}/apply/reset?token_hash=${encodeURIComponent(hashedExisting)}&type=recovery`
+          : `${origin}/forgot-password?tab=tenant`;
         // Sign in is the primary action, with the address carried so the field
         // is filled. The reset link is the quieter secondary in the template.
         const signInUrl = `${origin}/login?tab=tenant&email=${encodeURIComponent(email)}`;
@@ -410,7 +417,19 @@ Deno.serve(async (req) => {
           return json({ ok: false, error: "We could not send that just now. Try again in a moment." }, 503);
         }
 
-        const href = `${origin}/apply/reset#token_hash=${hashed}&type=recovery`;
+        /* A QUERY PARAMETER, NOT A FRAGMENT. Matt, 2026-10-13, extending the
+           staff fix to this rail: "token in a query parameter, nothing spent
+           on load, a button that spends it."
+
+           THE FRAGMENT WAS NOT NOTHING, which is why this rail looked safe for
+           four days: a fragment is never sent in an HTTP request, so a mail
+           scanner that merely FETCHES the URL cannot see the token, let alone
+           spend it. What it does not survive is a scanner that RENDERS the
+           page, because the exchange sat in a mount effect and an effect runs
+           in a headless browser exactly as it does in a real one. The token
+           now travels where the server can see it and nothing spends it
+           without a click, which is the trade the staff rail already made. */
+        const href = `${origin}/apply/reset?token_hash=${encodeURIComponent(hashed)}&type=recovery`;
         const res = await sendMessage({ to: email, message: passwordResetEmail(href, "tenant") });
         if (!res.ok) {
           console.log(JSON.stringify({ event: "reset_send_failed", message: res.error }));
