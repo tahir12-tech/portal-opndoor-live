@@ -476,7 +476,12 @@ Deno.serve(async (req) => {
        record that matters; this is so the Team list can name the sender
        without joining to it. */
     await service.from("staff_invites").update({ sent_by: callerId }).eq("user_id", targetUserId);
-    link = `${base}/accept-invite?token=${inviteToken}`;
+    /* /auth/confirm, AND THE TAB AND TYPE WITH IT. Matt, 2026-10-13: every
+       emailed auth link points at one page of ours. This link already carried
+       our own token rather than a verify URL, so it was already safe against a
+       scanner; what changes is that it now lands on the same page a reset does,
+       which is the page that does nothing until somebody clicks. */
+    link = `${base}/auth/confirm?token=${inviteToken}&type=invite&tab=${tab}`;
 
     /* A RE-INVITE may also be given a position, and that is still a separate
        call because the person already exists and there is nothing to roll

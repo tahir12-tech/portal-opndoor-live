@@ -21,7 +21,7 @@
 
    Every row is this test's own, and the file is begin/rollback. */
 begin;
-select plan(20);
+select plan(27);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                         email_confirmed_at, created_at, updated_at)
@@ -197,6 +197,57 @@ select is(
       and column_name = 'token'),
   1,
   'and the token is a column of that table, which does exist');
+
+-- ===========================================================================
+-- 7. ASKING IS NOT SPENDING (20261013000000).
+--
+-- Found by probing the deployed function rather than by reading it: this
+-- used to CLAIM the token and mint the sign-in link afterwards, so a failure
+-- in between left an invitation marked used and a person who got nothing.
+-- The retry then said "That invitation has already been used" about an
+-- invitation nobody had ever used.
+-- ===========================================================================
+select public.mint_staff_invite('ef200000-0000-0000-0000-00000000c002'::uuid);
+
+select function_privs_are('public','peek_staff_invite',array['uuid'],
+  'authenticated', array[]::text[], 'the browser may not peek at an invitation');
+select function_privs_are('public','peek_staff_invite',array['uuid'],
+  'service_role', array['EXECUTE'], 'the service role may, which is accept-invite');
+
+select results_eq(
+  format($$select email from public.peek_staff_invite(%L::uuid)$$,
+         (select token from public.staff_invites where user_id = 'ef200000-0000-0000-0000-00000000c002'::uuid)),
+  $$values ('zzz.si.invitee@supplier.test'::text)$$,
+  'a peek says whose invitation it is');
+
+/* AND IT WROTE NOTHING, which is the whole of it: the token is still
+   unclaimed and still works. */
+select is(
+  (select claimed_at from public.staff_invites where user_id = 'ef200000-0000-0000-0000-00000000c002'::uuid),
+  null::timestamptz,
+  'and leaves it unspent, so a failure after it costs the holder nothing');
+
+/* TWICE IS STILL NOT SPENDING, because peeking is the question and asking it
+   again is not using anything up. */
+select lives_ok(
+  format($$select public.peek_staff_invite(%L::uuid)$$,
+         (select token from public.staff_invites where user_id = 'ef200000-0000-0000-0000-00000000c002'::uuid)),
+  'and peeking twice is still not spending');
+
+/* THE SAME FOUR SENTENCES AS THE CLAIM, so a reader cannot get different
+   words depending on which half of the flow refused them. */
+select throws_like(
+  $$select public.peek_staff_invite('ef200000-0000-0000-0000-0000000000ff'::uuid)$$,
+  '%not one we issued%',
+  'and it refuses an unknown token in the claim''s own words');
+
+update public.staff_invites set claimed_at = now()
+ where user_id = 'ef200000-0000-0000-0000-00000000c002'::uuid;
+select throws_like(
+  format($$select public.peek_staff_invite(%L::uuid)$$,
+         (select token from public.staff_invites where user_id = 'ef200000-0000-0000-0000-00000000c002'::uuid)),
+  '%already been used%',
+  'and a spent one in the claim''s own words too');
 
 select * from finish();
 rollback;

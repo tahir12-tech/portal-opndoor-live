@@ -80,11 +80,46 @@ export async function requestPasswordReset(
  *
  * Mock mode cannot mint anything, so it refuses in the same shape.
  */
-export async function openInvitation(token: string): Promise<{ ok: boolean; link?: string; error?: string }> {
+export async function openInvitation(
+  token: string,
+): Promise<{ ok: boolean; tokenHash?: string; type?: EmailOtpKind; tab?: string; error?: string }> {
   if (!SUPABASE_ENABLED) return { ok: false, error: 'Invitations cannot be opened in this environment.' };
   const { data, error } = await sb().functions.invoke('accept-invite', { body: { token } });
-  if (data && data.ok && typeof data.link === 'string') return { ok: true, link: data.link };
+  if (data && data.ok && typeof data.token_hash === 'string') {
+    return { ok: true, tokenHash: data.token_hash, type: (data.type as EmailOtpKind) ?? 'recovery', tab: data.tab };
+  }
   return { ok: false, error: (data && data.error) || error?.message || 'We could not open your invitation. Please ask for a new one.' };
+}
+
+/** The GoTrue one-time-token kinds any of our emails can carry. */
+export type EmailOtpKind = 'invite' | 'recovery' | 'signup' | 'magiclink' | 'email_change' | 'email';
+
+const OTP_KINDS: EmailOtpKind[] = ['invite', 'recovery', 'signup', 'magiclink', 'email_change', 'email'];
+
+/** Narrow a `type` off a URL to something verifyOtp will accept, or null. */
+export function asOtpKind(v: string | null | undefined): EmailOtpKind | null {
+  return v && (OTP_KINDS as string[]).includes(v) ? (v as EmailOtpKind) : null;
+}
+
+/**
+ * Spend a one-time token from an emailed link and sign the holder in.
+ *
+ * THE POINT IS WHEN THIS IS CALLED, not what it does. Matt, 2026-10-13, after
+ * fourteen Regent invites died inside twelve minutes: a corporate mail scanner
+ * opened each link, and our links verified the token on page LOAD, so it was
+ * spent before the person clicked. Every emailed auth link now carries a
+ * `token_hash` to a page of ours that does nothing until a button is pressed,
+ * and this is what the button calls.
+ *
+ * verifyOtp is a POST. A scanner fetching the page cannot reach it.
+ */
+export async function confirmEmailLink(
+  tokenHash: string, type: EmailOtpKind,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!SUPABASE_ENABLED) return { ok: false, error: 'Links cannot be confirmed in this environment.' };
+  const { error } = await sb().auth.verifyOtp({ token_hash: tokenHash, type });
+  if (!error) return { ok: true };
+  return { ok: false, error: error.message };
 }
 
 /* -------------------- Supabase mode -------------------- */

@@ -20,6 +20,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { carriedStaffTab, forgotHref, signInHref } from './carry';
 import { authService } from '@/data';
+import { asOtpKind } from '@/data/authService';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { useSession } from '@/session/SessionContext';
 import { Button } from '@/components/ui/Button';
@@ -30,7 +31,7 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import './auth.css';
 import '../ForgotPassword/ForgotPassword.css';
 
-type Phase = 'checking' | 'redeeming' | 'stepup' | 'password' | 'enrol' | 'done' | 'invalid';
+type Phase = 'confirm' | 'checking' | 'redeeming' | 'stepup' | 'password' | 'enrol' | 'done' | 'invalid';
 
 const COPY = {
   reset: { title: 'Set a new password', eyebrow: 'Account recovery', brandH1: 'Choose a new password.', invalidLead: 'Your reset link may have expired or already been used. Request a new one and we will email you a fresh link.', invalidCta: { to: '/forgot-password?tab=agent', label: 'Request a new link' } },
@@ -69,7 +70,13 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
   useDocumentTitle(c.title);
   const navigate = useNavigate();
   const { status, markMfaVerified } = useSession();
-  const [phase, setPhase] = useState<Phase>(SUPABASE_ENABLED ? 'checking' : 'password');
+  /* A LINK IN THE URL OPENS ON THE BUTTON, not on a spinner: the page has
+     nothing to check until somebody asks it to. */
+  const [phase, setPhase] = useState<Phase>(
+    !SUPABASE_ENABLED ? 'password'
+      : (sp.get('token') || sp.get('token_hash')) ? 'confirm'
+      : 'checking',
+  );
   const [hadFactor, setHadFactor] = useState(false);
   const [factorId, setFactorId] = useState<string | null>(null);
   const [qr, setQr] = useState('');
@@ -110,29 +117,84 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
      two tokens, and a spent token refuses the second time with its own
      sentence. */
   const inviteToken = sp.get('token');
-  const redeemed = useRef(false);
-  useEffect(() => {
-    if (!inviteToken || redeemed.current) return;
-    redeemed.current = true;
-    setPhase('redeeming');
-    void (async () => {
-      const r = await authService.openInvitation(inviteToken);
-      if (r.ok && r.link) { window.location.replace(r.link); return; }
-      /* THE REASON IS THE POINT. Expired, already used, cancelled and never
-         issued are four different things, and only one of them means "ask
-         your administrator for another". The server writes the sentence; this
-         screen shows it rather than replacing it with "not valid". */
-      setTokenError(r.error ?? '');
-      setPhase('invalid');
-    })();
-  }, [inviteToken]);
+  const tokenHash = sp.get('token_hash');
+  const linkType = asOtpKind(sp.get('type'));
+  /* A LINK IN HAND, EITHER SHAPE. `token` is our own seven-day invitation
+     token; `token_hash` is a GoTrue one-time token straight from an email.
+     Both mean "somebody is holding a credential and has not been signed in
+     yet", and both are spent on the SAME click. */
+  const hasLink = Boolean(inviteToken || tokenHash);
+  const spent = useRef(false);
+
+  /* NOTHING HAPPENS ON LOAD. THIS IS THE WHOLE FIX.
+     Matt, 2026-10-13: "The /auth/confirm page must do nothing with the token
+     on load. It shows the branded 'Set your password' screen with a button,
+     and only the button click calls supabase.auth.verifyOtp."
+
+     WHY, in his own evidence: fourteen Regent invites went out between 07:45
+     and 07:50 UTC and by 07:57 thirteen had `last_sign_in_at` set while
+     `public.users.status` was still pending. A scanner cannot set
+     last_sign_in_at; GoTrue does, when the verify endpoint is hit. So a
+     session was minted for every one of them and no human was ever in it.
+
+     THE OLD CODE REDEEMED IN AN EFFECT, which was safe against a plain fetch
+     and NOT against a scanner that renders the page: an effect runs in a
+     headless browser exactly as it does in a real one. A button does not.
+
+     ONE ATTEMPT, by a ref rather than state, because two clicks must not
+     spend two tokens and a spent token refuses the second time. */
+  async function submitConfirm() {
+    if (spent.current || busy) return;
+    spent.current = true;
+    setBusy(true);
+    setTokenError('');
+    try {
+      let hash = tokenHash;
+      let kind = linkType ?? 'recovery';
+      /* OUR SEVEN-DAY TOKEN FIRST, where there is one: accept-invite spends it
+         and hands back a short-lived GoTrue token_hash. Both halves happen on
+         this click, so a scanner reaches neither. */
+      if (inviteToken) {
+        const r = await authService.openInvitation(inviteToken);
+        if (!r.ok || !r.tokenHash) {
+          /* THE REASON IS THE POINT. Expired, already used, cancelled and
+             never issued are four different things, and only one of them
+             means "ask your administrator for another". The server writes the
+             sentence; this screen shows it rather than replacing it with
+             "not valid". */
+          spent.current = false;
+          setTokenError(r.error ?? '');
+          setPhase('invalid');
+          return;
+        }
+        hash = r.tokenHash;
+        kind = r.type ?? 'recovery';
+      }
+      if (!hash) { setPhase('invalid'); return; }
+      const v = await authService.confirmEmailLink(hash, kind);
+      if (!v.ok) {
+        /* A USED OR EXPIRED TOKEN STILL SHOWS THE EXISTING SCREEN, which is
+           Matt's point 3. GoTrue's own wording for a spent token is not a
+           sentence to show somebody, so this falls back to the mode's copy. */
+        setTokenError('');
+        setPhase('invalid');
+        return;
+      }
+      /* THE SESSION EXISTS NOW, so the effect below takes over and decides
+         between step-up, password and enrolment exactly as it always has. */
+      setPhase('checking');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     if (!SUPABASE_ENABLED) return;
-    /* A TOKEN IN THE URL MEANS NO SESSION YET, so the 1.5s fallback below
-       must not fire and call the link invalid while we are still redeeming
-       it. The effect above owns the screen until it hands over. */
-    if (inviteToken) return;
+    /* A LINK WAITING TO BE CONFIRMED MEANS NO SESSION YET, so the 1.5s
+       fallback below must not fire and call it invalid while the page is
+       sitting there waiting for a click. The button owns the screen until it
+       hands over, and it hands over by setting 'checking'. */
+    if (hasLink && phase === 'confirm') return;
     let settled = false;
     const decide = async () => {
       if (settled) return;
@@ -156,7 +218,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
       sb().auth.getSession().then(({ data }) => { if (!settled) { if (data.session) void decide(); else { settled = true; setPhase('invalid'); } } });
     }, 1500);
     return () => { sub.subscription.unsubscribe(); clearTimeout(t); };
-  }, [inviteToken]);
+  }, [hasLink, phase]);
 
   // Step up an existing MFA user's session to AAL2 before the password change.
   async function submitStepup(e: FormEvent) {
@@ -269,6 +331,32 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
           {phase === 'checking' && (<div><h2 className="auth__title">Checking your link…</h2><p className="auth__sub">One moment while we verify your link.</p></div>)}
 
           {phase === 'redeeming' && (<div><h2 className="auth__title">Opening your invitation…</h2><p className="auth__sub">One moment while we check your invitation.</p></div>)}
+
+          {/* THE BUTTON THAT SPENDS THE TOKEN, and the only thing that does.
+              Matt, 2026-10-13: "It shows the branded 'Set your password'
+              screen with a button, and only the button click calls
+              supabase.auth.verifyOtp."
+
+              THE COPY IS THE MODE'S OWN, so an invitation says "Set your
+              password to get started" and a reset says "Choose a new
+              password", which is what the brand panel beside it already
+              says. The button is the one new sentence. */}
+          {phase === 'confirm' && (
+            <div>
+              <h2 className="auth__title">{c.title}</h2>
+              <p className="auth__sub">
+                {mode === 'invite'
+                  ? 'Your invitation is ready. Continue to choose a password and set up two-factor authentication.'
+                  : 'Your reset link is ready. Continue to choose a new password.'}
+              </p>
+              <div className="auth__form">
+                <Button variant="primary" block arrow disabled={busy} onClick={() => void submitConfirm()}>
+                  {busy ? 'Opening…' : (mode === 'invite' ? 'Continue' : 'Continue')}
+                </Button>
+              </div>
+              <p className="auth__foot"><Link to={backToSignIn}>Back to sign in</Link></p>
+            </div>
+          )}
 
           {phase === 'invalid' && (
             <div>
