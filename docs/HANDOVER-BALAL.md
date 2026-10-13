@@ -2691,3 +2691,145 @@ recover.
 5. Create the five cron jobs, `partner-webhooks` first (16.4).
 6. Send the twelve migration files and the `pandadoc-webhook` bundle (16.5).
 7. Run `npm run drift` against live's schema and confirm it is clean.
+
+---
+
+## 17. The scanner fix, 2026-10-13. Deploy the website FIRST
+
+Fourteen Regent invites died inside twelve minutes on the morning of 13
+October. Regent's mail scanner opened each link, and a GoTrue action link
+verifies its one-time token on a plain GET, so every token was spent before
+its owner clicked. Matt's evidence: 13 of the 14 had `last_sign_in_at` set by
+07:57 while `public.users.status` was still `pending`. A scanner cannot set
+`last_sign_in_at`; GoTrue does, when the verify endpoint is hit.
+
+Every emailed auth link now points at `/auth/confirm` on the portal and
+carries a `token_hash`, which is the same credential with no endpoint attached.
+That page does nothing until somebody presses a button.
+
+### 17.0 THE ORDER IS NOT THE USUAL ORDER. The website goes first
+
+**Deploy the React bundle BEFORE the edge functions.** The new links point at
+`/auth/confirm`, a route that does not exist in the bundle currently on live.
+If the functions go out first, every invite and reset email sent in between
+lands on a 404 and is unusable.
+
+The reverse is safe: a new bundle with the old functions simply never receives
+a `/auth/confirm` link, and the two older routes it still serves
+(`/accept-invite`, `/reset-password`) keep working exactly as now.
+
+1. `npm ci && npm run build`, publish `dist/`, and confirm the deployed commit.
+2. Then the migration (17.2), then the three functions (17.3).
+
+### 17.1 Nothing to change in the Supabase dashboard
+
+Worth stating plainly, because it is the question Matt asked and the answer is
+unusually short.
+
+| thing | change needed |
+| --- | --- |
+| **Email templates** | **None.** GoTrue's own mailer is not used at all. Every message is built from our templates and sent through Resend; `generateLink` is called only for the token |
+| **Redirect URL allow-list** | **None, and it matters less than it did.** No sender passes `redirectTo` any more, so the allow-list no longer gates a single staff auth link. Leave the existing `<APP_URL>/**` entry in place for anything else that may want it; do not remove entries |
+| **Email OTP expiration** (`mailer_otp_exp`) | **None.** CUTOVER 1.1's 1800 seconds is still the right value, and is now genuinely consistent with the copy: a reset link is meant to be short lived, and an invitation's seven days come from our own token, with the GoTrue token minted at the moment of the click |
+| **Edge function secrets** | **None new.** `APP_URL` must be the production portal origin, which it already must be, and is now load-bearing for the link itself rather than only for a redirect. Worth re-reading it before you start |
+
+**One live fragility is removed rather than added.** `send-password-reset` and
+`invite-user` each carried a degraded path for the case where the allow-list
+refused a `redirectTo` with a query string on it, because when that happens
+`generateLink` errors and the sender reads the error as "no such account" and
+sends **nothing at all, silently**. Neither passes `redirectTo` now, so neither
+can fail that way.
+
+### 17.2 One migration
+
+```
+20261013000000_an_invitation_is_spent_only_once_it_works.sql
+```
+
+It adds `peek_staff_invite`, a read-only twin of `claim_staff_invite`. The
+defect it fixes was found by probing the deployed function rather than by
+reading it: the claim spent the token BEFORE the sign-in link was minted, so a
+failure in between left an invitation marked used and a person who got
+nothing. `accept-invite` now peeks, mints, then claims.
+
+This migration is additive and writes no rows. It must land **before** the new
+`accept-invite`, which calls the new function.
+
+### 17.3 Three edge functions
+
+```
+supabase functions deploy accept-invite invite-user send-password-reset --project-ref <LIVE_REF>
+```
+
+Run it from the repo root so `supabase/config.toml` sets the flags.
+`accept-invite` must go out with **`verify_jwt = false`** (the invitee has no
+session); config.toml records that, and a deploy from elsewhere needs
+`--no-verify-jwt`.
+
+`tenant-auth` is deliberately **not** in that list. It has used `hashed_token`
+since it was written, which is why Matt was right that tenant links are
+unchanged.
+
+### 17.4 Then re-invite everyone still waiting
+
+Every link sent before the deploy is a spent GoTrue verify URL. None of them
+can be rescued, so everyone still pending needs a fresh invitation **after**
+17.1 to 17.3 are all done. Read the list first:
+
+```sql
+select u.full_name,
+       u.email,
+       p.slug                                   as partner,
+       u.role,
+       u.sees_commission,
+       au.last_sign_in_at,
+       au.last_sign_in_at is not null           as scanner_or_person_opened_it,
+       si.sent_at::date                         as invite_sent,
+       si.expires_at::date                       as invite_expires,
+       case when si.user_id is null              then 'none'
+            when si.cancelled_at is not null     then 'cancelled'
+            when si.claimed_at is not null        then 'used'
+            when si.expires_at <= now()           then 'expired'
+            else 'live' end                      as invite_state
+from public.users u
+join auth.users au on au.id = u.id
+left join public.partners p on p.id = u.partner_id
+left join public.staff_invites si on si.user_id = u.id
+where u.status = 'pending'
+order by p.slug, u.full_name;
+```
+
+Expected on live: the Regent people and Ethan Li at Brithive. `invite_state`
+reads `none` for anybody invited before `20261009100000` reaches live, which is
+all of them today.
+
+**`scanner_or_person_opened_it` is the column to read.** True on a `pending`
+row is the fault's own signature: a session was minted and nobody finished.
+That is the 13 of 14 Matt measured.
+
+Then resend from the portal, Team, the row menu, **Resend invite**, one per
+person. Each resend mints a fresh seven-day token and retires the previous
+link, and the confirmation now says so. Do not resend before the website is
+deployed: the link would point at a route that is not there yet.
+
+### 17.5 How to tell it worked, in one check
+
+Pick one invitee and, before telling them, fetch their link the way a scanner
+does:
+
+```
+curl -s -o /dev/null -w "%{http_code}\n" "https://<portal>/auth/confirm?token=<theirs>&type=invite&tab=agent"
+```
+
+Then:
+
+```sql
+select claimed_at, expires_at from public.staff_invites
+ where user_id = (select id from public.users where lower(email) = '<theirs>');
+```
+
+`200` from the curl and `claimed_at` still **null** is the whole fix. On dev,
+end to end: the scanner's GET left the token unspent, the button's POST
+returned a 56-character `token_hash` with no verify URL in the reply,
+`verifyOtp` with that hash signed in, the same hash a second time was refused,
+and the invitation was recorded as used.
