@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { awaitingDecisionCount, loadReconciliationTotals, NO_RECONCILIATION_WORK, type ReconciliationTotals } from '@/data';
+import { ChangePasswordDialog } from '@/components/ChangePasswordDialog';
 import { useSession } from '@/session/SessionContext';
 import { NAV, NAV_CAPABILITY } from '@/constants/nav';
 import { portalLabel } from '@/data/capabilities';
@@ -45,6 +46,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const reconcileBadge = recon.all;
   const decisionsBadge = awaitingDecisionCount();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [changePw, setChangePw] = useState(false);
   const footRef = useRef<HTMLDivElement>(null);
   useOnClickOutside(footRef, () => setMenuOpen(false), menuOpen);
 
@@ -101,6 +103,18 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               <div className="sb__user-name">{user.name}</div>
               <div className="sb__user-role">{user.label}</div>
             </div>
+            {/* CHANGE PASSWORD, FOR EVERY SIGNED-IN USER. Matt, 2026-10-13.
+                Here rather than on a settings page because the password
+                belongs to the person and not to a role, and this menu is the
+                one thing every signed-in user has. Nothing gates it. */}
+            <button
+              type="button"
+              className="sb__usermenu-item"
+              role="menuitem"
+              onClick={() => { setMenuOpen(false); setChangePw(true); }}
+            >
+              <Icon name="lock" /> Change password
+            </button>
             <button
               type="button"
               className="sb__usermenu-item sb__usermenu-item--danger"
@@ -126,6 +140,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <span className="sb__user-caret"><Icon name="caretUp" /></span>
         </button>
       </div>
+      {/* Outside the menu, so closing the menu to open it does not unmount it. */}
+      <ChangePasswordDialog open={changePw} onClose={() => setChangePw(false)} />
     </>
   );
 }

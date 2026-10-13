@@ -8,6 +8,7 @@
    an AAL1 session; enrolling or verifying a TOTP factor steps up to AAL2, which
    the database requires before it returns any data.
    ===================================================================== */
+import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { portalEnvironment } from './devCentreService';
 
@@ -141,6 +142,78 @@ export async function signIn(email: string, password: string): Promise<AuthResul
     return { ok: false, error: 'This account has been deactivated. Contact your administrator.' };
   }
   return { ok: false, error: 'Wrong email or password.' };
+}
+
+/**
+ * CHANGE YOUR OWN PASSWORD, WITHOUT AN EMAIL IN IT.
+ *
+ * Matt, 2026-10-13: "add 'Change password' for every signed-in user: current
+ * password, new password twice, at least 8 characters, using
+ * supabase.auth.updateUser. No email involved."
+ *
+ * WHY THE CURRENT PASSWORD IS CHECKED ON A SECOND CLIENT, which is the only
+ * interesting line in here. `updateUser` takes no current password, so proving
+ * the holder knows it means signing in with it -- and `signInWithPassword` on
+ * the live client would REPLACE the session. For a member of staff that is a
+ * downgrade from AAL2 to AAL1, because a fresh password sign-in has not seen a
+ * second factor, and Supabase then refuses to change an MFA user's password at
+ * all. So the check would break the very thing it is guarding.
+ *
+ * A throwaway client with `persistSession: false` and its own storageKey
+ * answers the question and writes nothing: no storage, no refresh timer, and
+ * the real session is untouched. Supabase's own answer to this is
+ * `reauthenticate()`, which sends a nonce BY EMAIL, and email is the thing
+ * Matt does not want in it.
+ *
+ * AND THE ORDER MATTERS. The password is verified first and changed second, so
+ * a wrong current password costs nothing and a correct one is the last thing
+ * standing between a borrowed tab and somebody's account.
+ */
+export async function changeOwnPassword(
+  currentPassword: string, newPassword: string,
+): Promise<AuthResult> {
+  if (newPassword.length < 8) return { ok: false, error: 'Use at least 8 characters.' };
+  if (!SUPABASE_ENABLED) return { ok: true };
+
+  const { data: me } = await sb().auth.getUser();
+  const email = me.user?.email ?? '';
+  if (!email) return { ok: false, error: 'You are not signed in. Sign in and try again.' };
+
+  const probe = createClient(
+    import.meta.env.VITE_SUPABASE_URL as string,
+    import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    {
+      auth: {
+        // The three that keep it out of the way of the real session.
+        storageKey: 'opndoor.password-check',
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    },
+  );
+  const { error: wrong } = await probe.auth.signInWithPassword({ email, password: currentPassword });
+  /* SIGNED OUT OF THE PROBE WHATEVER HAPPENED, so a correct password does not
+     leave a second live session sitting in memory. */
+  await probe.auth.signOut().catch(() => {});
+  if (wrong) return { ok: false, error: 'That is not your current password.' };
+
+  const { error } = await sb().auth.updateUser({ password: newPassword });
+  if (!error) return { ok: true };
+  const m = (error.message || '').toLowerCase();
+  /* THE REFUSALS THAT HAVE THEIR OWN SENTENCE. An AAL refusal is the one worth
+     naming: it means the session has dropped below AAL2, which a long-lived
+     tab can do, and "sign in again" is the only thing that fixes it. */
+  if (/aal|assurance|factor|mfa|insufficient/.test(m)) {
+    return { ok: false, error: 'For your security, sign in again and then change your password.' };
+  }
+  if (/same.*password|should be different/.test(m)) {
+    return { ok: false, error: 'That is the password you already have. Choose a different one.' };
+  }
+  if (/weak|pwned|breach|strength|character|at least/.test(m)) {
+    return { ok: false, error: `That password was rejected: ${error.message}` };
+  }
+  return { ok: false, error: 'We could not change your password. Please try again.' };
 }
 
 export interface FactorState {
