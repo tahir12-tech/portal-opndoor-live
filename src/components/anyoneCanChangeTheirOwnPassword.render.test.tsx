@@ -141,22 +141,39 @@ describe('where it lives, and what guards it', () => {
     expect(SIDEBAR).not.toMatch(/\{\s*(isAdmin|role ===|canSee)[^}]*&&[^}]*Change password/);
   });
 
-  /* THE ONE THING THAT COULD QUIETLY UNDO IT. updateUser takes no current
-     password, so proving the holder knows it means signing in with it -- and
-     signInWithPassword on the LIVE client would replace the session and drop
-     a member of staff from AAL2 to AAL1, whereupon Supabase refuses to change
-     an MFA user's password at all. The check would break the thing it guards.
-     So it runs on a throwaway client that persists nothing. */
+  /* THE ONE THING THAT COULD QUIETLY UNDO IT, AND DID.
+     updateUser takes no current password, so proving the holder knows it
+     means signing in with it -- and signInWithPassword on the LIVE client
+     would replace the session and drop a staff user from AAL2 to AAL1,
+     whereupon Supabase refuses to change an MFA user's password at all. So
+     the check runs on a throwaway client. */
   it('verifies the current password on a client that persists nothing', () => {
     const fn = SERVICE.slice(SERVICE.indexOf('export async function changeOwnPassword'));
     const body = fn.slice(0, fn.indexOf('\nexport '));
     expect(body).toContain('persistSession: false');
     expect(body).toContain("storageKey: 'opndoor.password-check'");
     expect(body).toContain('autoRefreshToken: false');
-    // The real client is used for the write, and only for the write.
     expect(body).toContain('sb().auth.updateUser({ password: newPassword })');
-    // And the probe is signed out whatever happened.
-    expect(body).toContain('probe.auth.signOut()');
+  });
+
+  /* AND THE SCOPE, WHICH IS THE BUG MATT REPORTED ON DEV.
+     signOut() defaults to scope: 'global', which revokes EVERY session the
+     user has -- including the one they are sitting in. Measured against dev:
+     an AAL2 session answered 200 from /auth/v1/user, a second sign-in then
+     signed out globally, and the first answered 403 session_not_found.
+     updateUser was then being called on a session that no longer existed.
+
+     TWO ASSERTIONS, because the positive one alone would pass if somebody
+     added a second, bare signOut() beside it. */
+  it('and signs the probe out LOCALLY, never globally', () => {
+    const fn = SERVICE.slice(SERVICE.indexOf('export async function changeOwnPassword'));
+    const body = fn.slice(0, fn.indexOf('\nexport '));
+    expect(body).toContain("probe.auth.signOut({ scope: 'local' })");
+    // No bare signOut() anywhere in it: that is the default, and the default
+    // is global.
+    expect(body).not.toMatch(/signOut\(\s*\)/);
+    expect(body).not.toContain("scope: 'global'");
+    expect(body).not.toContain("scope: 'others'");
   });
 
   /* AND NO EMAIL. Supabase's own answer to "check the current password" is
@@ -170,6 +187,28 @@ describe('where it lives, and what guards it', () => {
   });
 
   it('and checks the 8 characters in the service too, not only on the screen', () => {
-    expect(SERVICE).toContain("if (newPassword.length < 8) return { ok: false, error: 'Use at least 8 characters.' };");
+    expect(SERVICE).toContain("if (newPassword.length < 8) {");
+    expect(SERVICE).toContain("error: 'Use at least 8 characters.'");
+  });
+
+  /* EACH OF MATT'S FOUR CASES IS KEYED ON GoTrue's CODE, not on its message.
+     The codes were read off dev by driving each refusal for real:
+       invalid_credentials  wrong current password
+       weak_password        "Password should be at least 6 characters."
+       same_password        "New password should be different from the old..."
+       session_not_found    "Session from session_id claim in JWT does not exist"
+     A message is prose and changes between releases; a code does not. */
+  it('maps each of the four refusals by its code', () => {
+    for (const code of ['same_password', 'weak_password', 'session_not_found',
+                        'insufficient_aal', 'reauthentication_needed']) {
+      expect(SERVICE).toContain(code);
+    }
+  });
+
+  /* AND THE GENERIC SENTENCE CARRIES THE REAL ONE. "We could not change your
+     password. Please try again." is what hid this bug for a day: it told Matt
+     nothing while the answer sat in error.message. */
+  it('and reports an unrecognised failure as itself', () => {
+    expect(SERVICE).toContain('`We could not change your password: ${msg}`');
   });
 });

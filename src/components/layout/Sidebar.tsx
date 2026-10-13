@@ -141,7 +141,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </button>
       </div>
       {/* Outside the menu, so closing the menu to open it does not unmount it. */}
-      <ChangePasswordDialog open={changePw} onClose={() => setChangePw(false)} />
+      <ChangePasswordDialog
+        open={changePw}
+        onClose={() => setChangePw(false)}
+        onSignInAgain={async () => { setChangePw(false); await signOut(); navigate('/login'); }}
+      />
     </>
   );
 }
