@@ -6239,6 +6239,28 @@ write through the caller's own client, and `anon` holds EXECUTE on none of
 > - the exact live deploy steps, including any change he must make by hand in the Supabase dashboard (email templates, redirect URL allow-list) or to edge function secrets
 > - the SQL to list everyone still pending on live, so he can resend their invites after deploying (all of Regent and Ethan at Brithive)
 
+### AND THE TENANT RAIL TOO (instruction, 2026-10-13, verbatim)
+
+> Yes, fix the tenant link too: the same /auth/confirm-style pattern for tenant-auth's reset (and any other tenant emailed link), token in a query parameter, nothing spent on load, a button that spends it. Same curl-as-scanner test, including a scanner that renders the page. Then rebuild the bundle and give me the final size, commit count and tip for Balal.
+
+- **"AND ANY OTHER TENANT EMAILED LINK" IS THE LOAD-BEARING CLAUSE.** The reset
+  is the one I reported; it is not the only one. `tenant-auth` calls
+  generateLink three times, twice for a recovery and once for a MAGIC LINK, and
+  there is a tenant INVITE on our own token in `tenant_invites`. Every one has
+  to be found before any is changed, or this is a third round on the same
+  fault.
+- **"INCLUDING A SCANNER THAT RENDERS THE PAGE" IS THE TEST THAT MATTERS.** A
+  curl proves only that a fragment is not sent to a server, which was already
+  true and is why the tenant rail looked safe. The real question is whether
+  MOUNTING the page spends anything, and the only way to answer it is to mount
+  it and look.
+- **THE FRAGMENT GOES, AND THAT IS A DELIBERATE DOWNGRADE IN ONE RESPECT.** A
+  token in a query parameter IS sent to the server, so it reaches our access
+  logs and any proxy in front of them, where a fragment never did. That is the
+  trade the staff rail already made and Matt is now asking for here: a logged
+  token that nothing spends beats an unlogged token that a renderer spends.
+  Worth recording because it is the one argument for the old shape.
+
 ### AND A CHANGE PASSWORD SCREEN (instruction, 2026-10-13, verbatim, sent mid-run)
 
 > Also: check whether a signed-in user can change their own password anywhere in the portal (account menu or settings). If not, add "Change password" for every signed-in user: current password, new password twice, at least 8 characters, using supabase.auth.updateUser. No email involved. Include it in the same bundle for Balal.
