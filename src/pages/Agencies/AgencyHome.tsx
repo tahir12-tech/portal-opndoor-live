@@ -41,7 +41,7 @@ import {
   getPositionsForUsers, getDeedRecipients, getOrgDeedReadiness, agencySees, officeOf,
   type DeedReadiness,
 } from '@/data/positionsService';
-import { setNodeRate, getCommissionSplits, previewNodeRate, setAgencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
+import { setNodeRate, getCommissionSplits, previewNodeRate, setAgencyReferencingMode, agencyReferencingMode, getAgreementForAgency, type AgreementView, type SplitLine } from '@/data/orgService';
 import { cancelInvite, deleteUser, resendInvite, resetUserMfa, resetUserPassword, setUserStatus } from '@/data/usersService';
 import { useSession } from '@/session/SessionContext';
 import { usePageMeta } from '@/components/layout/pageMeta';
@@ -59,7 +59,7 @@ import { PersonNotifications } from '@/components/people/PersonNotifications';
 // Walk fix 15: this customer's report, on this customer's page.
 import { CustomerReport } from '@/components/CustomerReport';
 import { liveByCustomer } from '@/data/liveAnalytics';
-import { agencyLevelOf, AGENCY_LEVELS, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
+import { agencyLevelOf, AGENCY_LEVELS, checkingChoice, mayActOnOrEqual, setAgencyLevel, type Actor, type AgencyLevel, type Role } from '@/data';
 import { deedsWithNowhereToGo, NO_USERS_YET } from '@/data/deedsStuck';
 import { getOrgDepartedReferrals, departedReferralsLine, type DepartedReferrals } from '@/data/positionsService';
 import { partyIsSupplier, readerIsTopOfEstate, mayEditOwnEstateOrg, dealIsSetBySupplier, isAgencyUser } from '@/data/capabilities';
@@ -72,7 +72,7 @@ import { PositionModal, type ScopeTarget } from '@/pages/UserManagement/Position
 import { AgencyGrow } from './AgencyGrow';
 import { AgreementEditor, agreementSummary, dealWords } from './AgreementEditor';
 import { CommissionStatement } from '@/components/CommissionStatement';
-import { showsOffices } from '@/data/agencyOffices';
+import { officeNameAddsNothing, showsOffices } from '@/data/agencyOffices';
 import './AgencyHome.css';
 import { plural } from '@/lib/plural';
 import { AgencyChanges } from './AgencyChanges';
@@ -615,7 +615,11 @@ export function AgencyHome() {
      admin looking at Kestrel's Frost must see the same absence a Kestrel
      manager does, because the fact is about the agency. `partner` is the
      agency's own partner, resolved above. */
-  const hasLogins = !partyIsSupplier(partner);
+  /* (ci) THE AGENCY IS IN A SUPPLIER'S ESTATE. One named answer, because
+     three separate absences hang off it: no logins, no checking setting of
+     its own, and nothing that creates a group above it. */
+  const inSupplierEstate = partyIsSupplier(partner);
+  const hasLogins = !inSupplierEstate;
   /* (gg) AN AGENCY IN A SUPPLIER'S ESTATE HAS NO DEAL OF ITS OWN.
      Matt: "Remove the deal editor from supplier-estate agency pages (show
      'Commission for this agency is set on [supplier]'s Commission tab',
@@ -1551,7 +1555,22 @@ export function AgencyHome() {
                     const soleLine = lines.length === 1 ? lines[0] : null;
                     return (
                       <tr key={b.id ?? b.name}>
-                        <td className="dt__name">{b.name}<span className="dt__sub">{a.name}</span></td>
+                        {/* THE AGENCY'S NAME ONLY WHERE IT ADDS SOMETHING.
+                            `dt__sub` is not display:block for this table, so
+                            the two strings run together inline: where the one
+                            office is named after its agency the cell read the
+                            name twice, "Regent LettingsRegent Lettings".
+                            Found by an adversarial review of the office
+                            backfill and reproduced on dev with New
+                            Independent, so it predates all of it; what
+                            changed is that 20261009090000 made every newly
+                            added agency carry that shape, which turned an
+                            oddity into the normal case. */}
+                        <td className="dt__name">
+                          {b.name}
+                          {!officeNameAddsNothing(a.name ?? '', b.name ?? '')
+                            && <span className="dt__sub">{a.name}</span>}
+                        </td>
                         {/* EVERY BAND, WHERE THE DEAL HAS MORE THAN ONE.
                             Matt (v): "when the deal varies by tenant count,
                             show both, e.g. '20% (1 tenant), 25% (2 or
@@ -1606,7 +1625,10 @@ export function AgencyHome() {
           <span className="ah-av">{initials(p.name || p.email)}</span>{p.name || p.email}<span className="ah-role">{levelLabelFor(p)}</span>
         </span>
       ))}
-      {isAdmin && <button className="ah-linkbtn ah-invite-inline" onClick={() => setInvite(ctx)}><Icon name="send" size={12} /> {inviteLabelFor(level)}</button>}
+      {/* (ci)(2) NOT IN A SUPPLIER'S ESTATE: "they have no logins and sit
+          under the supplier", so there is nobody to invite. The People TAB
+          already obeyed this predicate and this inline row did not. */}
+      {isAdmin && hasLogins && <button className="ah-linkbtn ah-invite-inline" onClick={() => setInvite(ctx)}><Icon name="send" size={12} /> {inviteLabelFor(level)}</button>}
     </div>
   );
 
@@ -1899,7 +1921,37 @@ export function AgencyHome() {
                         No branches yet. {possessive(a.name)} manager can add them, or add one here.
                       </div>
                     )}
-                    {open && isAdmin && a.id && (
+                    {/* (ci) AN AGENCY IN A SUPPLIER'S ESTATE HAS NO SETTING
+                        OF ITS OWN, so it is told whose it follows rather than
+                        offered a choice.
+
+                        Matt: "remove the 'How are [agency]'s tenants
+                        checked?' choice. It follows the supplier's setting;
+                        show 'Checked as Kestrel Lettings sets it: they check
+                        tenants, Opndoor accepts them as sent' with a link to
+                        Kestrel's Settings."
+
+                        THE SENTENCE IS THE SHARED ONE. REFERENCING_MODES
+                        carries the words every other surface uses for each
+                        setting, so the three settings cannot be described one
+                        way here and another on the supplier's own page.
+
+                        AND THE SERVER REFUSES IT TOO, 20261009030000: the
+                        inheritance is resolve_referencing_mode's coalesce, so
+                        a value stored here would not sit beside the
+                        supplier's, it would override it. */}
+                    {open && inSupplierEstate && a.id && (
+                      <div className="ah-route ah-route--inherited">
+                        <span className="ah-route__lbl">
+                          Checked as {getPartner(partner)?.name ?? 'the supplier'} sets it:{' '}
+                          {checkingChoice(getPartner(partner)?.referencingMode)}
+                        </span>
+                        <Link to={`/partners/${encodeURIComponent(String(partner))}?tab=settings`}>
+                          {possessive(getPartner(partner)?.name ?? 'the supplier')} settings
+                        </Link>
+                      </div>
+                    )}
+                    {open && isAdmin && !inSupplierEstate && a.id && (
                       /* TWO OPTIONS, EACH SAYING WHAT IT DOES TO THE TENANT.
                          Matt's own title and his own two labels. It was a
                          three-option select whose first option was
@@ -1916,29 +1968,109 @@ export function AgencyHome() {
                       <div className="ah-route">
                         <span className="ah-route__lbl">How are {possessive(a.name)} tenants checked?</span>
                         <div className="ah-route__opts">
-                          {([
-                            ['opndoor_referenced', 'Opndoor checks eligibility', 'The tenant completes eligibility before paying.'],
-                            ['pre_referenced_open', 'Agency has already referenced them', 'The tenant goes straight to payment.'],
-                          ] as const).map(([value, label, why]) => {
-                            const chosen = value === 'opndoor_referenced'
-                              ? a.referencingMode === 'opndoor_referenced'
-                              : a.referencingMode !== 'opndoor_referenced';
-                            return (
-                              <label key={value} className={`ah-route__opt${chosen ? ' is-on' : ''}`}>
-                                <input
-                                  type="radio"
-                                  name={`tenant-check-${a.id}`}
-                                  checked={chosen}
-                                  onChange={() => { if (!chosen) doSetMode(a.id!, a.name, value); }}
-                                />
-                                <span>
-                                  <b>{label}</b>
-                                  <span className="ah-route__why">{why}</span>
-                                </span>
-                              </label>
-                            );
-                          })}
+                          {(() => {
+                            /* THE MODE IN FORCE, NOT THE COLUMN.
+                               Matt, 2026-10-12, from live: "Regent (an
+                               Opndoor-estate agency) had referencing_mode =
+                               null, so it inherited opndoor_referenced from
+                               the opndoor-agents partner, but the agency page
+                               showed 'Agency has already referenced them' as
+                               selected. A real referral would have gone to
+                               eligibility and the £20."
+
+                               This read `a.referencingMode` raw, so a NULL
+                               fell into the `!== 'opndoor_referenced'` arm and
+                               lit the pre-referenced option -- the OPPOSITE of
+                               the journey a referral would take. Not a display
+                               nicety: an operator reading it believed no
+                               eligibility step and no fee applied.
+
+                               agencyReferencingMode is the helper written for
+                               exactly this and never used here. It mirrors
+                               resolve_referencing_mode's coalesce, agency then
+                               route partner, so the screen and the function
+                               that actually decides the journey cannot
+                               disagree. */
+                            const effective = agencyReferencingMode(a, partnerMode);
+                            /* AND PINNING A SCREENED MODE MUST NOT TURN IT
+                               OPEN. The two radios are Matt's, and both
+                               pre-referenced modes answer the second one; but
+                               `pre_referenced_open` means opndoor applies NO
+                               criteria, which is a commercial position granted
+                               deliberately. So the value this option WRITES is
+                               the one already in force where that is a
+                               pre-referenced mode, and only otherwise the open
+                               one the confirmation describes. */
+                            const preValue = effective === 'pre_referenced_screened'
+                              ? 'pre_referenced_screened' : 'pre_referenced_open';
+                            return ([
+                              ['opndoor_referenced', 'Opndoor checks eligibility', 'The tenant completes eligibility before paying.'],
+                              [preValue, 'Agency has already referenced them', 'The tenant goes straight to payment.'],
+                            ] as const).map(([value, label, why]) => {
+                              /* NEITHER, WHERE THE MODE CANNOT BE RESOLVED,
+                                 which is the same mistake one level up:
+                                 partners.referencing_mode is NOT NULL, so this
+                                 only happens when the partner is not in the
+                                 hydrated store, and lighting a guess there is
+                                 what this whole change is undoing. */
+                              const chosen = effective == null ? false
+                                : value === 'opndoor_referenced'
+                                  ? effective === 'opndoor_referenced'
+                                  : effective !== 'opndoor_referenced';
+                              return (
+                                <label key={value} className={`ah-route__opt${chosen ? ' is-on' : ''}`}>
+                                  <input
+                                    type="radio"
+                                    name={`tenant-check-${a.id}`}
+                                    checked={chosen}
+                                    /* AND CHOOSING AN OPTION ALWAYS SAVES IT.
+                                       Matt, same message. The guard was
+                                       `if (!chosen)`, so clicking the option
+                                       already lit did nothing -- and where the
+                                       mode was INHERITED that is precisely the
+                                       click that needs to write, because it is
+                                       how an admin pins the agency's own value
+                                       and stops it following the partner's.
+                                       The test is now the stored column, not
+                                       the lit radio, so an explicit value
+                                       re-clicked still writes nothing and
+                                       leaves no empty audit row.
+
+                                       onClick AND NOT onChange, which is the
+                                       half that actually makes it work. A
+                                       radio fires no change event when it is
+                                       already checked, in jsdom and in every
+                                       browser, so an onChange handler can
+                                       never see the one click that matters
+                                       here. onClick fires either way, and
+                                       keyboard selection fires it too.
+                                       onChange stays as a no-op only because
+                                       React warns about a controlled input
+                                       without one. */
+                                    onChange={() => { /* see onClick */ }}
+                                    onClick={() => {
+                                      if (a.referencingMode !== value) doSetMode(a.id!, a.name, value);
+                                    }}
+                                  />
+                                  <span>
+                                    <b>{label}</b>
+                                    <span className="ah-route__why">{why}</span>
+                                  </span>
+                                </label>
+                              );
+                            });
+                          })()}
                         </div>
+                        {/* AND IT SAYS WHERE AN INHERITED ANSWER CAME FROM,
+                            so the lit option is not mistaken for a choice
+                            somebody made, and so the sentence explains why
+                            clicking it does something. */}
+                        {a.referencingMode == null && (
+                          <span className="ah-route__why">
+                            Inherited from {getPartner(partner)?.name ?? 'its partner'}. Choosing an option here
+                            records it against {a.name}, so it stops following the partner.
+                          </span>
+                        )}
                       </div>
                     )}
                     {open && isAdmin && (
@@ -1946,7 +2078,10 @@ export function AgencyHome() {
                         <button className="ah-linkbtn" onClick={() => setGrow({ mode: 'branch', agencyId: a.id })}>
                           <Icon name="plus" size={12} /> Add branch to {a.name}
                         </button>
-                        {org.kind === 'agency' && (
+                        {/* (ci)(2) AND NOTHING THAT CREATES A GROUP ABOVE IT.
+                            A supplier's estate is the supplier's shape, not a
+                            group of ours. */}
+                        {org.kind === 'agency' && !inSupplierEstate && (
                           <button className="ah-linkbtn" onClick={() => setGrow({ mode: 'agency' })}>
                             <Icon name="plus" size={12} /> Add another agency
                             <span className="ah-node-add__why">creates a group above {a.name} and moves it in</span>

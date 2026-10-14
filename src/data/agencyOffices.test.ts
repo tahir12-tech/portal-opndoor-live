@@ -39,7 +39,7 @@
  * and folding it into the hidden case destroys that signal.
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { agencyOffices, showsOffices, officeLabel } from './agencyOffices';
+import { agencyOffices, officeLabel, officeNameAddsNothing, showsOffices } from './agencyOffices';
 import { hydrateOrg } from './orgService';
 import { ORG_SEED } from './mock/org';
 import type { Agency } from './types';
@@ -253,5 +253,49 @@ describe('the flip, which is the half that makes this a rule and not a fixture',
     hydrateOrg(renamed as Agency[]);
     expect(showsOffices(SAME)).toBe(true);
     expect(officeLabel(SAME, 'Bermondsey')).toBe('Bermondsey');
+  });
+});
+
+/* THE AGENCY'S NAME, ONLY WHERE IT ADDS SOMETHING.
+ *
+ * Found by an adversarial review of the single-office backfill, and
+ * reproduced on dev with New Independent on opndoor-agents before any of it:
+ * the "What each branch pays out" Branch cell prints the office name and then
+ * the agency name in a `dt__sub` span, and that class has no `display: block`
+ * for `.dt.ah-table`, so the two run together inline. Where the one office is
+ * named after its agency the cell read the name twice.
+ *
+ * officeLabel could not answer the question, which is why the predicate is
+ * exported rather than reused: for this shape officeLabel returns the
+ * agency's own name, correctly, and says nothing about whether a SECOND line
+ * naming the agency is worth printing.
+ */
+describe('officeNameAddsNothing', () => {
+  it('is true for an office named exactly after its agency', () => {
+    expect(officeNameAddsNothing('Regent Lettings', 'Regent Lettings')).toBe(true);
+  });
+
+  /* THE AUTO "HEAD OFFICE" SHAPE TOO, which the referral form writes and
+     20261008290000 treats as the same system-written name. */
+  it('and for the auto head-office name built from it', () => {
+    expect(officeNameAddsNothing('Regent Lettings', 'Regent Lettings, Head office')).toBe(true);
+  });
+
+  it('ignoring case and runs of whitespace, as the display rule does', () => {
+    expect(officeNameAddsNothing('Regent  Lettings', ' regent lettings ')).toBe(true);
+  });
+
+  it('and for an office with no name at all, which says even less', () => {
+    expect(officeNameAddsNothing('Regent Lettings', '')).toBe(true);
+  });
+
+  /* AND FALSE FOR A NAME SOMEBODY CHOSE, which is the half that matters: the
+     fix must not stop the agency being named beside Battersea. */
+  it('is false for a name a person typed', () => {
+    expect(officeNameAddsNothing('Regent Lettings', 'Battersea')).toBe(false);
+  });
+
+  it('and false for a name that merely contains the agency name', () => {
+    expect(officeNameAddsNothing('Regent Lettings', 'Regent Lettings North')).toBe(false);
   });
 });

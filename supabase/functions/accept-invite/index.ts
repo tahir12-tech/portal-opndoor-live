@@ -1,0 +1,147 @@
+// =====================================================================
+// accept-invite (verify_jwt = false, required)
+//
+// Redeems the portal's OWN seven-day staff invitation token and hands back a
+// short-lived Supabase link that signs the invitee in long enough to choose a
+// password and enrol their authenticator.
+//
+// WHY THIS FUNCTION EXISTS AT ALL. A GoTrue action link lives for
+// `mailer_otp_exp`, which is ONE project-wide number shared with password
+// resets, and the reset copy promises thirty minutes in three places. So the
+// link in an invitation email is ours (`public.staff_invites`, seven days) and
+// the GoTrue link is minted HERE, at the moment the person clicks, from
+// nothing but a token we issued.
+//
+// AND IT IS A POST, WHICH IS THE OTHER HALF OF THE POINT. The old email
+// carried a bare GET on /auth/v1/verify, so a mail gateway that pre-fetches
+// links at delivery spent the invitation before the human read it, and they
+// then saw "This link is not valid". A scanner fetching our link now loads a
+// React page and nothing happens; the token is only spent by the POST this
+// function answers.
+//
+// verify_jwt MUST be false: the caller has no session yet. That is the entire
+// situation. The token is the credential, it is checked by
+// claim_staff_invite under the service role, and a wrong one is refused with
+// its own sentence rather than a generic failure.
+// =====================================================================
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { safeOrigin } from "../_shared/safeOrigin.ts";
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  try {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const b = await req.json().catch(() => ({}));
+    const token = String(b.token ?? "").trim();
+
+    /* SHAPE FIRST, so a malformed token is a refusal and not a database
+       error. claim_staff_invite takes a uuid, and sending it anything else
+       would surface Postgres's own cast message to somebody who is simply
+       looking at a mangled link. */
+    if (!UUID.test(token)) {
+      return json({ ok: false, error: "That invitation link is not one we issued." }, 400);
+    }
+
+    const service = createClient(SUPABASE_URL, SERVICE);
+
+    /* ASK FIRST, SPEND LAST. 20261013000000, after a probe caught the
+       ordering: this used to CLAIM here and mint the sign-in link afterwards,
+       so a failure in between left a token marked used and a person who got
+       nothing. The retry then answered "That invitation has already been
+       used" about an invitation nobody had ever used.
+
+       peek_staff_invite writes nothing and raises the same four sentences --
+       expired, already used, cancelled, never issued -- because only one of
+       them means "ask for another" and a reader must not get different words
+       depending on which half refused. The claim is at the bottom of this
+       function, once there is something to claim it for. */
+    const { data: peek, error: peekErr } = await service
+      .rpc("peek_staff_invite", { p_token: token });
+    if (peekErr) return json({ ok: false, error: peekErr.message }, 400);
+
+    const row = Array.isArray(peek) ? peek[0] : peek;
+    const email = String(row?.email ?? "").trim();
+    if (!email) return json({ ok: false, error: "That invitation link is not one we issued." }, 400);
+
+    /* THE TAB THIS PERSON SIGNS IN ON, carried exactly as invite-user carries
+       it: our own estate and Opndoor's own staff on the Agent tab, a
+       supplier's people on the Supplier tab. Read from the user rather than
+       sent by the browser, because the browser at this point is a stranger
+       holding a token. */
+    const { data: who } = await service
+      .from("users").select("partner_id").eq("id", row.user_id).maybeSingle();
+    const { data: party } = who?.partner_id
+      ? await service.from("partners").select("partner_kind").eq("id", who.partner_id).maybeSingle()
+      : { data: null };
+    const tab = !who?.partner_id || party?.partner_kind === "agency" ? "agent" : "supplier";
+
+    /* THE ORIGIN IS STILL CHECKED, although no URL is built from it any more.
+       It is the one place this function can tell a configured environment from
+       an unconfigured one, and answering a token with a session on an
+       environment that has no portal address would be worse than refusing. */
+    const base = safeOrigin(req.headers.get("origin"));
+    if (!base) return json({ ok: false, error: "This environment has no portal address configured." }, 500);
+
+    /* THE HASHED TOKEN, NOT THE ACTION LINK.
+       Matt, 2026-10-13: every emailed auth link must point at a page of ours
+       built from the hashed token rather than at GoTrue's verify endpoint.
+
+       THIS PATH WAS ALREADY SAFE AGAINST A SCANNER, and is changed anyway.
+       The action link was handed to the BROWSER and followed after a click,
+       so a scanner never saw it. But handing back a URL and having the page
+       navigate to it means the one-time token travels through
+       window.location, lands in history, and is spent by a GET -- and the
+       only reason it was safe was that nothing else fetched that URL. A
+       token_hash the page verifies with verifyOtp is the same credential with
+       no endpoint attached and no navigation, so there is one mechanism for
+       every emailed auth link instead of two with different failure modes.
+
+       Recovery rather than invite: the account already exists, because
+       invite-user created it when it issued the seven-day token.
+
+       AND redirectTo IS GONE with the link, which takes the allow-list
+       fallback with it. It existed so GoTrue's redirect would carry the tab;
+       the tab now rides in our own URL, which no allowlist governs. */
+    const { data, error } = await service.auth.admin.generateLink({ type: "recovery", email });
+    if (error) return json({ ok: false, error: error.message }, 400);
+
+    const hashed = (data?.properties as { hashed_token?: string } | undefined)?.hashed_token;
+    if (!hashed) return json({ ok: false, error: "We could not open your invitation. Please ask for a new one." }, 400);
+
+    /* AND NOW IT IS SPENT, with a working link in hand. claim_staff_invite
+       re-validates, so it is still the authoritative single-use gate and two
+       clicks landing together cannot both succeed.
+
+       A FAILURE HERE IS NOT A FAILURE FOR THE HOLDER. The link exists and
+       works; all that is lost is the record that it was used, so the worst
+       case is a second button press being allowed. Answering 400 because the
+       bookkeeping failed would refuse somebody holding a valid credential,
+       which is the wrong way round. Logged so it is not silent. */
+    const { error: claimErr } = await service.rpc("claim_staff_invite", { p_token: token });
+    if (claimErr) {
+      console.log(JSON.stringify({
+        event: "staff_invite_claim_failed", message: claimErr.message,
+      }));
+    }
+
+    /* `tab` IS RETURNED TOO, so the page can carry the audience on without
+       the browser having told us which rail this person is on -- it is a
+       stranger holding a token at this point, which is why the tab is read
+       off the user above. */
+    return json({ ok: true, token_hash: hashed, type: "recovery", tab });
+  } catch (e) {
+    return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error" }, 500);
+  }
+});

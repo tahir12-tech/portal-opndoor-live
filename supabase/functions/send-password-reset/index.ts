@@ -64,45 +64,51 @@ Deno.serve(async (req) => {
     // send when the address is valid and known; the outcome is not disclosed.
     if (email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
       const service = createClient(SUPABASE_URL, SERVICE);
-      const mint = (redirectTo: string) =>
-        service.auth.admin.generateLink({ type: "recovery", email, options: { redirectTo } });
 
-      /* THE AUDIENCE RIDES IN THE LINK, WITH A WAY BACK DOWN.
-         The reset request knows which tab was picked, so an expired link can
-         return somebody to it rather than guessing Agent for every member of
-         staff. Only the two staff audiences reach this endpoint; a tenant reset
-         goes through tenant-auth and lands on /apply/reset.
+      /* THE HASHED TOKEN, NOT THE ACTION LINK. THIS IS THE WHOLE FIX.
+         Matt, 2026-10-13, after fourteen Regent invites died in twelve
+         minutes: "our links verify the one-time token on page load
+         (auth.opndoor.co/auth/v1/verify?token=...&type=invite), so the token
+         is used up before the person clicks."
 
-         The fallback is the point. GoTrue matches redirectTo against the
-         project's Redirect URLs allowlist, and an entry without a wildcard does
-         not match once a query string is on the end. When that happens
-         generateLink ERRORS, and the branch below reads a generateLink error as
-         "no such account" and sends nothing at all. A cosmetic improvement to a
-         tab must not be able to turn into no staff reset emails, so a rejected
-         redirect degrades to exactly the link we sent yesterday. CUTOVER has
-         the allowlist entry that stops this firing. */
-      let { data, error } = await mint(`${base}/reset-password?tab=${audience}`);
-      if (error) {
-        const plain = await mint(`${base}/reset-password`);
-        if (!plain.error) {
-          console.log(JSON.stringify({
-            event: "reset_redirect_tab_rejected",
-            detail: "Redirect URLs allowlist does not accept a query string; sent without the tab.",
-          }));
-        }
-        data = plain.data;
-        error = plain.error;
-      }
-      const link = data?.properties?.action_link as string | undefined;
+         `action_link` IS that verify URL. Anything that fetches it spends the
+         token: a corporate mail scanner, a link preview, an antivirus proxy,
+         a user's own browser prefetching. It is a GET that changes state,
+         which is the oldest mistake on the web, and it is GoTrue's shape
+         rather than ours.
+
+         `hashed_token` is the same credential WITHOUT the endpoint. We put it
+         in a URL of our own that does nothing when it is loaded, and the
+         portal calls verifyOtp on a click. A scanner then fetches a React
+         page and spends nothing.
+
+         AND redirectTo IS GONE, which removes a live fragility rather than
+         adding one. It existed only so GoTrue's own redirect would land on the
+         right tab, and the allowlist does not match an entry once a query
+         string is appended -- so this function carried a whole fallback, and
+         a log line, for the case where asking for the tab made generateLink
+         error and NO reset email went out at all. The tab now rides in our own
+         URL, which no allowlist governs, so there is nothing left to be
+         rejected. */
+      const { data, error } = await service.auth.admin.generateLink({ type: "recovery", email });
+      const hashed = (data?.properties as { hashed_token?: string } | undefined)?.hashed_token;
 
       // generateLink IS the existence check on this path, so a failure here is
       // usually "no such account" and must stay neutral. Logged, not disclosed.
-      if (error || !link) {
+      if (error || !hashed) {
         console.log(JSON.stringify({
-          event: "reset_link_unavailable", message: error?.message ?? "no action_link returned",
+          event: "reset_link_unavailable", message: error?.message ?? "no hashed_token returned",
         }));
         return json({ ok: true });
       }
+
+      /* THE AUDIENCE STILL RIDES IN THE LINK, so an expired one returns
+         somebody to the tab they started from rather than guessing Agent for
+         every member of staff. Only the two staff audiences reach this
+         endpoint; a tenant reset goes through tenant-auth and lands on
+         /apply/reset. */
+      const link = `${base}/auth/confirm?token_hash=${encodeURIComponent(hashed)}`
+        + `&type=recovery&tab=${audience}`;
 
       const result = await sendMessage({ to: email, message: passwordResetEmail(link, "portal") });
       if (!result.ok) {

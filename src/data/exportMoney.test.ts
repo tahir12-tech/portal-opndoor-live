@@ -325,13 +325,21 @@ describe('the monthly trend states what was actually collected', () => {
       .map(({ block }) => block)
       .find((b) => b.kind === 'table' && (b.columns ?? [])[0]?.header === 'Month')?.rows ?? [];
     const trendTotal = rows.reduce((s, r) => s + Number(r[2]), 0);
-    const gross = blocksOf(built)
+    /* AGAINST THE NET LINE SINCE (cg), 2026-10-05, and that is the change
+       rather than a relaxation. Matt: "'Fees collected' means the same
+       everywhere ... net of refunds (or label gross as 'before refunds')."
+       The trend's own column is headed "Guarantee fees collected", bare, so
+       it is net; the summary states all three (gross, refunds, net) and the
+       one this reconciles against is the one with the same meaning.
+
+       THE GUARD IS UNCHANGED IN SUBSTANCE: the trend is still the only
+       place these fees are re-summed, and it still has to come to the same
+       total as the figure every other surface reads. */
+    const net = blocksOf(built)
       .flatMap(({ block }) => block.items ?? [])
-      // "Guarantee fees" since 2026-10-02: the SUMMARY labels were reworded,
-      // while the CSV column headings a partner's code reads were not.
-      .find((i) => i.label === 'Guarantee fees collected (gross)')!;
+      .find((i) => i.label === 'Net fees after refunds')!;
     // The trailing twelve months hold this whole book, so the two are the same
     // money. Compared to the penny, which is the only comparison worth making.
-    expect(Math.round(trendTotal * 100) / 100).toBe(Math.round(Number(gross.value) * 100) / 100);
+    expect(Math.round(trendTotal * 100) / 100).toBe(Math.round(Number(net.value) * 100) / 100);
   });
 });

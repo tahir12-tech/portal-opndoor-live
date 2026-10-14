@@ -12,7 +12,9 @@
    sendDeedToAgent -> send_deed_to_agent RPC. Mock/test mode uses the seed.
    ===================================================================== */
 import { gbpPence, formatDate, formatLongDate } from '@/lib/format';
+import { agreedBasisPhrase, basisFromMoney, type FeeBasisSnapshot } from './feeBasisPhrase';
 import type { CommissionLine, ApplicationDetail, ApplicationSummary, DeedState, PartnerScope, Role, Status, WithdrawReason } from './types';
+import { referrerShownTo, type ReferrerFacts } from './whoSentThisReferral';
 import { ALL_PARTNERS, isOpndoorStaff } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
 import { getPartner, partnerName } from './partnersService';
@@ -85,6 +87,14 @@ export interface FullApp {
   /** The referring user's actual role (superadmin/management/referrer), so the
       league can label who generated the referral truthfully. */
   referrerRole?: Role | null;
+  /* (cq) WHO ACTUALLY SENT IT, AND WHETHER THEY ARE ONE OF OURS.
+     `referrer` is what the CURRENT reader is shown and may be the
+     masked label; these two are what it was computed from, kept so
+     View as can recompute it without another sign-in. Not the same as
+     referrerRole, which comes from the embedded users row and is null
+     for exactly the rows that need masking. */
+  referrerReal?: string | null;
+  referrerIsOpndoor?: boolean;
   /** THE COMPANY THE REFERRER THEMSELVES WORKS FOR, by slug, or null.
    *
    *  Not `partner`, which is the rail the REFERRAL came in on. The two
@@ -121,6 +131,9 @@ export interface FullApp {
       negotiated basis is 3 or 5. Selected by hydrate and previously dropped
       here, which left every export unable to say WHY a fee was what it was. */
   feeBasisWeeks?: number | null;
+  /** 'weeks' or 'months'. The quantity above is in THIS unit: a band written
+      in months arrives as 1, not as 4.35. */
+  feeBasisUnit?: 'weeks' | 'months' | null;
   /** The joint tenancy this applicant belongs to, or undefined for a tenancy of one. */
   tenancyId?: string | null;
   /** 1-based entry order. Position 1 leads: it carries the one deed. */
@@ -178,6 +191,42 @@ export function hydrateFull(rows: FullApp[]): void {
   HYDRATED = true;
 }
 
+/* =====================================================================
+   (cq) READING AS THE CUSTOMER, WITHOUT ANOTHER SIGN-IN.
+
+   Matt, 2026-10-05: "View as: yes, mask it. View as shows exactly what
+   the customer sees, including 'opndoor (on your behalf)'."
+
+   THE MASK IS APPLIED AT HYDRATE, once, and View as neither
+   re-hydrates nor changes the role -- it changes the scope. So the
+   displayed `referrer` is recomputed here from the two facts every row
+   carries, and SessionContext calls this when View as starts and again
+   on the way out.
+
+   WHY NOT AT EACH SURFACE. Eight of them print a referrer: the
+   Applications list and its filter, the referrer chart, two League
+   boards, the application page, and three exports. Asking the question
+   in eight places is what (cq) exists to stop, and the one that gets
+   missed is a customer's name shown to nobody's benefit.
+
+   THE SAME SHAPE AS hydrateCommissionVisibility, which View as already
+   swaps the same way, for the same reason, with the same cleanup.
+
+   IDEMPOTENT, and that matters: the effect runs again on every change
+   of the viewed party, and a reader who is opndoor staff reading their
+   own book must get the real name back rather than a label that
+   stuck. */
+export function showReferrersAsCustomer(asCustomer: boolean): void {
+  const apply = <T extends ReferrerFacts & { referrer?: string | null }>(row: T): T => {
+    if (row.referrerReal === undefined) return row;   // mock rows carry no facts
+    row.referrer = referrerShownTo(row, asCustomer) ?? row.referrer;
+    return row;
+  };
+  LIST = LIST.map(apply);
+  FULL = FULL.map(apply);
+  RECORDS = RECORDS.map(apply);
+}
+
 /** The full application set (empty in mock mode). */
 export function allFull(): FullApp[] {
   return FULL;
@@ -218,9 +267,57 @@ const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing
  * `paid_at is null` by constraint -- so this is a rule about what the
  * sentence means rather than a case anybody meets.
  */
-export function applicationStatusLabel(r: { status: Status; refunded?: boolean }): string {
+/* AND THE DEED STATE IS PART OF THE SAME ONE ANSWER, 2026-10-05 (bq).
+ *
+ * Matt: "1) every fully refunded application's Status is 'Refunded'
+ * (GR-23854 says 'Paid', GR-23853 'Deed cancelled') ... 4) an application
+ * whose deed was voided for a correction and awaits re-signing shows
+ * 'Awaiting signature', not 'Paid' (GR-26262). Same rules in every export
+ * and on screen."
+ *
+ * THE TWO EXAMPLES FAIL DIFFERENTLY, which is the diagnosis. On dev:
+ *
+ *   GR-23854  status paid  payment refunded  deed voided          -> said "Paid"
+ *   GR-23853  status deed  payment refunded  deed cancelled       -> said "Deed cancelled"
+ *   GR-26262  status paid  payment paid      deed awaiting_tenant -> said "Paid"
+ *
+ * The first ignored the refund, the second let the deed state beat it, and
+ * the third ignored the deed state. One ordered rule beats all three, and
+ * it lives here because "the same rules in every export and on screen"
+ * means one function, not three agreeing copies.
+ *
+ * THE REFUND STILL WINS OVER THE DEED, because it is the last thing that
+ * happened and it is what a reader needs to know: a cancelled deed on a
+ * refunded application is how the refund was carried out.
+ *
+ * AWAITING SIGNATURE IS NOT ONLY THE RE-ISSUE CASE. Matt's example is a
+ * deed voided for a correction and reissued, and the state he wants named
+ * is simply "the deed is out and unsigned". A first issue sitting
+ * unsigned is the same fact and reads the same way; the row cannot tell
+ * them apart and does not need to.
+ */
+export function applicationStatusLabel(
+  r: { status: Status; refunded?: boolean; deedState?: string | null; awaitingSignature?: boolean },
+): string {
   if (r.refunded && r.status !== 'withdrawn' && r.status !== 'expired') return 'Refunded';
+  if (r.deedState === 'cancelled') return 'Deed cancelled';
+  /* THE TWO SHAPES OF THE SAME FACT. A list row carries
+     `awaitingSignature`, a full application carries `deedState`, and the
+     database spells that 'awaiting_tenant' while tenancyGroups maps it to
+     'awaiting' for the member views. Taking all three here is what lets
+     one function answer for the lists, the detail page and the exports --
+     which is what "the same rules in every export and on screen" asks
+     for. */
+  if (isAwaitingSignature(r)) return 'Awaiting signature';
   return STATUS_LABEL[r.status];
+}
+
+/** Is the deed out and unsigned, whichever shape the row is in? */
+export function isAwaitingSignature(
+  r: { deedState?: string | null; awaitingSignature?: boolean },
+): boolean {
+  return r.awaitingSignature === true
+    || r.deedState === 'awaiting_tenant' || r.deedState === 'awaiting';
 }
 
 /* AND THE SAME ANSWER FOR THE LISTS THAT USE CSS CLASSES RATHER THAN PILLS.
@@ -245,9 +342,15 @@ export function applicationStageClass(r: { status: Status; refunded?: boolean })
 
 /** The pill's colour for that one status. Muted: a refund is an ending, and
  *  must not wear the green of an issued deed. */
-export function applicationStatusTone(r: { status: Status; refunded?: boolean }): 'muted' | 'warn' | 'danger' | Status {
+export function applicationStatusTone(
+  r: { status: Status; refunded?: boolean; deedState?: string | null; awaitingSignature?: boolean },
+): 'muted' | 'warn' | 'danger' | Status {
   if (r.refunded && r.status !== 'withdrawn' && r.status !== 'expired') return 'muted';
   if (r.status === 'withdrawn' || r.status === 'expired' || r.status === 'draft') return 'muted';
+  /* THE SAME AMBER THE "Awaiting signature" CHIP ALREADY USES, so the row
+     and the filter above it agree. A label that changed without its colour
+     would read as a Paid row with somebody else's words in it. */
+  if (r.deedState !== 'cancelled' && isAwaitingSignature(r)) return 'warn';
   if (r.status === 'referencing') return 'warn';
   if (r.status === 'declined') return 'danger';
   return r.status;
@@ -848,8 +951,9 @@ export function guaranteedAnnual(r: { rent: number; shareAmount?: number | null 
    reaching it through getApplicationDetail means hydrating a FullApp AND a
    summary, and a fixture that elaborate tests the hydration as much as the
    rule. Nothing else imports it. */
-export function feeLabels(r: { rent: number; fee?: number | null; sharePercent?: number | null }):
-  { feeGBP?: string; feeBasisLabel?: string } {
+export function feeLabels(
+  r: { rent: number; fee?: number | null; sharePercent?: number | null } & FeeBasisSnapshot,
+): { feeGBP?: string; feeBasisLabel?: string } {
   const fee = r.fee ?? null;
   if (fee == null) return {};
   const gbp = gbpPence(fee);
@@ -881,9 +985,25 @@ export function feeLabels(r: { rent: number; fee?: number | null; sharePercent?:
    * IT. The figure was never wrong; the words around it were. */
   const suffix = r.sharePercent != null && r.sharePercent > 0 && r.sharePercent < 100
     ? ` (this tenant's ${r.sharePercent}% share)` : '';
-  if (Math.abs(fee - base) < 0.005) return { feeGBP: gbp, feeBasisLabel: `one month's rent${suffix}` };
-  const weeks = base > 0 ? (fee * 52) / (base * 12) : 0;
-  return { feeGBP: gbp, feeBasisLabel: `${Number(weeks.toFixed(2))} weeks of rent${suffix}` };
+  /* THE AGREED BASIS, NOT THE BASIS RECOVERED FROM THE MONEY.
+     Matt, 2026-10-12: "The payment panel showed '£1.16 · 5.03 weeks of rent'
+     on a £2 rent joint test with a 5-week deal. Show the agreed weeks, not a
+     figure back-calculated from the rounded pence."
+
+     5.03 was arithmetic, not a wrong number: the tenancy fee rounds to the
+     penny, the half share rounds again, and (1.16 * 52) / (1.00 * 12) is
+     5.0267. The basis is a number somebody agreed and every application has
+     carried it frozen since 20260928100000, so it is read rather than
+     recovered, and then there is nothing to round and no tolerance to pick. */
+  const agreed = agreedBasisPhrase(r);
+  if (agreed) return { feeGBP: gbp, feeBasisLabel: `${agreed}${suffix}` };
+  /* AND THE OLD ARITHMETIC SURVIVES AS THE FALLBACK, for a row written before
+     the columns existed. Those are still on the books and a label is better
+     than a blank. */
+  const recovered = basisFromMoney(fee, base);
+  return recovered
+    ? { feeGBP: gbp, feeBasisLabel: `${recovered}${suffix}` }
+    : { feeGBP: gbp };
 }
 
 export function getApplicationDetail(ref: string | null): ApplicationDetail {

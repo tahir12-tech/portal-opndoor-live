@@ -41,7 +41,7 @@ import { showsOffices } from './agencyOffices';
 import { allFull, findRecord, guaranteeExpiry, isHydrated, reachedPayment, type FullApp, guaranteedAnnual } from './applicationsService';
 import { getPartners, partnerName } from './partnersService';
 import { periodRange, scopeFull, inRange } from './paymentMetrics';
-import { payeesFor, orgAmountOf, agentAmountOf, agentEarnedOf, supplierAmountOf, supplierLineOf, feeBaseFor, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
+import { payeesFor, orgAmountOf, agentAmountOf, agentEarnedOf, supplierAmountOf, supplierLineOf, feeBaseFor, refundTaken, agentRailApp, feeBasisOf, sourcesOf, linesFor, type FeeBasis } from './commissionSplit';
 import { deliveryStateOf } from './deliveryState';
 // Walk fix 21: one rule for the line under a referrer's name.
 import { whereTheyWork, type WhereReader } from './whereTheyWork';
@@ -326,9 +326,9 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
       a.paid += 1;
       paidSet.push(app);
       a.feesGross += feeBaseFor(app);
+      a.refundValue += refundTaken(app);
       if (app.refunded) {
         a.refundCount += 1;
-        a.refundValue += app.refundedAmount ?? feeBaseFor(app);
         a.partnerCommExcl += supplierComm;
         a.agentCommExcl += agentComm;
       } else if (app.partiallyRefunded) {
@@ -346,8 +346,11 @@ export function liveAggregate(role: Role, scope: PartnerScope, period: Period): 
            Commission stays on the WHOLE fee rather than being pro-rated down.
            That is the status quo for any application that was not refunded,
            and whether a partial refund should reduce it is a commercial
-           decision recorded as NM-I, not one to take in an arithmetic fix. */
-        a.refundValue += app.refundedAmount ?? 0;
+           decision recorded as NM-I, not one to take in an arithmetic fix.
+
+           THE SUBTRACTION ITSELF MOVED UP to refundTaken, once, for both
+           kinds: it was written here and in three other places, and only
+           two of the four knew about a partial refund at all. */
         a.partnerCommNet += supplierComm;
         if (!isHousePartner(app.partner)) a.supplierCommNet += supplierComm;
         a.agentCommNet += agentComm;
@@ -546,7 +549,11 @@ function emit(g: Group): LeagueRow {
     sub: g.sub,
     partner: g.partner,
     refs: g.refs,
-    fees: g.feesGross, // "Fees collected" is gross; commission below is net of refunds
+    /* (cg) NET. The comment here used to read "'Fees collected' is gross;
+       commission below is net of refunds", which is the contradiction
+       Matt found: hydrate.ts computes the same name net for the Agencies
+       list, five lines of comment away from saying so. */
+    fees: g.feesGross - g.refundValue,
     paid: g.paid,
     deed: g.deed,
     // Both applicant-grain. Sent to Deed briefly divided by LETS, which was
@@ -778,7 +785,11 @@ function groupRows(
       g.paid += 1; g.paidLets.add(letId); g.feesGross += feeBaseFor(app);
       // The refund is of the FEE, not of the rent. Matches liveAggregate and
       // livePartnerBreakdown, which both already said feeBaseFor.
-      if (app.refunded) { g.refundValue += app.refundedAmount ?? feeBaseFor(app); g.partnerCommExcl += supplierComm; g.agentCommExcl += agentComm; }
+      /* (cg) THE REFUND, THROUGH THE ONE RULE. This subtracted a full
+         refund and ignored a partial one, so a board could show more
+         collected than the tile above it. refundTaken answers both. */
+      g.refundValue += refundTaken(app);
+      if (app.refunded) { g.partnerCommExcl += supplierComm; g.agentCommExcl += agentComm; }
       else {
         g.partnerComm += supplierComm;
         g.agentComm += agentComm;
@@ -965,7 +976,11 @@ export function liveByCustomer(role: Role, scope: PartnerScope, period: Period):
     if (inRange(app.sentAt, start, end)) row.sent += 1;
     if (inRange(app.deedAt, start, end)) row.deeds += 1;
     if (inRange(app.paidAt, start, end)) {
-      row.fees += feeBaseFor(app);
+      /* (cg) NET, LIKE EVERY OTHER "Fees collected". This was gross and
+         the Agencies list was net, which is Matt's two figures for
+         Regent: 21,447.75 here and 15,219.29 there, both correct and one
+         of them wrong for the name above it. */
+      row.fees += feeBaseFor(app) - refundTaken(app);
       /* What leaves the business, and only on a fee that stayed. The
          agency's cut always; a real supplier's too, never a house route's,
          which is Opndoor's own margin. The same two terms as the trend's
@@ -1100,7 +1115,8 @@ export function liveMonths(role: Role, scope: PartnerScope): MonthRow[] {
          commission, and zeroing by referencing mode would wipe a legitimate
          supplier settlement. :220 already draws the line this way. */
       if (m) {
-        m.fees += feeBaseFor(app);
+        // (cg) Net, like the tile, the boards and the Agencies list.
+        m.fees += feeBaseFor(app) - refundTaken(app);
         /* THE READER'S OWN COMMISSION, WHICH FOR AN AGENCY IS NOT THE
            PARTNER CUT. Matt, 2026-10-01: "Monthly trend: September 2026
            shows GBP 0 commission earned, but the statement shows GBP
@@ -1354,8 +1370,14 @@ export function livePartnerBreakdown(role: Role, scope: PartnerScope, period: Pe
     row.feesGross += feeBaseFor(app);
     row.partnerCommGross += supplierComm;
     row.agentCommGross += agentComm;
+    /* (cg) THE FIFTH PLACE THE SUBTRACTION WAS WRITTEN, found by reading
+       the file again after fixing the other four. This one knew about a
+       full refund and not a partial one, so money that went back was
+       missing from a column headed Refunds. Same rule as everywhere
+       else now. */
+    row.refundValue += refundTaken(app);
     if (app.refunded) {
-      row.refundValue += app.refundedAmount ?? feeBaseFor(app);
+      // The commission is excluded; the amount was taken above.
     } else {
       row.partnerCommNet += supplierComm;
       row.agentCommNet += agentComm;
@@ -1437,6 +1459,10 @@ export interface StatementLine {
    *  needs to know whether the fee is a whole let or a share of a joint
    *  one. Never empty now, so the drop-empty column rule keeps it. */
   tenancyPlace: string;
+  /** The agency the referral belongs to. (bs): "add an Agency column so
+      supplier rows show the agency (Test Lettings asda) as well as the
+      office" -- the office name alone does not say whose office it is. */
+  agency: string;
   branch: string;
   paidAt: Date;
   /** What THIS applicant paid. On a joint tenancy that is their share of the
@@ -1470,6 +1496,19 @@ export interface CommissionStatement {
 const monthKeyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const monthLabelOf = (d: Date) => `${MONTH_LONG[d.getMonth()]} ${d.getFullYear()}`;
 
+/* HOW MANY APPLICATIONS SHARE EACH TENANCY, counted once for the book.
+
+   (bs)(2) needs the same answer on both sides of this file -- the agency
+   payees and the supplier ones -- and the agency side was computing it by
+   filtering the whole set for every line, which is a scan per row. At a few
+   hundred applications that is invisible; it is the shape that stops being
+   invisible, and the supplier side needed the same number anyway. */
+function tenancySizes(set: FullApp[]): (id: string | null | undefined) => number {
+  const n = new Map<string, number>();
+  for (const a of set) if (a.tenancyId) n.set(a.tenancyId, (n.get(a.tenancyId) ?? 0) + 1);
+  return (id) => (id ? n.get(id) ?? 0 : 0);
+}
+
 /** THE ONE PASS. Every payee's lines for applications paid inside the window. */
 function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
   key: string; level: 'group' | 'agency' | 'branch'; orgId: string | null; orgName: string;
@@ -1479,11 +1518,12 @@ function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
     key: string; level: 'group' | 'agency' | 'branch'; orgId: string | null; orgName: string;
     partner: string; commission: number; apps: SettlementApp[]; lines: StatementLine[];
   }>();
+  const matesOf = tenancySizes(set);
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue; // net of refunds
     const fee = feeBaseFor(a);
-    const mates = a.tenancyId ? set.filter((x) => x.tenancyId === a.tenancyId).length : 0;
+    const mates = matesOf(a.tenancyId);
     // ONE LINE PER PAYEE. A historic row has no split and resolves to a single
     // agency line at the scalar rate, so it lands exactly where it always did.
     for (const p of payeesFor(a, fee)) {
@@ -1510,6 +1550,8 @@ function accruePayees(set: FullApp[], bStart: Date, bEnd: Date): Map<string, {
            all is a solo let, which is the common case and used to print
            a hyphen. */
         tenancyPlace: a.tenancyId && (mates || 0) > 1 ? `Joint (${mates})` : 'Single',
+        // (bs)(3) The agency as well as the office, on both sides.
+        agency: a.agency,
         branch: a.branch,
         paidAt: a.paidAt!,
         fee,
@@ -1630,6 +1672,7 @@ export function getCommissionStatements(role: Role, scope: PartnerScope, monthKe
      its own agents" it correctly returns nothing, and the supplier is still
      owed its own cut. */
   const bySupplier = new Map<string, CommissionStatement>();
+  const matesOf = tenancySizes(set);
   for (const a of set) {
     if (!inRange(a.paidAt, bStart, bEnd)) continue;
     if (a.refunded) continue;
@@ -1651,7 +1694,17 @@ export function getCommissionStatements(role: Role, scope: PartnerScope, monthKe
       ref: a.ref,
       tenant: findRecord(a.ref)?.name || a.ref,
       tenancyId: a.tenancyId ?? null,
-      tenancyPlace: a.tenancyId ? 'Joint' : 'Single',
+      /* (bs)(2) THE SAME WORDS AS THE AGENCY SIDE, COUNT AND ALL. Matt:
+         "tenancy as 'Joint (2)' on every row, including supplier ones."
+         This said "Joint" with no number, and said it for a tenancy of
+         ONE: a solo let can carry a tenancy row, which the agency side
+         has always known (it asks whether there is more than one
+         applicant on it) and this side did not. So a supplier's rows
+         read "Joint" on lets that were nothing of the kind. */
+      tenancyPlace: a.tenancyId && (matesOf(a.tenancyId) || 0) > 1 ? `Joint (${matesOf(a.tenancyId)})` : 'Single',
+      /* (bs)(3) AND THE AGENCY, because on a supplier's statement the
+         office alone does not say whose it is. */
+      agency: a.agency,
       branch: a.branch,
       paidAt: a.paidAt!,
       fee: feeBaseFor(a),

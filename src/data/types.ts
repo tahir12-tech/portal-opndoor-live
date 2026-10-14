@@ -435,6 +435,21 @@ export const REFERENCING_MODES: { id: ReferencingMode; label: string; choice: st
     desc: 'opndoor completes the reference. Applications are refused.' },
 ];
 
+/* (ci) THE SETTING AS A CLAUSE INSIDE A SENTENCE.
+
+   Matt: show "Checked as Kestrel Lettings sets it: they check tenants,
+   Opndoor accepts them as sent". That is `choice` with its first letter
+   turned down, so the three settings cannot be described one way on a
+   supplier-estate agency's page and another on the supplier's own.
+
+   AN UNSET SUPPLIER ANSWERS THE DEFAULT RATHER THAN A BLANK, because a
+   sentence that stops after the colon reads as a fault. The default IS
+   pre_referenced_screened: see create_partner's p_referencing_mode. */
+export function checkingChoice(mode: ReferencingMode | null | undefined): string {
+  const m = REFERENCING_MODES.find((x) => x.id === mode) ?? REFERENCING_MODES[0];
+  return m.choice.charAt(0).toLowerCase() + m.choice.slice(1);
+}
+
 export type LeaderboardMode = 'full' | 'rankings' | 'private';
 
 export interface CommissionRates {
@@ -640,6 +655,11 @@ export interface ApplicationSummary {
   sentAtTs?: number | null;
   /** True when the guarantor fee was refunded (status stays Paid, by design). */
   refunded?: boolean;
+  /* (cq) WHO ACTUALLY SENT IT, AND WHETHER THEY ARE ONE OF OURS, kept
+     beside the displayed `referrer` so View as can change the answer
+     without another sign-in. See whoSentThisReferral. */
+  referrerReal?: string | null;
+  referrerIsOpndoor?: boolean;
   /** #2 True when the application was withdrawn at Sent (terminal, pre-payment). */
   withdrawn?: boolean;
   /** #13 True when auto-expired (unpaid 14 days after Sent); terminal, pre-payment. */

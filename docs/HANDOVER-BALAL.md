@@ -1719,14 +1719,32 @@ is not.
 ## 12a. After launch: what is recorded and not built, 2026-10-05
 
 **THE STATE OF THE BRANCH YOU HAVE BEEN HANDED.** Measured on the tip
-commit, not remembered:
+commit of `matt-fixes`, not remembered. The figures in brackets are the
+same gate on `partner-api` at `4a39fe6`, which is where the second night
+run started:
 
-| gate | result |
-| --- | --- |
-| `npm run drift` | clean. Dev matches a clean apply of the files: 403 functions, 115 policies, 51 triggers |
-| `npm run typecheck` | clean |
-| `npm test` | 333 files, 3,648 tests, 0 failing |
-| `npm run test:db` (pgTAP, against dev) | 135 files, 0 failing assertions, 0 errored files |
+| gate | result on `matt-fixes` | on `4a39fe6` |
+| --- | --- | --- |
+| `npm run drift` | clean. 488 migrations; dev matches a clean apply | clean |
+| `npm run typecheck` | clean | clean |
+| `npm run build` | clean | not run |
+| `npm test` | **348 files, 3,814 tests, 0 failing** | 333 files, 3,648 tests |
+| `npm run test:db` (pgTAP, against dev, two batches) | **144 files, 0 failing assertions, 0 errored** | 135 files, 0 failing |
+
+**What moved in the suite, rather than the total.** Across all three
+runs on this branch: 15 new vitest files and 9 new pgTAP files; 28 new
+cases inside seven existing vitest files; nothing removed; three
+existing cases renamed, all three because Matt changed the rule they
+pinned (two in `theGuidesSayItPlainly`, one in `noRatesInTheGuides`,
+where "usually one month's rent" stopped being the answer). Eight new
+migrations, none of them a correction to an earlier one.
+
+**And two assertions that had been passing on nothing**, both found by
+probing rather than by failing: "re-choosing the same supplier clears
+nothing" compared '' to '' because `sel(v, 'Agency')` finds no
+`<select>` since the agency picker became a type-ahead, and the
+Expiries rule itself was never tested because every run is in mock
+mode, where the helper returns its fallback before reading a book.
 
 Run all four yourself on the clone before you touch production; that is
 what section 1.1b is for. A green suite here is evidence about DEV, and
@@ -1767,6 +1785,23 @@ agencies that is a silent failure on every on-the-fly create. The
 on-demand rewrite is where that gets fixed too, because there is then
 no whole array to persist.
 
+**AND THE SAME QUESTION DECIDES A SECOND THING, measured 2026-10-05.**
+The reconciliation duplicate check (ck) compares each pending agency
+against every agency in the same estate: name equality, then
+containment, then a trigram similarity, then a shared contact email.
+Those run per candidate. On dev, with 18 agencies and 6 rows pending,
+`reconciliation_queue()` returns in **28 ms**. At a few hundred
+agencies it stays comfortable. At several thousand it is thousands of
+comparisons per pending row, on a screen an admin opens on purpose
+rather than on sign-in, and the shape to change then is the candidate
+SET -- find the email matches by a join on `agent_contacts` and union
+them with the name matches, instead of testing every candidate.
+
+Not changed now, deliberately, and for the same reason the whole-book
+load was not capped: the number nobody has measured is how many
+agencies Rightmove will have. The fix is clear when it is needed and
+would be guesswork before.
+
 ### Help and the documents
 
 Most of Matt's review list is DONE and is listed here only so nobody
@@ -1797,8 +1832,9 @@ extraction. Render and read:
     osascript -l JavaScript scripts/render-pdf-pages.js \
       public/help-docs/<file>.pdf /tmp/pages tag
 
-The two source PDFs are still in `public/help-docs/` and are no longer
-referenced by the shelf. Delete them once Matt has reviewed the HTML.
+The source PDFs are gone, 2026-10-05, on Matt's word: all four of them,
+1.3 MB, referenced by nothing and two of them still saying the
+guarantee fee is one month's rent.
 
 **(dj) DONE.** Both Dev Centre tabs open with the journey the
 reader's ORGANISATION gets: statuses in order, the webhook events
@@ -1825,54 +1861,114 @@ closed.** Matt ruled: keep the collapse, do not print the name twice.
 
 ### Still not built, in the order I would take them
 
-1. **The Help documents tell every agent the fee is one month's
-   rent.** `public/help-docs/*.html` say it; it is true on standard
-   terms and FALSE FOR REGENT, who go live on Wednesday on their own
-   fee. It is first on this list for that reason: it is the only item
-   here that is wrong on the estate opening on day one, and it is
-   wrong in a document an agent hands to a tenant. Was filed under
-   "watch" in section 12, which understated it.
-2. **An `opndoor_manager` sees a blank Reporting page.** Found
-   2026-09-30 and still not fixed: `paymentMetrics.scopeFull` has a
-   positive allowlist naming only `referrer`, `superadmin` and
-   `management`, so that role is handed an empty set and every live
-   figure comes out zero. The role was added later and the list was
-   never widened. NOT A LEAK -- it shows too little, not too much --
-   which is why it sat under "watch"; but a manager reading all
-   zeros is a fault, not a thing that merely looks like one. An
-   opndoor_manager who says "Reporting is empty" is seeing this, not
-   a data problem.
-3. **(cp)** A draft month has no statement reference by design, and
-   the Agency schedules panel reports that as "Reference couldn't be
-   loaded. Refresh to try again" -- then writes that sentence into
-   the EXPORT's filename. Visibly broken, and the real error still
-   has to be found rather than hidden.
-4. **(cq)/(cy)** A referral an admin made on a customer's behalf
-   still names the admin in referrer lists, charts and exports, and
-   historic activity rows still carry staff names. (bm) fixed the
-   WRITE; these are the read. Note the difficulty recorded in QUEUE
-   (cy): activity_log has no actor_id, so historic rows can only be
-   masked by matching the stored name.
-5. **(ci)** The server does not refuse a referencing mode set on a
-   supplier-estate agency. The screen half is done; this is the
-   binding half.
-6. **(bq)(br)(bs)** The export fixes: Refunded status everywhere, the
-   carved share, blank supplier columns on agency rows, voided-deed
-   status, "Activity in period", and the Export-all CSV's month,
-   tenancy and Agency column.
-7. **(ck)** The duplicate check misses "Test Lettings" against "Test
-   Lettings asda" -- shared email, name prefix, containment.
-8. **(cl)** HALF DONE (`3ea02cc`). The commission card is gone for
-   a reader who may not see money, so no manager is told "no
-   commission deal set" when the truth is "not allowed to see". The
-   STATEMENT ADDRESS section of the same instruction is untouched and
-   is still shown to them.
-9. **(cs)** Supplier edits to an agency's name, address and email are
-   not in Recent changes.
-10. **(cu)** Sign-in lands on the last page visited.
-11. **(cv)(cw)** The Expiries default month (answer first) and the
-   sandbox proof.
-12. **(cx)(cg)(df)(db)(nn)(oo)(zz)** and the rest.
+**Rewritten 2026-10-05 after the second night run.** Nine of the ten
+entries that stood here are done; what follows is what is left, and why.
+
+1. **(dg) The whole-book sign-in load.** The decision is made (option 1,
+   on demand per screen) and the change is NOT built: it moves where
+   every figure on four surfaces comes from and cannot be finished and
+   proven in a night. `docs/MONEY-BEFORE-DG.md` is the before-picture
+   Matt asked for -- every money figure on dev with the query behind it
+   -- so the after is a comparison rather than a judgement. After
+   launch.
+2. **(cq)/(cy) historic activity actors.** The referrer half is done
+   (see below). The activity half turned out to have no reader at all:
+   nothing in the product displays `activity_log.actor`, so the
+   function written for it was withdrawn rather than shipped unread.
+   If a surface ever shows it, the mask is 20 minutes' work.
+3. **(nn)(oo) the remainder, and anything else in QUEUE.md not listed
+   here.** (oo) is done for the leaflets and the browser furniture.
+
+### Closed, 2026-10-05, rather than left quietly off the list
+
+- **(cu) Sign-in landing.** Matt: "close it. Can't reproduce, nothing
+  to fix." What was checked is in QUEUE.md: `/login` already sends a
+  ready session to `/home`, a completed sign-in navigates there,
+  `/home` is the per-actor resolver, and nothing in the client stores
+  or restores a route. Sign-out already clears the persisted partner
+  scope, origin scope and recents.
+- **The agent one-pager's length.** Matt: "don't cut content. Rename
+  it 'Agent guide' everywhere it's listed." Done; it is a guide and
+  three pages is what a guide is.
+- **(df) The supplier pickers.** Matt chose rule B on 2026-10-05: a
+  negotiated agreement that has not ended. The Referred by picker is
+  now type-to-search over the server's answer -- supplier-kind,
+  active, holding a live agreement -- with his note, "Only suppliers
+  with a live deal are shown". **"Harbour Lets" needed no label in the
+  end**: it is a partner row of kind `agency` plus an agency row, the
+  ordinary shape of an agency that is its own route, and it was only
+  ever in that list because the old one stripped the house routes and
+  nothing else. The server's answer cannot contain it.
+  **ONE SUPPLIER PICKER IS DELIBERATELY LEFT ALONE**: the "Supplier
+  this agency belongs to" control on the agency form. It already lists
+  supplier-kind only, from Matt's 2026-10-04 instruction, and the
+  live-deal filter does not belong there -- an agency is onboarded
+  under a supplier before there is a deal to filter on, so applying it
+  would block the first agency of every new supplier. Say the word if
+  you want it anyway.
+- **(cv) The Expiries dialog's default month.** Matt: "keep next month
+  as the default." The rule it keeps, which is the answer (cv) asked
+  for and had never been given: **the dialog opens on the earliest
+  month that still has a guarantee expiring for that reader, and where
+  their book has none it opens on the next calendar month**, with a
+  note naming their earliest if they have one later. "Next month" is
+  the fallback rather than the answer, which is what stops a new
+  agency opening a month with nothing in it and pressing Download on
+  an empty file. Nothing changed; the half that was unpinned -- the
+  live path, which every vitest run skips because it is behind
+  SUPABASE_ENABLED -- now has five assertions in
+  `theExpiriesDialogOpensOnSomething.test.ts`, including that an
+  expired or a refunded guarantee never decides the month.
+
+### Done in the second night run, 2026-10-05 (branch `matt-fixes`)
+
+Twenty commits on top of `4a39fe6`, which is the tip of the bundle
+Balal already has. Each item was measured on dev before it was changed,
+and each carries its own test.
+
+| # | what | where |
+| --- | --- | --- |
+| 1 | No help document prices the guarantee fee. Measured: Regent is three weeks, every other agency on dev is a month, and the documents told their agents a figure GBP 307.69 too high on GBP 1,000 rent | `b713fa3` |
+| 2 | The opndoor manager's blank Reporting page was ALREADY fixed on 2026-09-30; this handover said otherwise and was wrong | `c5c6fc3` |
+| 3 | (cp) The Health report built to find that error could not report itself: a migration renamed its argument and left one caller behind, so it has matched no function since. It now carries the error code too | `34a4106` |
+| 3b | And a sentence is not a filename: a draft month downloaded as "opndoor-statement-Reference assigned when the statement is posted.xlsx" | `966a0a8` |
+| 4 | (cq) A referral opndoor sent on a customer's behalf says "opndoor (on your behalf)". The client could not work this out: users RLS hides staff rows, so the mask had to come from the database | `2cd7b37` |
+| 5 | (ci) A supplier-estate agency inherits its supplier's checking setting, and the server refuses to let a click override it. Both halves were outstanding, not one | `295324f` |
+| 6 | (bq)(br)(bs) The export fixes: one status rule shared with the screens, the carved share in its own column, blanks instead of structural zeros, the refund in "Activity in period", and the Export-all CSV's month, tenancy and Agency column | `a596809` |
+| 7 | (ck) The duplicate check could not see the other new row: it only ever compared against CONFIRMED records, and two agencies created minutes apart are both pending. Plus the shared-email arm, and "Merge into" wired to a merge that already existed and had no caller | `d79cdb9` |
+| 8 | (cl) The statement addresses go with the commission card | `9462b61` |
+| 9 | (cs) A change says what it changed FROM, and an address change is recorded at all | `c402713` |
+| 11a | (cg) "Fees collected" means one thing. Matt's two figures for Regent were both right: 21,447.75 gross and 15,219.29 net, and the subtraction was written four times, differently | `0027fd2` |
+| 11b | (db) The go-live verification section, section 15 of this document | `79ca2e4` |
+| 11d | (oo) No browser header or footer, and the three tenant leaflets print to one A4 page. Measured by printing them | `9fe451e` |
+| 11e | (zz) The invite already knew the tenant's name and was not saying | `dbfb00f` |
+| 11f | (cw) The sandbox proved sealed end to end, then pinned in pgTAP | `0f4f0ba` |
+| 12 | The partner API on each of the three checking settings: two of the three are refused by design, and the inheritance is proved on all three | `b3e77ea` |
+| 13 | Every money figure on dev, before (dg) | `f28391a` |
+
+**Six questions were waiting for Matt. He answered all eight points on
+2026-10-05 and the work is below.**
+
+### And the eight decisions, 2026-10-05 (same branch)
+
+| # | decision | what it came to |
+| --- | --- | --- |
+| 1 | (df) explain the three candidate tests, don't build | three plain lines and three lists, in QUEUE.md. "Live from" set shows 1 supplier of 10, a live negotiated agreement 3, a rate at all 8 |
+| 2 | write `merge_branches` | `20261009070000`, plus the grant that made it matter: `merge_agencies` was service_role only, so the "Merge into" button added with (ck) would have failed at the click |
+| 3 | mask the referrer under View as | recomputed from two facts each row keeps, swapped by SessionContext beside the commission one. A customer's rows carry no facts at all, so the name never reaches the browser that must not have it |
+| 4 | close (cu) | closed, with what was checked |
+| 5 | rename the agent one-pager | "Agent guide", in the shelf, the type chip, all fifteen matrix listings and its own `<title>`, which had been the management guide's |
+| 6 | delete the four PDFs | 1.3 MB gone, pinned both ways |
+| 7 | demo says "of the guarantee fee" | and the basis line under the figures with it |
+| 8 | (cv) keep next month | recorded with the rule it keeps, and the live path pinned for the first time |
+
+**One thing went wrong and is not fixed.** Checking whether the browser
+could call `merge_agencies` at all, I ran it against two real dev
+agencies rather than inside a transaction: Southbank Residential is
+merged into Northgate Lettings on dev. No money moved and nothing else
+was touched; the reversal is written out in QUEUE.md and needs one
+approval, because writing to dev's org tables is not something I may do
+unattended.
 
 **(dr8) The landlord guide's figures are unverified.** It claims 12
 months, a GBP 120,000 cap, GBP 10,000 of legal costs, notify within
@@ -1908,7 +2004,17 @@ line on dev today carries one, so it fires on nothing -- but if any
 ever lands without an id, a renamed agency silently reports GBP 0
 commission. Measured 2026-10-05: 27 lines, 0 without an id.
 
-## 12b. The 04:45 stop: the gate, and everything remaining in three groups
+## 12b. The 04:45 stop on `partner-api`: the gate, and what remained then
+
+> **SUPERSEDED IN PART, 2026-10-05.** This section is the record of the
+> FIRST night run, which ended at 04:45 on `partner-api` at `4a39fe6`.
+> A second run followed on the branch `matt-fixes`, and most of the
+> three groups below have moved: see "Done in the second night run"
+> and "Still not built" in 12a, which are current. Kept as it was,
+> because the gate figures in it are the ones the bundle Balal already
+> holds was cut on.
+
+## 12b (as written at 04:45). The gate, and everything remaining in three groups
 
 ### The gate, on `db7f4f3`
 
@@ -2238,3 +2344,512 @@ already redacted by `_shared/redact.ts` before it is logged).
 For any of them, `select jsonb_pretty(public.cron_health())` and the output of
 the section 6a reconciliation are worth sending unprompted. Between them they
 answer "is it deployed, is it gated, and did it run" without another round trip.
+
+---
+
+## 15. Go-live verification: Matt's own pass, after the cutover
+
+> **(db)** Matt, 2026-10-04: "Add a 'Go-live verification' section to
+> HANDOVER-BALAL.md: a checklist Matt can do himself on live after cutover,
+> with what he should see at each step (Health all green; Stripe live webhook
+> deliveries succeeding; Resend domain verified; emails with no review-copy
+> banner; Rightmove's deal, checking setting and agencies inheriting; one real
+> single referral through a Rightmove agency going straight to payment, paid,
+> signed, deed delivered, then refunded in Stripe and cancelled; sign-in as
+> admin, Rightmove Management and Referrer). Balal ticks each with a screenshot
+> before Matt signs off."
+
+**THIS IS NOT SECTION 14.** That one is Balal's, run immediately after the
+cutover, and it ends with him handing back. This is Matt's, run after that, and
+it is the sign-off. Every row says what he should SEE, because a checklist whose
+rows are "check X works" is a list of opinions.
+
+**Balal: tick each row with a screenshot before you hand it over.** A tick with
+no screenshot is the thing this section exists to stop.
+
+### 15.1 The machinery is running
+
+| # | Do this | What you should see | If not |
+|---|---|---|---|
+| 1 | Health, as opndoor admin | Every cron row green, each with a `last_ok` inside its own window. `portal_errors` 0 in the last 24 hours | A red row names its own function. Section 14.4 reads the logs |
+| 2 | Health → the statement line | "Statements can be posted" true, and the invoice email set to the real address | `set_app_setting_text` on the Health field, section 14.4a |
+| 3 | Stripe dashboard → Developers → Webhooks → the LIVE endpoint | Recent deliveries all 200, none pending, none failed. At least one `checkout.session.completed` | A 4xx means the endpoint is pointed at the wrong project; a 5xx is ours and the log line is in `stripe-webhook` |
+| 4 | Stripe dashboard, top left | It says **Live mode**, not Test. The key the portal uses is `sk_live_` | `livemodeCredentials.ts` refuses a mismatch at the boundary, so a wrong key fails loudly rather than quietly |
+| 5 | Resend dashboard → Domains | `opndoor.co` **verified**, and the DKIM and SPF rows green | An unverified domain still sends, into spam. This is the row most likely to be amber on day one |
+| 6 | Dev Centre, as admin | **No sandbox banner.** The banner means the portal believes it is on test credentials | Section 14.4a |
+| 6a | The `payment_url` in an API response, or the link in a fee email | the real domain. **Measured on dev 2026-10-05**: a referral created through the partner API came back with `http://localhost:5174/pay?token=...`, which is right for dev and is a dead link anywhere else | this is a different setting from Site URL and APP_URL in section 7; all three point at a domain and all three must be the live one |
+
+### 15.2 The emails are the real ones
+
+| # | Do this | What you should see | If not |
+|---|---|---|---|
+| 7 | Send yourself one of each: the fee-paid email, the signed-deed email | **No review-copy banner.** No "this is a copy for review" strip at the top, and the From address is the real one, not `onboarding@resend.dev` | The banner is driven by the review-inbox setting. It must be off on live, and it is the single most visible sign of a half-cut-over environment |
+| 8 | Read the deed email as a tenant would | The guarantee reference, the property, and one link that opens the deed. No internal reference, no partner slug | |
+| 9 | Check who the signed deed went TO | The agency's office email, or the agency email where the office has none. **Never** a referrer's personal address unless that is the nominated recipient | `org_deed_readiness` names the recipient per office. A missing one is why a deed sits undelivered |
+
+### 15.3 Rightmove is set up as agreed
+
+| # | Do this | What you should see | If not |
+|---|---|---|---|
+| 10 | Suppliers → Rightmove → Commission | Their deal, with the agreed rate and basis, and **"Live from"** a real date rather than "Not live yet" | No deal means every referral prices at 0%: the Overview says so in as many words |
+| 11 | Suppliers → Rightmove → Settings | The checking setting, in the plain wording: "They check tenants, and opndoor accepts them as sent" for straight-to-payment | |
+| 12 | Suppliers → Rightmove → Agencies → open one | **No "How are ...'s tenants checked?" choice.** It reads "Checked as Rightmove sets it: ..." with a link to Rightmove's settings | That is the inheritance (ci). The server refuses a mode set on a supplier-estate agency, so a stray value cannot be there |
+| 13 | The same agency's Commission tab | "On Rightmove's agency deal: ..." and who pays it, never "Opndoor standard" | |
+| 14 | Count their agencies | The number you expect. **Ask what it is before go-live**: see (dg) in section 12a. At a few hundred nothing bites; at thousands the sign-in load is the first thing to feel it | |
+
+### 15.4 One real referral, all the way, and then back out
+
+Use a **single tenant**, a real card, and a property you do not mind seeing in
+the book. Through a **Rightmove agency**, so the rail under test is the one
+Wednesday is for.
+
+| # | Do this | What you should see | If not |
+|---|---|---|---|
+| 15 | Refer, as a Rightmove Referrer | The fee previewed on the form before you send it, from Rightmove's own deal | A fee that looks like one month's rent on a weeks-based deal means the agreement is not resolving |
+| 16 | The tenant's email | A payment link, and **no eligibility step**: straight to payment is the setting | A decision step means the checking setting is not what 15.3 said |
+| 17 | Pay it | The application moves to **Paid** within seconds, and the deed is created | Stripe's delivery list (row 3) is where this is answered |
+| 18 | Sign as the tenant | **Deed Issued**, the reference assigned, the expiry a year out | |
+| 19 | The agency's inbox | The signed deed, to the address row 9 named | |
+| 20 | Applications, admin | One row, status **Deed Issued**, the agency and office right, the referrer named | |
+| 21 | Reporting, admin, this month | Fees collected includes this fee, net of refunds, and commission at Rightmove's rate | "Fees collected" is net everywhere since (cg) |
+| 22 | **Refund it in Stripe**, in full | Within a minute: status **Refunded**, the guarantee cancelled, "Cancelled: fee refunded" on the deed, and the fee out of Reporting again | If the status stays Paid, the refund webhook did not arrive: Stripe's delivery list, `charge.refunded` |
+| 23 | The bordereau for this month | The row gone, or not there at all. A cancelled guarantee is not on risk | |
+
+### 15.5 The three sign-ins
+
+| # | Do this | What you should see | If not |
+|---|---|---|---|
+| 24 | Sign in as **opndoor admin** | Home, queues first. Reconciliation, Finance, the bordereau and Health all reachable | |
+| 25 | Sign in as **Rightmove Management** | Reporting, with their own figures and "Owed to you" as the headline. Their agencies, their people. **No** Reconciliation, **no** other supplier, **no** opndoor team | |
+| 26 | Sign in as **Rightmove Referrer** | Their own referrals only. **No commission anywhere**, no League money, no statements | A commission figure here is the one failure on this page worth stopping for |
+| 27 | On each, open Help | Guides for that level, and the fee described without a figure: "the fee agreed with your agency" | Since (1) tonight, no document states a basis. A document saying "one month's rent" is a stale deploy |
+
+### 15.6 Sign-off
+
+Matt signs off when every row above has a tick and a screenshot, and when
+**rows 22 and 26 in particular** have been seen with his own eyes: one is the
+money going back out cleanly, the other is a customer not seeing somebody
+else's.
+
+Anything that fails goes to us with the evidence section 14.5 asks for, not as
+a description.
+
+---
+
+## 16. Bringing live up to `matt-fixes`, after Matt's walk of 2026-10-09
+
+Live is on `partner-api` plus about twelve migrations of Balal's own. This
+section is the whole of what moves, in order, and the one thing that needs an
+answer before any of it starts.
+
+### 16.0 THE QUESTION THAT COMES FIRST, and nothing else should start until it
+### is answered
+
+Balal's repo has **492 migration files**, latest
+`20261008290100_picker_search_all_authorised_routes.sql`. `partner-api` has
+480 and this branch has 490, so he holds about twelve migrations that are in
+neither of ours.
+
+`20261008290100` sorts between our `20261008290000` and our `20261009000000`,
+so on filename order his extras land BEFORE everything on this branch. That
+is lucky rather than safe: **wherever one of his twelve redefines a function
+that one of our twelve also redefines, ours sorts later and wins, and his
+change is discarded in silence.** The twelve on this branch redefine these,
+and these are the names to check his twelve against:
+
+| our migration | functions it redefines |
+| --- | --- |
+| `20261009000000` | `report_portal_incident` |
+| `20261009010000` | `opndoor_user_ids` (new) |
+| `20261009030000` | `set_agency_referencing_mode` |
+| `20261009040000` | `org_shares_contact_email` (new), `reconciliation_queue` |
+| `20261009050000` | `set_agency_details`, `set_branch_details` |
+| `20261009060000` | `tenant_invite_summary` |
+| `20261009070000` | `merge_branches` (new), grant on `merge_agencies` |
+| `20261009080000` | `suppliers_that_can_take_referrals` (new) |
+| `20261009090000` | `agreement_for_agency`, `create_agreement`, `admin_add_agency`, `resolve_pricing_agreement_for_agency` (new) |
+| `20261009100000` | `list_managed_users`, `mint_staff_invite` (new), `claim_staff_invite` (new) |
+| `20261009120000` | `place_the_missing_single_offices` (new), `admin_add_agency` (again) |
+| `20261009130000` | `place_the_missing_single_offices`, `admin_add_agency` (again) |
+
+**Balal: run this on live and send the output.** It is read-only and it is the
+only thing needed to answer it.
+
+```sql
+select version, name
+from supabase_migrations.schema_migrations
+where version > '20261008290000'
+order by version;
+```
+
+Any of his twelve that touches a name in the table above has to be re-applied
+as a NEW migration after ours, with a timestamp later than `20261009130000`.
+That is this repo's standing rule and it is the same rule either way round: a
+correction to an earlier migration goes in a new file, never by editing or
+re-running one.
+
+### 16.1 Migrations
+
+Twelve files, already written and already proven against dev:
+
+```
+20261009000000_the_unreadable_incident_names_the_error.sql
+20261009010000_which_of_these_referrers_are_opndoor.sql
+20261009030000_a_supplier_estate_agency_cannot_set_its_own_mode.sql
+20261009040000_the_duplicate_check_sees_the_other_pending_row.sql
+20261009050000_a_change_says_what_it_changed_from.sql
+20261009060000_the_invite_knows_who_it_was_sent_to.sql
+20261009070000_two_offices_can_be_merged.sql
+20261009080000_the_suppliers_that_can_take_a_referral.sql
+20261009090000_an_agency_with_no_office_still_has_a_deal.sql
+20261009100000_a_staff_invite_lasts_seven_days.sql
+20261009120000_the_office_backfill_knows_our_own_estate.sql
+20261009130000_the_supplier_test_is_a_supplier_test.sql
+```
+
+`supabase db push --project-ref <LIVE_REF>` applies only the ones live's
+ledger does not already hold, which is the right behaviour here: live's ledger
+is real (492 rows), unlike dev's.
+
+`20261009100000` creates a table, `public.staff_invites`. It is additive and
+nothing reads it except the two functions in the same file and
+`list_managed_users`.
+
+**`20261009120000` and `20261009130000` are the only ones that write ROWS**,
+and they are the only ones that need anything looked at before and after.
+Everything else in the set replaces functions. They are a pair: the second
+corrects one filter in the first and re-runs the same bounded backfill, which
+is free because it is idempotent.
+
+#### 16.1a Before you apply it: count what it will create
+
+It gives every **confirmed** agency on Opndoor's **own** estate that has no
+office exactly one, named after the agency. Run this first, read-only, and keep
+the output:
+
+```sql
+select a.id, a.name, p.slug as partner, p.partner_kind, a.livemode, a.review_state
+from public.agencies a
+join public.partners p on p.id = a.partner_id
+where p.partner_kind <> 'supplier'
+  and not a.is_placeholder
+  and a.review_state = 'confirmed'
+  and not exists (select 1 from public.branches b where b.agency_id = a.id)
+order by a.name;
+```
+
+Expected: **Regent Letting & Property Management, and nothing else.**
+
+**The migration will REFUSE if that query returns more than one row**, and it
+will name them in the error. That is deliberate, not a bug. A branchless
+agency is not always a fault: `20260927100000_agency_without_branch.sql` stood
+up the skeleton-group case on purpose, where Opndoor creates a group and its
+agencies and each manager adds their own offices on first login, and it
+rejected "invent branch names on the operator's behalf" by name. The two
+shapes cannot be told apart in the data, so if there are several, a person has
+to look at the list before offices are invented under them.
+
+**The bound of 1 is Matt's ruling, not a default**, 2026-10-09: "on live it
+should only ever be Regent, and anything more should stop the deploy." So do
+not raise it to make the deploy pass. A refusal is the designed behaviour.
+
+If it refuses: send Matt the list from this query. Once he has agreed the
+names, run the function yourself with the real count and then carry on:
+
+```sql
+select public.place_the_missing_single_offices(<the number of rows above>);
+```
+
+The three shapes the function excludes by construction, so this query excludes
+them too and what you see is what it will do: a supplier's agencies, the house
+"Unattached" placeholders, and any agency still awaiting review. The
+`referencing-partner` hand-over rail is NOT excluded, deliberately:
+`20261009030000` ruled that the filter is supplier-ness exactly, because that
+rail is Opndoor's own plumbing rather than a third party's book. On dev its
+only agency is an "Unattached" placeholder that already has an office, so
+nothing is expected from it.
+
+If Matt has already added Regent's office by hand on the screen, the list
+comes back empty and the migration correctly does nothing: the insert is
+guarded on there being no office, not on the migration not having run.
+
+#### 16.1b After you apply it: confirm what it created
+
+```sql
+select oa.at, oa.detail, b.name as office, a.name as agency, b.livemode, b.review_state
+from public.org_audit oa
+join public.branches b on b.id = oa.entity_id
+join public.agencies a on a.id = b.agency_id
+where oa.detail like '%created for an agency that had no office%'
+order by oa.at;
+```
+
+A good result is one row per name from 16.1a, each office carrying the
+agency's own name and the agency's own `livemode` and `review_state`, and
+`actor` reading `opndoor` rather than a person. No rows, when 16.1a listed
+some, means the function did not run and the `do` block at the bottom of the
+file was skipped.
+
+### 16.2 Edge functions
+
+**One new:** `accept-invite`. **One changed:** `invite-user`.
+
+```
+supabase functions deploy accept-invite invite-user --project-ref <LIVE_REF>
+```
+
+`accept-invite` MUST be deployed with **`verify_jwt = false`**. The invitee has
+no session: that is the entire situation the function exists for. It is
+recorded in `supabase/config.toml`, so a deploy run from the repo root with no
+flags gets it right; a deploy run from somewhere else needs
+`--no-verify-jwt`. With verification on, every invitee is rejected with a 401
+before a line of it runs and nobody can accept an invitation at all.
+
+**Migrations before functions.** `invite-user` calls `mint_staff_invite`, which
+`20261009100000` creates. Deployed first, every invite fails.
+
+### 16.3 Website build
+
+The React bundle has to be rebuilt and redeployed, and it is the leg nobody
+checked on the 7th. `npm ci && npm run build`, then publish `dist/`.
+
+These need the new bundle to work at all:
+
+- `/accept-invite` reading `?token=` (D). Without it, the seven-day link in
+  every invitation email loads a page that ignores the token and then tells
+  the invitee the link is not valid.
+- The Agreement card and Commission tab reading a branchless agency's deal
+  (C) work from the server, so those are fixed by the migration alone. The
+  Team list's invitation dates and states are client-side and need the build.
+
+**Tell us the deployed commit sha.** A stale bundle against a current database
+is the exact shape of "it worked on dev", and it is invisible from both the
+Supabase dashboard and SQL.
+
+### 16.4 The five missing cron jobs
+
+Matt found 14 of 19 on live. Missing, with what each one stops:
+
+| job | schedule | what is not happening on live right now |
+| --- | --- | --- |
+| `partner-webhooks` | `* * * * *` | **Partners are never notified of anything.** Deliveries queue in `partner_webhook_deliveries` forever, silently |
+| `renewal-notices-0700` | `0 7 * * *` | Guarantees end with no renewal outreach |
+| `renewal-notices-0800` | `0 8 * * *` | the BST half of the same job |
+| `referencing-callback` | `*/10 * * * *` | Executed deeds never reach Lettings. Rail 4 only, so it can wait if rail 4 is not live |
+| `hubspot-map-check` | daily | Field-map drift is never noticed. Silent by design |
+
+Exact statements are in `supabase/PAYMENT-REMINDERS.md`, `PARTNER-API.md` and
+`TENANT-PLATFORM-SETUP.md`. `partner-webhooks` is the one to do first: it is
+every minute, it is silent, and the queue it drains is already filling.
+
+After creating them, check with
+
+```sql
+select j.jobname, max(d.start_time) filter (where d.status = 'succeeded') as last_ok
+from cron.job j left join cron.job_run_details d on d.jobid = j.jobid
+group by j.jobname order by j.jobname;
+```
+
+A job that exists and has never run is as broken as one that does not exist.
+
+### 16.5 Getting Balal's twelve migrations and his `pandadoc-webhook` back into
+### this repo
+
+Two different problems with two different answers.
+
+**The twelve migrations.** They cannot be reconstructed from live, because a
+database is the result of a migration and not the migration. He has the files.
+He sends the twelve `.sql` files; they go into `supabase/migrations/` under
+their own existing names, which already sort between `20261008290000` and
+`20261009000000`, so nothing is renamed and nothing moves. Then
+`npm run drift` is run against a database they have been applied to. Anything
+that clashes with 16.0's table is re-issued as a new migration after
+`20261009100000` rather than edited.
+
+**The `pandadoc-webhook` redeploy.** A function body CAN be read back, so this
+one is answerable without asking him to remember what he changed:
+
+```
+curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+  https://api.supabase.com/v1/projects/<LIVE_REF>/functions/pandadoc-webhook/body \
+  -o live-pandadoc-webhook.bundle
+```
+
+That returns the deployed bundle. Diff its `index.ts` against the repo's. If
+they differ, the live one is the authority for whatever he fixed, and it comes
+back as an ordinary commit to `supabase/functions/pandadoc-webhook/index.ts`.
+If they do not differ, the redeploy was a redeploy and there is nothing to
+recover.
+
+### 16.6 The order, in one list
+
+1. Answer 16.0. Do not start until the list of his twelve is in hand.
+2. Run 16.1a, read the list, then apply the twelve migrations (16.1), then
+   run 16.1b.
+3. Deploy `accept-invite` and `invite-user`, verification off on the first (16.2).
+4. Rebuild and redeploy the website, and report the commit sha (16.3).
+5. Create the five cron jobs, `partner-webhooks` first (16.4).
+6. Send the twelve migration files and the `pandadoc-webhook` bundle (16.5).
+7. Run `npm run drift` against live's schema and confirm it is clean.
+
+---
+
+## 17. The scanner fix, 2026-10-13. Deploy the website FIRST
+
+Fourteen Regent invites died inside twelve minutes on the morning of 13
+October. Regent's mail scanner opened each link, and a GoTrue action link
+verifies its one-time token on a plain GET, so every token was spent before
+its owner clicked. Matt's evidence: 13 of the 14 had `last_sign_in_at` set by
+07:57 while `public.users.status` was still `pending`. A scanner cannot set
+`last_sign_in_at`; GoTrue does, when the verify endpoint is hit.
+
+Every emailed auth link now points at `/auth/confirm` on the portal and
+carries a `token_hash`, which is the same credential with no endpoint attached.
+That page does nothing until somebody presses a button.
+
+### 17.0 THE ORDER IS NOT THE USUAL ORDER. The website goes first
+
+**Deploy the React bundle BEFORE the edge functions.** The new links point at
+`/auth/confirm`, a route that does not exist in the bundle currently on live.
+If the functions go out first, every invite and reset email sent in between
+lands on a 404 and is unusable.
+
+The reverse is safe: a new bundle with the old functions simply never receives
+a `/auth/confirm` link, and the two older routes it still serves
+(`/accept-invite`, `/reset-password`) keep working exactly as now.
+
+1. `npm ci && npm run build`, publish `dist/`, and confirm the deployed commit.
+2. Then the migration (17.2), then the three functions (17.3).
+
+### 17.1 Nothing to change in the Supabase dashboard
+
+Worth stating plainly, because it is the question Matt asked and the answer is
+unusually short.
+
+| thing | change needed |
+| --- | --- |
+| **Email templates** | **None.** GoTrue's own mailer is not used at all. Every message is built from our templates and sent through Resend; `generateLink` is called only for the token |
+| **Redirect URL allow-list** | **None, and it matters less than it did.** No sender passes `redirectTo` any more, so the allow-list no longer gates a single staff auth link. Leave the existing `<APP_URL>/**` entry in place for anything else that may want it; do not remove entries |
+| **Email OTP expiration** (`mailer_otp_exp`) | **None.** CUTOVER 1.1's 1800 seconds is still the right value, and is now genuinely consistent with the copy: a reset link is meant to be short lived, and an invitation's seven days come from our own token, with the GoTrue token minted at the moment of the click |
+| **Edge function secrets** | **None new.** `APP_URL` must be the production portal origin, which it already must be, and is now load-bearing for the link itself rather than only for a redirect. Worth re-reading it before you start |
+
+**One live fragility is removed rather than added.** `send-password-reset` and
+`invite-user` each carried a degraded path for the case where the allow-list
+refused a `redirectTo` with a query string on it, because when that happens
+`generateLink` errors and the sender reads the error as "no such account" and
+sends **nothing at all, silently**. Neither passes `redirectTo` now, so neither
+can fail that way.
+
+### 17.2 One migration
+
+```
+20261013000000_an_invitation_is_spent_only_once_it_works.sql
+```
+
+It adds `peek_staff_invite`, a read-only twin of `claim_staff_invite`. The
+defect it fixes was found by probing the deployed function rather than by
+reading it: the claim spent the token BEFORE the sign-in link was minted, so a
+failure in between left an invitation marked used and a person who got
+nothing. `accept-invite` now peeks, mints, then claims.
+
+This migration is additive and writes no rows. It must land **before** the new
+`accept-invite`, which calls the new function.
+
+### 17.3 Three edge functions
+
+```
+supabase functions deploy accept-invite invite-user send-password-reset --project-ref <LIVE_REF>
+```
+
+Run it from the repo root so `supabase/config.toml` sets the flags.
+`accept-invite` must go out with **`verify_jwt = false`** (the invitee has no
+session); config.toml records that, and a deploy from elsewhere needs
+`--no-verify-jwt`.
+
+**`tenant-auth` is in the list too, as of the tenant fix later the same day.**
+It had used `hashed_token` since it was written, but in the URL FRAGMENT and
+exchanged on page load, which a plain fetch cannot touch and a scanner that
+RENDERS the page can. Both its reset senders now emit
+`/apply/reset?token_hash=...&type=recovery`, and that page waits for a button.
+
+So the deploy line is:
+
+```
+supabase functions deploy accept-invite invite-user send-password-reset tenant-auth --project-ref <LIVE_REF>
+```
+
+Measured with real headless Chrome against dev, both ways: the old page's
+render spent the token, the new page's render left it live.
+
+**One thing the tenant fix does NOT change, and it is worth knowing.** A
+rendering scanner that opens a tenant's `/pay?token=` link still trips
+`first_viewed_at` and writes a `tenant_viewed_payment_page` activity row, so an
+agent can be shown "the tenant viewed the payment page" when only a scanner
+did. That token is a durable door rather than a one-time credential, so
+nothing is spent and the link keeps working; what is wrong is a signal, not an
+account. Left as it is, and recorded here rather than fixed, because telling a
+scanner from a tenant is not something the page can do.
+
+### 17.4 Then re-invite everyone still waiting
+
+Every link sent before the deploy is a spent GoTrue verify URL. None of them
+can be rescued, so everyone still pending needs a fresh invitation **after**
+17.1 to 17.3 are all done. Read the list first:
+
+```sql
+select u.full_name,
+       u.email,
+       p.slug                                   as partner,
+       u.role,
+       u.sees_commission,
+       au.last_sign_in_at,
+       au.last_sign_in_at is not null           as scanner_or_person_opened_it,
+       si.sent_at::date                         as invite_sent,
+       si.expires_at::date                       as invite_expires,
+       case when si.user_id is null              then 'none'
+            when si.cancelled_at is not null     then 'cancelled'
+            when si.claimed_at is not null        then 'used'
+            when si.expires_at <= now()           then 'expired'
+            else 'live' end                      as invite_state
+from public.users u
+join auth.users au on au.id = u.id
+left join public.partners p on p.id = u.partner_id
+left join public.staff_invites si on si.user_id = u.id
+where u.status = 'pending'
+order by p.slug, u.full_name;
+```
+
+Expected on live: the Regent people and Ethan Li at Brithive. `invite_state`
+reads `none` for anybody invited before `20261009100000` reaches live, which is
+all of them today.
+
+**`scanner_or_person_opened_it` is the column to read.** True on a `pending`
+row is the fault's own signature: a session was minted and nobody finished.
+That is the 13 of 14 Matt measured.
+
+Then resend from the portal, Team, the row menu, **Resend invite**, one per
+person. Each resend mints a fresh seven-day token and retires the previous
+link, and the confirmation now says so. Do not resend before the website is
+deployed: the link would point at a route that is not there yet.
+
+### 17.5 How to tell it worked, in one check
+
+Pick one invitee and, before telling them, fetch their link the way a scanner
+does:
+
+```
+curl -s -o /dev/null -w "%{http_code}\n" "https://<portal>/auth/confirm?token=<theirs>&type=invite&tab=agent"
+```
+
+Then:
+
+```sql
+select claimed_at, expires_at from public.staff_invites
+ where user_id = (select id from public.users where lower(email) = '<theirs>');
+```
+
+`200` from the curl and `claimed_at` still **null** is the whole fix. On dev,
+end to end: the scanner's GET left the token unspent, the button's POST
+returned a 56-character `token_hash` with no verify URL in the reply,
+`verifyOtp` with that hash signed in, the same hash a second time was refused,
+and the invitation was recorded as used.

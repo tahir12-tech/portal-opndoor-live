@@ -14,7 +14,7 @@
    that it is unlikely to work while still letting them continue, because the
    referencing provider makes the decision and not us.
    ===================================================================== */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTenantDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { forgotHref, signInHref } from '@/pages/auth/carry';
@@ -137,6 +137,43 @@ export function Register() {
   const [f, setF] = useState({ first_name: '', last_name: '', email: '', phone: '', password: '' });
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  /* (zz) PREFILLED FROM THE REFERRAL, AND EDITABLE.
+
+     Matt: "when a referred tenant opens their invite, prefill the account
+     form with the name, email and mobile from the referral (editable)".
+
+     The agent has just typed this person's name, email and mobile into a
+     referral, and the next screen they see asked for all three again.
+
+     EDITABLE IS THE WHOLE DIFFERENCE from the property fields above, which
+     an invited tenant sees locked: the property is the agent's to state,
+     and a person's own name and number are not. The referral's record of a
+     mobile is the agent's typing and the tenant is the one who knows.
+
+     NEVER OVER WHAT THEY HAVE TYPED. The fetch is async and a fast typist
+     beats it, so each field fills only while it is still empty. A failure
+     leaves the form exactly as it was: an invite that cannot be read is
+     for the landing screen to report, and this one asks the questions it
+     always did. */
+  useEffect(() => {
+    if (!invite) return undefined;
+    let ignore = false;
+    void (async () => {
+      try {
+        const r = await auth.inviteInfo(invite) as Record<string, unknown>;
+        if (ignore || !r || r.valid === false) return;
+        const from = (k: string) => (typeof r[k] === 'string' ? (r[k] as string).trim() : '');
+        setF((prev) => ({
+          ...prev,
+          first_name: prev.first_name || from('first_name'),
+          last_name: prev.last_name || from('last_name'),
+          email: prev.email || from('email'),
+          phone: prev.phone || from('phone'),
+        }));
+      } catch { /* The form asks, as it always did. */ }
+    })();
+    return () => { ignore = true; };
+  }, [invite]);
   // The address already has an account, and we say so. A deliberate trade: the
   // neutral answer kept the address private and left a real person waiting for
   // a code that was never sent.
@@ -394,16 +431,63 @@ export function ResetPassword() {
   const [password, setPassword] = useState('');
   const [err, setErr] = useState<string | null>(null);
   const [pwErr, setPwErr] = useState<string | null>(null);
+  const [opening, setOpening] = useState(false);
 
-  useEffect(() => {
-    auth.exchangeLinkToken()
-      .then(() => setReady(true))
-      .catch((e) => setErr(e instanceof Error ? e.message : 'That link is not valid.'));
-  }, []);
+  /* NOTHING IS SPENT ON LOAD. THIS IS THE WHOLE CHANGE.
+     Matt, 2026-10-13: "the same /auth/confirm-style pattern for tenant-auth's
+     reset ... nothing spent on load, a button that spends it."
+
+     THIS USED TO BE A MOUNT EFFECT, and that is why the tenant rail looked
+     safe when the staff rail was burning: the token rode in the URL FRAGMENT,
+     which is never sent in an HTTP request, so a mail scanner that merely
+     fetches the link cannot see it. What a fragment does not survive is a
+     scanner that RENDERS the page -- an effect runs in a headless browser
+     exactly as it does in a real one, and it would have called verifyOtp and
+     spent the token before the tenant ever clicked.
+
+     A ref, not state, so two presses cannot spend two tokens: the second
+     would be refused and the person told their own link was used. */
+  const spent = useRef(false);
+
+  async function open() {
+    if (spent.current || opening) return;
+    spent.current = true;
+    setOpening(true);
+    setErr(null);
+    try {
+      await auth.exchangeLinkToken();
+      setReady(true);
+    } catch (e) {
+      spent.current = false;
+      setErr(e instanceof Error ? e.message : 'That link is not valid.');
+    } finally {
+      setOpening(false);
+    }
+  }
+
+  /* A LINK WITH NO TOKEN IN IT AT ALL is somebody who typed the address, or a
+     link whose token was stripped. There is nothing to open, so the screen
+     says so rather than offering a button that cannot work. */
+  const hasToken = Boolean(auth.linkTokenInUrl());
 
   return (
     <Shell eyebrow="Reset your password" title="Choose a new password">
         {err && <div className="ap-alert" role="alert">{err} <a href="/forgot-password?tab=tenant">Ask for a new link</a>.</div>}
+        {!ready && !err && !hasToken && (
+          <div className="ap-alert" role="alert">
+            This link is missing its code. <a href="/forgot-password?tab=tenant">Ask for a new one</a>.
+          </div>
+        )}
+        {!ready && !err && hasToken && (
+          <>
+            <p>Your reset link is ready. Continue to choose a new password.</p>
+            <div className="ap-actions">
+              <Button variant="primary" disabled={opening} onClick={() => void open()}>
+                {opening ? 'Opening…' : 'Continue'}
+              </Button>
+            </div>
+          </>
+        )}
         {ready && !err && (
           <>
             <Field label="New password" htmlFor="ap-new-password" hint="At least 10 characters." error={pwErr || undefined}>
@@ -443,7 +527,15 @@ export function Verify() {
 
   useEffect(() => {
     const invite = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('invite') ?? undefined;
-    auth.exchangeLinkToken()
+    /* FRAGMENT ONLY, WHICH IS WHAT THIS READ BEFORE THE 2026-10-13 CHANGE.
+       This is the rail's other consumer and it still spends on MOUNT. Nothing
+       emails or navigates to /apply/verify, so it is latent rather than live,
+       but letting it read the query string would have made it accept the exact
+       shape the new reset emails carry -- and afterSignIn claims an invite or
+       creates a draft on the way through. Narrowed rather than rebuilt,
+       because the proportionate fix for a route nothing reaches is to stop it
+       widening, and a test now refuses any sender that builds a link to it. */
+    auth.exchangeLinkToken('fragment-only')
       .then(() => afterSignIn(nav, invite))
       .catch((e) => setErr(e instanceof Error ? e.message : 'That link is not valid.'));
   }, [nav]);

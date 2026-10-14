@@ -64,7 +64,6 @@ import { stripeSecretFor, stripeWebhookSecrets, maySendOpndoorEmail } from "../_
  * changing it would change the wire behaviour of the live payment path.)
  */
 function stripeClient(secret: string): Stripe {
- 
   return new Stripe(secret, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
 }
 

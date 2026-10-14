@@ -345,7 +345,7 @@ Deno.serve(async (req) => {
           : "The agreed guarantee fee for this tenancy, for the opndoor Deed of Guarantee.";
 
       // Stripe test-mode Checkout Session for the guarantee fee.
-    
+     
       const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
       const session = await stripe.checkout.sessions.create({
         // Bounds the window in DEFECTS.md 8. Without it a session stays payable

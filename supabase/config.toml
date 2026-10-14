@@ -139,3 +139,11 @@ verify_jwt = false
 
 [functions.invite-user]
 verify_jwt = false
+
+# The invitee has NO SESSION: that is the entire situation this function
+# exists for. It takes the portal's own seven-day invitation token, checks it
+# under the service role with claim_staff_invite, and hands back a short-lived
+# Supabase link. verify_jwt = true would reject every invitee before a line of
+# it ran, and it answers its own OPTIONS preflight.
+[functions.accept-invite]
+verify_jwt = false

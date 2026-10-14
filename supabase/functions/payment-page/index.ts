@@ -351,6 +351,7 @@ Deno.serve(async (req) => {
       // The Stripe API version is pinned at 2024-06-20 across every function; the
       // SDK types only admit their latest literal, so this asserts the pin rather
       // than bumping the version (which would change API behaviour).
+   
       const stripe = new Stripe(STRIPE_SECRET, { httpClient: Stripe.createFetchHttpClient(), apiVersion: "2024-06-20" });
       const session = await stripe.checkout.sessions.create({
         // Bounds the window in DEFECTS.md 8. Without it a session stays payable

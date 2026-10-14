@@ -72,7 +72,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const seq = useRef(0);
   const timers = useRef<number[]>([]);
 
-  const toast = useCallback((message: string, tone: ToastTone = 'ok') => {
+const toast = useCallback((message: string, tone: ToastTone = 'ok') => {
   const id = ++seq.current;
   const life = tone === 'error' ? ERROR_DURATION : DURATION;
 

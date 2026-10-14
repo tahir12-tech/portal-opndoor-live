@@ -93,11 +93,17 @@ describe('liveLeague', () => {
     expect(fox.refs).toBe(3); // A, B, D sent in window
     expect(fox.paid).toBe(2); // A, B
     expect(fox.deed).toBe(1); // A
-    expect(fox.fees).toBe(3000); // A(1000) + B(2000)
+    /* NET SINCE (cg), 2026-10-05: "Fees collected" means one thing, and on
+       the Agencies list it has always meant net. Foxglove has no refunds,
+       so its figure is unchanged and Marylebone's below is the one that
+       moves. */
+    expect(fox.fees).toBe(3000); // A(1000) + B(2000), nothing refunded
     expect(fox.agentComm).toBeCloseTo(3000 * rates.agent, 6); // Foxglove has no refunds
     expect(fox.partnerComm).toBe(0); // the estate: no supplier above these agencies
     const mar = rows[1];
-    expect(mar.fees).toBe(1500);
+    // 1500 paid, 1500 refunded. The commission line below already read 0 on
+    // exactly this arithmetic; the fee column said 1500 beside it.
+    expect(mar.fees).toBe(0);
     expect(mar.agentComm).toBeCloseTo(0, 6); // 1500 paid - 1500 refunded = 0 net
   });
 

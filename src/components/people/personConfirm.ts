@@ -147,8 +147,16 @@ export function deleteAsk(who: string): PersonAsk {
  * thing they are checking when they press Resend, because the usual reason to
  * press it is that the first one did not arrive.
  */
+/* AND IT SAYS WHAT THE OLD LINK NOW DOES. Matt, 2026-10-09, after watching
+   this happen on live: he pressed Resend for Ethan Li at about 11:20, and
+   Ethan then clicked an older email and got "This link is not valid". Until
+   20261009100000 both links really were live, because an invite writes
+   auth.users.confirmation_token and a resend wrote recovery_token, two
+   different columns. One token row per person now, replaced on resend, so
+   there is one working link and this sentence is true rather than
+   reassuring. */
 export function resentLine(email: string): string {
-  return `Invite sent again to ${email}.`;
+  return `Invite sent again to ${email}. It lasts 7 days, and the previous link no longer works.`;
 }
 
 /* =====================================================================

@@ -55,7 +55,14 @@ export const HELP_SEED: HelpContent = {
        "your agency earns 10% of that tenant fee" in the plain-English
        box. A rate that is per agreement, stated as a fixed number, in
        a flyer handed to an agency that may be on a different one. */
-    { id: 'tp0', icon: 'doc', type: 'Flyer', title: 'Agent one-pager (opndoor for letting agents)', desc: 'A branded one-page flyer to share with letting agents: turn failed references into completed lets, with the benefits and how it works.', meta: 'Page', href: '/help-docs/opndoor-for-letting-agents.html', rail: 'supplier' },
+    /* "AGENT GUIDE", NOT "AGENT ONE-PAGER", 2026-10-05. Matt, asked
+       whether to cut it to one page: "don't cut content. Rename it
+       'Agent guide' everywhere it's listed." It is three A4 pages,
+       measured, and calling it a one-pager was the only thing wrong
+       with that. The type follows the title for the same reason: a
+       three-page document labelled Flyer is the same mismatch in a
+       chip, and the landlord guide beside it is already a Guide. */
+    { id: 'tp0', icon: 'doc', type: 'Guide', title: 'Agent guide', desc: 'A branded guide to share with letting agents: turn failed references into completed lets, with the benefits and how it works.', meta: 'Page', href: '/help-docs/opndoor-for-letting-agents.html', rail: 'supplier' },
     /* =====================================================================
        THE LEAFLETS OPEN AS PAGES NOW, NOT IN A PDF VIEWER.
 

@@ -25,6 +25,7 @@ import { forgetTheSignedOutUser } from '@/data/forgetTheSignedOutUser';
 import { ROLES, type RoleIdentity } from '@/constants/roles';
 import { SUPABASE_ENABLED, supabase } from '@/lib/supabase';
 import { hydrateFromSupabase } from '@/lib/hydrate';
+import { showReferrersAsCustomer } from '@/data/applicationsService';
 import { anyTabAlive, clearSessionAlive, sessionRecentlyAlive, startHeartbeat, stopHeartbeat } from '@/session/browserSession';
 
 export type SessionStatus = 'loading' | 'signedOut' | 'needsMfa' | 'ready';
@@ -460,6 +461,27 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     const own = commissionVisibility();
     hydrateCommissionVisibility(topLevelSeesCommission(viewingAs));
     return () => { hydrateCommissionVisibility(own); };
+  }, [viewingAs]);
+
+  /* (cq) AND WHO THEY ARE TOLD SENT EACH REFERRAL.
+
+     Matt, 2026-10-05: "View as: yes, mask it. View as shows exactly what
+     the customer sees, including 'opndoor (on your behalf)'."
+
+     THE MASK IS APPLIED AT HYDRATE and keyed on the signed-in reader,
+     so an admin's book carries the real names. View as does not
+     re-hydrate and does not change the role, which is why the swap
+     happens here: every row keeps who sent the referral and whether
+     that person is one of ours, and the displayed name is recomputed
+     from the pair.
+
+     THE SAME SHAPE AND THE SAME CLEANUP as the commission visibility
+     above, for the same reason: the rows are module state, so leaving
+     it to an else arm would strand a customer's label on an admin's
+     own screen the moment this provider unmounts while viewing. */
+  useEffect(() => {
+    showReferrersAsCustomer(!!viewingAs);
+    return () => { showReferrersAsCustomer(false); };
   }, [viewingAs]);
 
   /* THE LABEL UNDER THE NAME, in the words the agency uses for itself.

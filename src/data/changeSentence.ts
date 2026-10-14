@@ -1,3 +1,5 @@
+import { REFERENCING_MODES } from './types';
+
 /* =====================================================================
    A CHANGE, IN PLAIN ENGLISH.
 
@@ -151,7 +153,14 @@ const FIELD_NAME: Record<string, string> = {
   status: 'Status',
   live_from: 'Live from',
   name: 'Name',
-  referencing_mode: 'Referencing',
+  /* "TENANT CHECKS", NOT "REFERENCING". Matt, 2026-10-12: "Recent changes
+     says 'Referencing changed from Pre-referenced, screened to
+     Pre-referenced, open'. Use the same wording as the setting on screen."
+     The sibling event below has said "Tenant checks" since 2026-10-02, and
+     the screen asks "How are this supplier's tenants checked?". One setting
+     with two names in one list is the fourth-word-for-one-thing problem this
+     file already complains about for `deactivated`. */
+  referencing_mode: 'Tenant checks',
   referrer_leaderboard: 'Referrer leaderboard',
   portal_referrals_enabled: 'Portal referrals',
   api_access_enabled: 'API access',
@@ -171,9 +180,18 @@ const SWITCHES: Record<string, string> = {
 
 /** The raw enum values, in the words the screens use for them. */
 const VALUE_WORDS: Record<string, string> = {
-  pre_referenced_open: 'Pre-referenced, open',
-  pre_referenced_screened: 'Pre-referenced, screened',
-  opndoor_referenced: 'opndoor referenced',
+  /* THE THREE MODES IN THE SETTING'S OWN WORDS, and taken from the list the
+     setting is BUILT from rather than copied, so they cannot drift apart
+     again. These were `label` -- "Pre-referenced, open" and the rest -- which
+     is the field's old name and appears on no screen a reader has seen.
+     PartnerManagement.tsx already made this exact ruling for the
+     confirmation dialog: "`choice` is the line they clicked." Recent changes
+     was the one place left naming the setting the old way.
+
+     QUOTED, like the agency-side `tenant_check_changed` sentence below, which
+     has read `from “...” to “...”` since it was written. A `choice` is a
+     clause, not a noun, so an unquoted one runs into the sentence around it. */
+  ...Object.fromEntries(REFERENCING_MODES.map((m) => [m.id, `“${m.choice}”`])),
   full: 'Full',
   rankings: 'Rankings only',
   private: 'Private',

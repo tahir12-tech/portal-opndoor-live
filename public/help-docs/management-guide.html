@@ -40,7 +40,13 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
 .foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--lilac-line);color:var(--ink-mute);font-size:12.5px}
 .printbtn{position:fixed;top:22px;right:22px;background:var(--helio);color:#fff;border:0;border-radius:999px;padding:12px 22px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(181,77,224,.38);font-family:inherit;z-index:50}
 .printbtn:hover{background:var(--helio-deep)}
-@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:0}.printbtn{display:none}h1{font-size:31pt}h2{page-break-after:avoid}.callout,table{page-break-inside:avoid}a{color:var(--ink)}@page{margin:16mm 18mm}}
+/* (oo) NO BROWSER HEADER OR FOOTER. Matt: "the PDF includes the browser's own
+   header and footer (date, page title, localhost address)". Chrome prints
+   those into the PAGE MARGIN, so the only way to be rid of them from here is
+   to have no page margin: @page{margin:0}, and the ink keeps its margin from
+   the sheet's own padding. A reader who has ticked "Headers and footers" in
+   the print dialog can still turn them back on, which is theirs to do. */
+@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:14mm 16mm}.printbtn{display:none}h1{font-size:31pt}h2{page-break-after:avoid}.callout,table{page-break-inside:avoid}a{color:var(--ink)}@page{margin:0;size:A4}}
 @media(max-width:640px){.pad{padding:32px 24px 48px}h1{font-size:33px}.lead{font-size:17px}}
 </style>
 </head>
@@ -67,7 +73,7 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
   <p>The <b>Sent, Paid, Deed issued</b> funnel, the volume charts and the breakdowns all add up across your book, and every one of them follows the period selector at the top, from the last 7 days through to all time. A table that has been cut to a period says so, so a part-month figure is never mistaken for a lifetime total.</p>
 
   <h2>The guarantee fee and your commission</h2>
-  <p>The guarantee fee is the fee agreed with your agency, usually one month's rent. Some agreements price it in weeks instead. A joint tenancy is priced once and split between the tenants, and each tenant pays their own share.</p>
+  <p>The guarantee fee is the fee agreed with your agency, and agreements differ, so the amount depends on yours. The figure shown against a referral is the one that was agreed for it, worked out from the rent on that tenancy. A joint tenancy is priced once and split between the tenants, and each tenant pays their own share.</p>
   <p>Your commission is set out in your agreement and shown on your Commission tab and monthly statement.</p>
   <div class="callout">
     <div class="callout__label">Referrers never see commission</div>

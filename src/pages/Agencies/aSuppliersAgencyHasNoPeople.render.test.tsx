@@ -45,8 +45,15 @@ describe('the People tab', () => {
   /* THE PREDICATE IS ABOUT THE AGENCY'S PARTNER, which `partner` holds: the
      agency's own, resolved from the org tree. Keyed on the reader instead,
      an admin would see a People tab on an agency that cannot have any. */
+  /* THE EXPRESSION MOVED ONE LINE UP FOR (ci), 2026-10-05: three absences
+     hang off the same fact now -- no logins, no checking setting of its
+     own, and nothing that creates a group above it -- so it is named once
+     and `hasLogins` is its negation. The RULE is unchanged, which is what
+     the second assertion keeps pinning. */
   it('and the rule is about the agency, not about who is reading', () => {
-    expect(PAGE).toContain('const hasLogins = !partyIsSupplier(partner);');
+    expect(PAGE).toContain('const inSupplierEstate = partyIsSupplier(partner);');
+    expect(PAGE).toContain('const hasLogins = !inSupplierEstate;');
     expect(PAGE).not.toMatch(/hasLogins = [^\n]*role ===/);
+    expect(PAGE).not.toMatch(/inSupplierEstate = [^\n]*role ===/);
   });
 });

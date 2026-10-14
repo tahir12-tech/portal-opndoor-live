@@ -167,12 +167,15 @@ insert into allowed(name) values
   ('may_act_on_user'),
   ('may_edit_notification_matrix'),
   ('may_see_commission'),
+  ('merge_agencies'),
+  ('merge_branches'),
   ('my_application_delivery'),
   ('my_org_shape'),
   ('my_partner_rates'),
   ('my_partner_summary'),
   ('not_in_network_agencies'),
   ('notification_matrix'),
+  ('opndoor_user_ids'),
   ('ops_route_live_count'),
   ('ops_routing_matrix'),
   ('org_add_contact'),
@@ -223,6 +226,21 @@ insert into allowed(name) values
      20261008020000. */
   ('report_portal_incident'),
   ('resolve_agency_match'),
+  /* THE DEAL IN FORCE FOR AN AGENCY, resolved from the AGENCY and not from
+     one of its offices (20261009090000). resolve_pricing_agreement reads its
+     context from public.branches, so an agency with no office resolved to no
+     deal and the Agreement card printed "Standard terms" over a signed 25%
+     agreement. This sibling answers the same ladder from the agency row.
+
+     WHY IT IS SAFE TO HAND TO EVERY SIGNED-IN USER: it is a definer for the
+     same reason its branch-keyed twin is, which is that pricing_agreements
+     RLS is permissive-by-scope and the resolver has to see the whole ladder
+     to pick the most specific rung. It returns one agreement id, a basis and
+     a rate for an agency id the caller supplies. The CALLER's permission is
+     checked by agreement_for_agency, which is the only thing the browser can
+     reach, and which opens with is_aal2, app_may_reach_agency and
+     may_see_commission before it asks this. */
+  ('resolve_pricing_agreement_for_agency'),
   /* ONE SAVE WRITES A SHARE DEAL AND THE AGENCIES IT APPLIES TO
      (20261007300000). The Commission tab's only way to write a supplier's
      agents' share deals: create_agreement takes no agencies, so it could
@@ -330,6 +348,7 @@ insert into allowed(name) values
      names who is being under-billed -- so the function asks is_admin()
      itself and returns nothing to anybody else. 20261007690000, covered
      by a_missing_deal_is_loud.test.sql. */
+  ('suppliers_that_can_take_referrals'),
   ('suppliers_with_no_commission_deal'),
   ('trigger_crm_sync'),
   /* "Turn off all" on one person's notifications dialog (ap item 2). It

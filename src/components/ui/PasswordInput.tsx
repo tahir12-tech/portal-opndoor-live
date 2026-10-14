@@ -4,16 +4,22 @@
    and <label>, and use this in place of the <input type="password">.
    Used on login, accept-invite and reset-password.
    ===================================================================== */
-import { useState, type InputHTMLAttributes } from 'react';
+import { forwardRef, useState, type InputHTMLAttributes } from 'react';
 import { Icon } from './Icon';
 
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>;
 
-export function PasswordInput(props: Props) {
+/* FORWARDS ITS REF, so a caller can put the cursor back in it. Added
+   2026-10-13 for the Change password dialog, which clears and refocuses the
+   current-password box when that is the one that was wrong: the next thing
+   somebody does is type it again, and leaving it filled invites them to press
+   the button a second time instead. The toggle button is deliberately NOT the
+   ref target -- a caller asking for this input means the input. */
+export const PasswordInput = forwardRef<HTMLInputElement, Props>(function PasswordInput(props, ref) {
   const [show, setShow] = useState(false);
   return (
     <div className="pw-input">
-      <input {...props} type={show ? 'text' : 'password'} />
+      <input {...props} ref={ref} type={show ? 'text' : 'password'} />
       <button
         type="button"
         className="pw-input__toggle"
@@ -26,4 +32,4 @@ export function PasswordInput(props: Props) {
       </button>
     </div>
   );
-}
+});

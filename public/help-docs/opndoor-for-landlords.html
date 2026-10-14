@@ -41,7 +41,13 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
 .foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--lilac-line);color:var(--ink-mute);font-size:12.5px}
 .printbtn{position:fixed;top:22px;right:22px;background:var(--helio);color:#fff;border:0;border-radius:999px;padding:12px 22px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(181,77,224,.38);font-family:inherit;z-index:50}
 .printbtn:hover{background:var(--helio-deep)}
-@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:0}.printbtn{display:none}h1{font-size:32pt}h2{page-break-after:avoid}.callout,table,.steps>li{page-break-inside:avoid}a{color:var(--ink)}@page{margin:16mm 18mm}}
+/* (oo) NO BROWSER HEADER OR FOOTER. Matt: "the PDF includes the browser's own
+   header and footer (date, page title, localhost address)". Chrome prints
+   those into the PAGE MARGIN, so the only way to be rid of them from here is
+   to have no page margin: @page{margin:0}, and the ink keeps its margin from
+   the sheet's own padding. A reader who has ticked "Headers and footers" in
+   the print dialog can still turn them back on, which is theirs to do. */
+@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:14mm 16mm}.printbtn{display:none}h1{font-size:32pt}h2{page-break-after:avoid}.callout,table,.steps>li{page-break-inside:avoid}a{color:var(--ink)}@page{margin:0;size:A4}}
 @media(max-width:640px){.pad{padding:32px 24px 48px}h1{font-size:34px}.lead{font-size:17px}}
 
 /* ---- LEAFLET ADDITIONS. The guides are long documents; a leaflet is one
@@ -71,7 +77,7 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
 .cta{background:var(--lilac);border-radius:20px;padding:28px 30px;margin:34px 0 0}
 .cta h2{margin:0 0 8px;font-size:22px}
 .cta p{margin:0 0 4px;color:var(--ink-soft)}
-@media print{.hero{padding:0 0 18px;background:#fff;color:var(--ink)}.hero h1,.hero .lead{color:var(--ink)}.hero .lockup__mark,.hero .lockup__sub{color:var(--helio)}.hero .lockup__bar{background:var(--lilac-line)}.stats{page-break-inside:avoid}.cards{gap:12px}.card,.cta,.stat{page-break-inside:avoid}}
+@media print{.hero{padding:14mm 16mm 6mm;background:#fff;color:var(--ink)}.hero h1,.hero .lead{color:var(--ink)}.hero .lockup__mark,.hero .lockup__sub{color:var(--helio)}.hero .lockup__bar{background:var(--lilac-line)}.stats{page-break-inside:avoid}.cards{gap:12px}.card,.cta,.stat{page-break-inside:avoid}}
 @media(max-width:640px){.hero{padding:30px 24px 28px}.hero h1{font-size:30px}.stats{grid-template-columns:1fr}.cards{grid-template-columns:1fr}}
 </style>
 </head>
