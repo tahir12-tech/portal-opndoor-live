@@ -197,7 +197,31 @@ describe('the definer allowlist', () => {
      `set_app_setting_text` is Health's field, `statement_invoice_email`
      is what it reads back, and `statements_can_be_posted` is the
      boolean Home and Health both warn on. 2026-10-01. */
-  it('is 151 functions wide, and does not widen by accident', () => {
+  /* 154 -> 155, RAISED WITH suppliers_that_can_take_referrals (df).
+     The Referred by picker is drawn for an opndoor_manager, and "has a
+     negotiated agreement that has not ended" is a question about a
+     pricing agreement, which they may not read. So the question is
+     answered here and the answer is a name and an id: no rate, no
+     band, no date. Exercised by name in
+     the_suppliers_that_can_take_a_referral.test.sql, including that a
+     customer asking it is told nothing. 2026-10-05. */
+  /* 152 -> 154, RAISED WITH THE TWO MERGES. `merge_branches` is new
+     (Matt, 2026-10-05) and `merge_agencies` has existed since the
+     agencies work and was never callable by the browser -- which is
+     why the "Merge into" button (ck) added to Reconciliation would
+     have failed at the click. Both are exercised by name in
+     two_offices_can_be_merged.test.sql, including the half that
+     matters: a signed-in user who is not an admin is refused BY THE
+     FUNCTION, so the grant decides who may ASK and is_admin decides
+     who may DO. 2026-10-05. */
+  /* 151 -> 152, RAISED DELIBERATELY AND IN THE SAME COMMIT AS THE
+     FUNCTION. `opndoor_user_ids` answers which of the ids a caller
+     already holds belong to opndoor's own staff, so a referral opndoor
+     sent on a customer's behalf can be shown to that customer as
+     opndoor. Definer because users RLS hides those rows from the caller,
+     which is the whole reason the client cannot answer it. Exercised by
+     name in a_customer_is_told_opndoor_sent_it.test.sql. 2026-10-05. */
+  it('is 155 functions wide, and does not widen by accident', () => {
     /* 142 -> 144, 2026-10-01: refund_questions_open and
        decide_refund_question, the list and the answer for a refund that
        landed on commission already sent on a statement. Both are staff
@@ -412,7 +436,43 @@ describe('the definer allowlist', () => {
        they may not. They return a name, an address and an office
        count. No money, no people, no deal. They are definers because
        that predicate is, not to widen anything. */
-    expect(allowlist.length).toBeLessThanOrEqual(167);
+    /* 170 -> 171, RAISED WITH suppliers_that_can_take_referrals.
+
+       WHY IT IS SAFE: it answers one question about the caller's own
+       estate -- which suppliers may take a referral -- and returns a
+       name and an id. is_opndoor_staff is inside it, so a customer
+       asking gets an empty list rather than a refusal, which is the
+       right shape for a picker. Nothing about a deal leaves the
+       function. */
+    /* 168 -> 170, RAISED WITH THE TWO MERGES.
+
+       WHY THEY ARE SAFE TO HAND TO EVERY SIGNED-IN USER, which is the
+       same answer for both: each opens with is_aal2() then is_admin(),
+       the two lines every admin RPC the browser calls opens with, and
+       each raises rather than returning an empty answer. The grant was
+       never the guard; leaving it off did not make anything safer, it
+       made a button that could not work. Proved both ways in pgTAP. */
+    /* 167 -> 168, RAISED WITH opndoor_user_ids (cq).
+
+       WHY IT IS SAFE, and it is the narrowest definer on this list. It
+       takes uuids the caller has already read off their own rows and
+       returns the subset that are opndoor's own staff. No name, no
+       email, no row, and nothing about an id it was not given: an id
+       that is nobody answers nothing, so it cannot be used to find out
+       whether some other uuid is a person. It is a definer only
+       because users RLS hides opndoor staff from a customer, which is
+       exactly why the browser could not answer the question itself. */
+    /* 171 -> 172, RAISED WITH resolve_pricing_agreement_for_agency.
+
+       WHY IT IS SAFE: it is the same resolver the referral path already
+       runs, asked of an agency rather than of one of its offices, and it
+       returns one agreement id, a basis and a rate. It takes an agency id
+       and checks nothing about the caller, which is deliberate: the only
+       thing the browser can reach is agreement_for_agency, which opens with
+       is_aal2, app_may_reach_agency and may_see_commission and then asks
+       this. Handing the resolver its own permission test would put the
+       commission gate in two places and let them disagree. */
+    expect(allowlist.length).toBeLessThanOrEqual(172);
   });
 
   it('is sorted, so two people adding to it do not collide', () => {

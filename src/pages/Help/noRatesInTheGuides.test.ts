@@ -63,12 +63,18 @@ describe('what the management guide says instead', () => {
     expect(MG).toContain('Your commission is set out in your agreement and shown on your Commission tab and monthly statement.');
   });
 
-  /* AND THE FEE IS NO LONGER ALWAYS A MONTH, which is the same defect one
-     paragraph up: "The guarantor fee is one month's rent per referral" is
-     false for every agreement priced in weeks. */
-  it('and does not claim the fee is always one month', () => {
+  /* AND IT NO LONGER PRICES THE FEE AT ALL. This was fixed once before,
+     from "The guarantor fee is one month's rent per referral" to "usually
+     one month's rent" -- and the hedge was still a price. Matt,
+     2026-10-05: "every fee mention must follow the agency's agreed fee
+     basis or not state one." Measured on dev the same morning: Regent is
+     three weeks, every other agency on the box is a month, and Regent is
+     the estate going live. See noHelpDocStatesTheFeeBasis.test.ts, which
+     holds the rule for all ten documents. */
+  it('and does not price the fee, not even with a "usually"', () => {
     expect(MG).not.toContain("The guarantor fee is <b>one month's rent</b> per referral");
-    expect(MG).toContain('usually one month');
+    expect(MG).not.toMatch(/usually one month/);
+    expect(MG).toContain('agreements differ, so the amount depends on yours');
   });
 
   it('and calls it the guarantee fee', () => {

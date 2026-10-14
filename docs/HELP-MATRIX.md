@@ -39,7 +39,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - opndoor admin guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -73,7 +73,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - opndoor admin guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -107,7 +107,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - opndoor admin guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -142,7 +142,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Referrer guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -173,7 +173,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Referrer guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -204,7 +204,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Referrer guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -440,7 +440,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Management guide _(Getting started, commission)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -469,7 +469,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Management guide _(Getting started, commission)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -497,7 +497,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Management guide _(Getting started, commission)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -527,7 +527,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Referrer guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -554,7 +554,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Referrer guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -580,7 +580,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Referrer guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -609,7 +609,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Referrer guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -636,7 +636,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Referrer guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_
@@ -662,7 +662,7 @@ were asked for. That is a content build, not a gate, and it is **not done**.
 - Referrer guide _(Getting started)_
 - Sales and conversation guide _(Getting started, supplier rail)_
 - Welcome to the portal _(Getting started)_
-- Agent one-pager (opndoor for letting agents) _(Templates, supplier rail)_
+- Agent guide _(Templates, supplier rail)_
 - Tenant explainer leaflet _(Templates)_
 - Landlord guide _(Templates)_
 - Referral information checklist _(Templates)_

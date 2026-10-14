@@ -139,7 +139,12 @@ describe('the application export, for a joint tenancy', () => {
        and could only ever be one of them, so a reader checking the
        supplier figure against it was dividing by the wrong number. */
     expect(lead['Agent commission rate']).toBe(0.25);
-    expect(lead['Supplier commission rate']).toBe(0);
+    /* AND THE SUPPLIER RATE IS BLANK, NOT ZERO, since (bq)(3). Matt:
+       "agency-route rows leave the supplier commission and rate blank,
+       not '£0.00 / 0%'." These fixtures are on the agency rail, where
+       there is no supplier, so 0% stated a fact about a party that does
+       not exist -- and a reader can sum a column of zeros. */
+    expect(lead['Supplier commission rate']).toBe('');
   });
 
   it('leaves out the payees column while every line has one payee', () => {
@@ -158,9 +163,14 @@ describe('the application export, for a joint tenancy', () => {
   });
 
   it('pays no partner commission on the agent rail, whatever partner_rate says', () => {
-    // partnerRate is 0.25 on both fixtures: populated, and owed to nobody.
-    expect(lead['Supplier commission']).toBe(0);
-    expect(second['Supplier commission']).toBe(0);
+    /* partnerRate is 0.25 on both fixtures: populated, and owed to nobody.
+       BLANK RATHER THAN ZERO since (bq)(3): there is no supplier on this
+       rail, and "nothing owed" and "nobody to owe it to" are different
+       facts. The assertion is kept rather than deleted because the thing
+       it guards -- that partner_rate never becomes a payable here -- is
+       the one that invents money. */
+    expect(lead['Supplier commission']).toBe('');
+    expect(second['Supplier commission']).toBe('');
   });
 });
 

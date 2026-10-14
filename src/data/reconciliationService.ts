@@ -37,6 +37,20 @@ export interface ReconRow {
   match: string | null;
   /** True when the match is an exact (case-insensitive) same-name hit. */
   matchExact: boolean;
+  /* (ck) WHICH RECORD, WHY, AND WHETHER IT IS ITSELF WAITING.
+
+     Matt: "Flag as 'Might already exist' ... Show the possible match side
+     by side, with 'Merge into [existing]' and 'Keep both'." A warning with
+     no verb leaves the reader where they were, so the id comes back with
+     the name: the reviewer acts on the match rather than being told about
+     it. The reason is chosen in SQL, in one place, rather than rebuilt in
+     the browser from four booleans. */
+  matchId: string | null;
+  matchReason: string | null;
+  /** True when the match is another row in this same queue, not a confirmed
+      record. Both of Matt's "Test Lettings" agencies are in that state, and
+      it is why neither could see the other. */
+  matchPending: boolean;
   /** #117 True on an agency whose auto "[Agency], Head office" branch is folded into this card. */
   foldedHeadOffice?: boolean;
 }
@@ -48,14 +62,14 @@ function fmtWhen(ts: string): string {
 
 // Mock/demo queue (mock mode only). Illustrative pending entities.
 const MOCK_QUEUE: ReconRow[] = [
-  { id: 'branch:m1', entityId: 'm1', type: 'branch', name: 'Sth Kensington', parent: 'Foxglove Residential', supplier: null, by: 'James Okafor', when: '18/06/2026 · 14:22', refs: 1, match: 'South Kensington', matchExact: false },
-  { id: 'agency:m2', entityId: 'm2', type: 'agency', name: 'Marylebone and Co.', parent: null, supplier: null, by: 'Aisha Khan', when: '17/06/2026 · 09:48', refs: 2, match: 'Marylebone & Co', matchExact: false },
-  { id: 'branch:m3', entityId: 'm3', type: 'branch', name: 'Wandsworth', parent: 'Hartwell Estates', supplier: null, by: 'Marcus Lin', when: '16/06/2026 · 16:05', refs: 3, match: null, matchExact: false },
-  { id: 'agency:m4', entityId: 'm4', type: 'agency', name: 'Camden Town Lettings', parent: null, supplier: null, by: 'Daniel Wright', when: '13/06/2026 · 10:12', refs: 1, match: null, matchExact: false },
+  { id: 'branch:m1', entityId: 'm1', type: 'branch', name: 'Sth Kensington', parent: 'Foxglove Residential', supplier: null, by: 'James Okafor', when: '18/06/2026 · 14:22', refs: 1, match: 'South Kensington', matchExact: false, matchId: 'b-sk', matchReason: 'a similar name', matchPending: false },
+  { id: 'agency:m2', entityId: 'm2', type: 'agency', name: 'Marylebone and Co.', parent: null, supplier: null, by: 'Aisha Khan', when: '17/06/2026 · 09:48', refs: 2, match: 'Marylebone & Co', matchExact: false, matchId: 'ag-maryle', matchReason: 'a similar name', matchPending: false },
+  { id: 'branch:m3', entityId: 'm3', type: 'branch', name: 'Wandsworth', parent: 'Hartwell Estates', supplier: null, by: 'Marcus Lin', when: '16/06/2026 · 16:05', refs: 3, match: null, matchExact: false, matchId: null, matchReason: null, matchPending: false },
+  { id: 'agency:m4', entityId: 'm4', type: 'agency', name: 'Camden Town Lettings', parent: null, supplier: null, by: 'Daniel Wright', when: '13/06/2026 · 10:12', refs: 1, match: null, matchExact: false, matchId: null, matchReason: null, matchPending: false },
   // #117 A single-office fly-created agency: its auto "[Agency], Head office" branch
   // folds into the agency card (confirming the agency sweeps it), so it is not a
   // separate queue item — the card notes the folded head office.
-  { id: 'agency:m5', entityId: 'm5', type: 'agency', name: 'Bracken & Vale', parent: null, supplier: null, by: 'Priya Nair', when: '12/06/2026 · 11:30', refs: 1, match: null, matchExact: false, foldedHeadOffice: true },
+  { id: 'agency:m5', entityId: 'm5', type: 'agency', name: 'Bracken & Vale', parent: null, supplier: null, by: 'Priya Nair', when: '12/06/2026 · 11:30', refs: 1, match: null, matchExact: false, matchId: null, matchReason: null, matchPending: false, foldedHeadOffice: true },
 ];
 
 /** The pending-review queue (admin only). Async: live RPC or the mock queue. */
@@ -76,10 +90,51 @@ export async function loadReconciliationQueue(): Promise<ReconRow[]> {
       refs: Number(r.referral_count ?? 0),
       match: r.match_name ?? null,
       matchExact: !!r.match_exact,
+      matchId: r.match_id ?? null,
+      matchReason: r.match_reason ?? null,
+      matchPending: !!r.match_pending,
       foldedHeadOffice: !!r.folded_head_office,
     }));
   }
   return MOCK_QUEUE.slice();
+}
+
+/* (ck) MERGE THE DUPLICATE INTO THE RECORD THAT ALREADY EXISTS.
+
+   Matt: "Show the possible match side by side, with 'Merge into
+   [existing]' and 'Keep both'."
+
+   THE MERGE ITSELF ALREADY EXISTED AND NOTHING CALLED IT. merge_agencies
+   moves the branches, repoints the applications, moves the contacts,
+   unions the partner relationships and the user attachments, renames a
+   colliding office rather than losing it, and writes an org_audit row. It
+   has been on dev since the agencies work and had no caller in the
+   client: the button had been removed as "coming in a later release"
+   while the thing it needed was already there.
+
+   AGENCIES ONLY. There is no merge_branches, so two duplicate OFFICES can
+   be told apart and kept but not joined. That gap is in QUEUE.md under
+   "For Matt in the morning" rather than being covered by a button that
+   cannot work. */
+export async function mergeAgencyInto(keepId: string, mergeId: string): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const { error } = await sb().rpc('merge_agencies', { p_keep: keepId, p_merge: mergeId });
+  if (error) throw new Error(error.message);
+}
+
+/* AND THE SAME ONE LEVEL DOWN, 2026-10-05. Matt: "Merging two offices:
+   yes, write merge_branches, matching how merge_agencies works, with a
+   test."
+
+   THE OFFICE CASE IS THE HARDER ONE AND THE FUNCTION DOES THE WORK:
+   three of the six foreign keys pointing at a branch CASCADE, so
+   deleting the merged office would silently take its contacts, its
+   nominated deed recipient and every position held at it. See
+   20261009070000. */
+export async function mergeBranchInto(keepId: string, mergeId: string): Promise<void> {
+  if (!SUPABASE_ENABLED) return;
+  const { error } = await sb().rpc('merge_branches', { p_keep: keepId, p_merge: mergeId });
+  if (error) throw new Error(error.message);
 }
 
 /** Confirm a pending entity as a new canonical record (audited). */

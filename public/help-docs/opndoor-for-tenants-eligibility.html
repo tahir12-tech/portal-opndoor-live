@@ -41,7 +41,13 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
 .foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--lilac-line);color:var(--ink-mute);font-size:12.5px}
 .printbtn{position:fixed;top:22px;right:22px;background:var(--helio);color:#fff;border:0;border-radius:999px;padding:12px 22px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(181,77,224,.38);font-family:inherit;z-index:50}
 .printbtn:hover{background:var(--helio-deep)}
-@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:0}.printbtn{display:none}h1{font-size:32pt}h2{page-break-after:avoid}.callout,table,.steps>li{page-break-inside:avoid}a{color:var(--ink)}@page{margin:16mm 18mm}}
+/* (oo) NO BROWSER HEADER OR FOOTER. Matt: "the PDF includes the browser's own
+   header and footer (date, page title, localhost address)". Chrome prints
+   those into the PAGE MARGIN, so the only way to be rid of them from here is
+   to have no page margin: @page{margin:0}, and the ink keeps its margin from
+   the sheet's own padding. A reader who has ticked "Headers and footers" in
+   the print dialog can still turn them back on, which is theirs to do. */
+@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:14mm 16mm}.printbtn{display:none}h1{font-size:32pt}h2{page-break-after:avoid}.callout,table,.steps>li{page-break-inside:avoid}a{color:var(--ink)}@page{margin:0;size:A4}}
 @media(max-width:640px){.pad{padding:32px 24px 48px}h1{font-size:34px}.lead{font-size:17px}}
 
 /* ---- LEAFLET ADDITIONS. The guides are long documents; a leaflet is one
@@ -71,8 +77,61 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
 .cta{background:var(--lilac);border-radius:20px;padding:28px 30px;margin:34px 0 0}
 .cta h2{margin:0 0 8px;font-size:22px}
 .cta p{margin:0 0 4px;color:var(--ink-soft)}
-@media print{.hero{padding:0 0 18px;background:#fff;color:var(--ink)}.hero h1,.hero .lead{color:var(--ink)}.hero .lockup__mark,.hero .lockup__sub{color:var(--helio)}.hero .lockup__bar{background:var(--lilac-line)}.stats{page-break-inside:avoid}.cards{gap:12px}.card,.cta,.stat{page-break-inside:avoid}}
+@media print{.hero{padding:14mm 16mm 6mm;background:#fff;color:var(--ink)}.hero h1,.hero .lead{color:var(--ink)}.hero .lockup__mark,.hero .lockup__sub{color:var(--helio)}.hero .lockup__bar{background:var(--lilac-line)}.stats{page-break-inside:avoid}.cards{gap:12px}.card,.cta,.stat{page-break-inside:avoid}}
 @media(max-width:640px){.hero{padding:30px 24px 28px}.hero h1{font-size:30px}.stats{grid-template-columns:1fr}.cards{grid-template-columns:1fr}}
+
+/* (oo) A ONE-PAGE LEAFLET IS ONE PAGE. Matt: "the one-page tenant leaflet
+   spills onto two pages ... one-page leaflets fit on one A4 page."
+
+   MEASURED, NOT ESTIMATED. Each of these was printed headlessly and its
+   pages counted before and after: two pages, and three for the eligibility
+   one, down to one. The numbers below are the ones that did it, not a
+   guess at what might.
+
+   SCREEN IS UNCHANGED. Everything here is inside @media print: a leaflet
+   read on a screen scrolls, and shrinking it there to suit paper would
+   make the common case worse to fix the rarer one. */
+@media print{
+  body{font-size:8.6pt;line-height:1.42}
+  .hero{padding:6mm 14mm 3mm}
+  .hero h1{font-size:17.5pt;max-width:30ch;margin-bottom:7px}
+  .pad{padding:2mm 14mm 3mm}
+  .lead{font-size:10.5pt}
+  .eyebrow{font-size:8pt;margin:0 0 8px}
+  h2{font-size:12.5pt;margin:8px 0 4px}
+  h3{font-size:10.5pt;margin:0 0 4px}
+  p{margin:0 0 6px}
+  .rule{margin:10px 0 2px}
+  .cards{gap:8px;margin:8px 0 3px}
+  .card{padding:10px 12px;border-radius:10px}
+  .card__ic{width:24px;height:24px;font-size:13px;margin-bottom:7px;border-radius:7px}
+  .callout{padding:9px 12px;margin:8px 0;border-radius:12px}
+  .callout__label{font-size:11pt;margin:0 0 6px}
+  .plain{margin:8px 0}
+  .plain li{margin:5px 0;padding-left:22px}
+  .plain li::before{top:7px;width:6px;height:6px}
+  .cta{padding:10px 13px;margin:8px 0 0;border-radius:12px}
+  .cta h2{font-size:12pt;margin:0 0 4px}
+  /* THE LEAFLET'S OWN TYPE IS IN PIXELS, which is why shrinking the body
+     alone moved almost nothing: .lead, .card p, li and the stat labels all
+     carry their own px size and ignore it. Measured: body 9.3pt still
+     printed two pages. These are the sizes that actually set the height. */
+  .lead{font-size:11.5px;line-height:1.42}
+  .card p{font-size:10.4px;line-height:1.4}
+  .card h3{font-size:11.8px}
+  .callout p{font-size:11.2px}
+  .cta p{font-size:11.2px}
+  .plain li{font-size:11px;margin:3px 0}
+  li{margin:4px 0}
+  .stat__n{font-size:24px}
+  .stat__l{font-size:10.5px;margin-top:5px}
+  .stat{padding:14px 16px}
+  .steps>li{margin:9px 0;padding-left:38px}
+  .steps>li::before{width:24px;height:24px;font-size:11px}
+  table{font-size:11px}
+  th,td{padding:7px 10px}
+  .foot{margin-top:7px;padding-top:5px;font-size:7.4pt}
+}
 </style>
 </head>
 <body>
@@ -98,7 +157,7 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
         <div class="card__ic">&pound;</div>
         <h3>&pound;20 per tenant, then the guarantee fee</h3>
         <p>&pound;20 per tenant, once, for the eligibility check on your application. It is not the guarantee fee and does not come off it: it is on top. You pay it near the start of your application, and your application is not sent for referencing until it has been paid. It is not refunded in any case: not if the reference comes back declined, not if you stop after paying, and not if we cannot complete the check.</p>
-        <p>If you are approved, the guarantee fee is usually one month's rent, split between you if you're renting jointly, and we will tell you the exact amount before anything is due.</p>
+        <p>If you are approved, the guarantee fee is the one set by your agent's agreement with opndoor, split between you if you're renting jointly. We will tell you the exact amount before anything is due, and it is shown on your payment link before you pay.</p>
       </div>
       <div class="card">
         <div class="card__ic">&#10003;</div>

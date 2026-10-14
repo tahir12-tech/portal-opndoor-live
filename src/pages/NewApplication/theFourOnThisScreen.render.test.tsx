@@ -77,14 +77,22 @@ const titles = (v: View) =>
 const railLinks = (v: View) =>
   [...v.container.querySelectorAll('.navrail a')].map((a) => (a.textContent ?? '').trim());
 
-/** Choose Supplier, then Kestrel, as Matt did. */
+/* Choose Supplier, then the first supplier offered, as Matt did.
+
+   THE SUPPLIER CONTROL IS A TYPE-AHEAD SINCE (df), 2026-10-05, not a
+   select: Matt asked for "type-to-search, like the agency picker".
+   Options are chosen on MOUSEDOWN, because TypeAhead preventDefaults
+   there so the choice lands before the input blurs. */
 async function chooseSupplier(v: View) {
   await act(async () => { fireEvent.change(sel(v, 'Referred by')!, { target: { value: 'supplier' } }); });
-  const s = sel(v, 'Supplier')!;
-  const opt = [...s.options].find((o) => o.value && o.text.toLowerCase().includes('harbour'))
-    ?? [...s.options].find((o) => o.value)!;
-  await act(async () => { fireEvent.change(s, { target: { value: opt.value } }); });
-  return opt.text;
+  const box = v.container.querySelector<HTMLInputElement>('#na-route')!;
+  await act(async () => { fireEvent.focus(box); });
+  const opts = [...v.container.querySelectorAll<HTMLElement>('.typeahead__opt')];
+  const opt = opts.find((o) => (o.textContent ?? '').toLowerCase().includes('harbour')) ?? opts[0];
+  if (!opt) throw new Error('no supplier offered');
+  const name = (opt.textContent ?? '').trim();
+  await act(async () => { fireEvent.mouseDown(opt); });
+  return name;
 }
 
 describe('item 27: the sections are numbered in order', () => {
@@ -233,26 +241,33 @@ describe('item 29: every choice stays visible and changeable', () => {
 
   it('and keeps the supplier on screen too', async () => {
     const v = await openForm('superadmin');
-    await chooseSupplier(v);
-    expect(sel(v, 'Supplier')!.value).not.toBe('');
+    const chosen = await chooseSupplier(v);
+    /* THE BOX HOLDS THE NAME, not a slug: a type-ahead shows what was
+       chosen in the words the reader chose it by. */
+    expect(v.container.querySelector<HTMLInputElement>('#na-route')!.value).toBe(chosen);
   });
 
   /* THE DEPENDENCY, which is the whole of the difficulty in item 29:
      supplier -> agency -> branch. Changing the supplier must clear both. */
   it('and changing the supplier clears the agency and the branch beneath it', async () => {
     const v = await openForm('superadmin');
-    await chooseSupplier(v);
+    const chosen = await chooseSupplier(v);
     const agency = sel(v, 'Agency') ?? sel(v, 'Agent');
     if (agency) {
       const first = [...agency.options].find((o) => o.value);
       if (first) await act(async () => { fireEvent.change(agency, { target: { value: first.value } }); });
     }
-    const s = sel(v, 'Supplier')!;
-    const other = [...s.options].find((o) => o.value && o.value !== s.value);
-    expect(other, 'the fixture needs a second supplier to change to').toBeTruthy();
-    await act(async () => { fireEvent.change(s, { target: { value: other!.value } }); });
-    const after = sel(v, 'Agency') ?? sel(v, 'Agent');
-    if (after) expect(after.value).toBe('');
+    /* CHANGING IT ON A TYPE-AHEAD IS TYPING IN THE BOX, which is the
+       act that clears the choice: the name in the box no longer names
+       what is selected, so the selection and everything it scoped go.
+       (df) made this control a type-ahead; the rule under test is
+       unchanged and is item 29's whole difficulty. */
+    const box = v.container.querySelector<HTMLInputElement>('#na-route')!;
+    expect(box.value).toBe(chosen);
+    await act(async () => { fireEvent.change(box, { target: { value: 'Something else' } }); });
+    /* READ OFF THE AGENCY'S OWN BOX, for the reason above: it is a
+       type-ahead and `sel(v, 'Agency')` finds no <select> to read. */
+    expect(v.container.querySelector<HTMLInputElement>('#ag-name')!.value).toBe('');
   });
 
   /* THE DISAPPEARANCE ITSELF. The section collapses to nothing once the org
@@ -276,13 +291,45 @@ describe('item 29: every choice stays visible and changeable', () => {
   it('and re-choosing the same supplier clears nothing', async () => {
     const v = await openForm('superadmin');
     await chooseSupplier(v);
-    const s = sel(v, 'Supplier')!;
-    const chosen = s.value;
     const agency = sel(v, 'Agency') ?? sel(v, 'Agent');
     const first = agency ? [...agency.options].find((o) => o.value) : undefined;
     if (agency && first) await act(async () => { fireEvent.change(agency, { target: { value: first.value } }); });
-    const before = (sel(v, 'Agency') ?? sel(v, 'Agent'))?.value ?? '';
-    await act(async () => { fireEvent.change(s, { target: { value: chosen } }); });
-    expect((sel(v, 'Agency') ?? sel(v, 'Agent'))?.value ?? '').toBe(before);
+    /* AN AGENCY IS ACTUALLY CHOSEN FIRST, through its own type-ahead.
+
+       Without this the assertion below compared '' to '', and had done
+       since the agency picker stopped being a <select>: `sel(v,
+       'Agency')` returns null, so "before" and "after" were both empty
+       and re-choosing could have cleared everything and still passed.
+       Found by probing it rather than by it failing. */
+    const agBox = v.container.querySelector<HTMLInputElement>('#ag-name')!;
+    await act(async () => { fireEvent.focus(agBox); });
+    const agOpt = [...v.container.querySelectorAll<HTMLElement>('.typeahead__opt')]
+      .find((o) => !(o.textContent ?? '').toLowerCase().includes('add a new'));
+    expect(agOpt, 'an agency to choose under this supplier').toBeTruthy();
+    await act(async () => { fireEvent.mouseDown(agOpt!); });
+    const before = agBox.value;
+    expect(before, 'an agency really was chosen').not.toBe('');
+    /* CHOOSING THE SAME ONE AGAIN, out of the list, which is the
+       mis-click this guards: the option's own onSelect runs and must
+       land on the same supplier without clearing the work beneath it. */
+    const box = v.container.querySelector<HTMLInputElement>('#na-route')!;
+    await act(async () => { fireEvent.focus(box); });
+    const same = [...v.container.querySelectorAll<HTMLElement>('.typeahead__opt')]
+      .find((o) => (o.textContent ?? '').trim() === box.value);
+    /* FOUND, NOT "if it happens to be there". An option this does not
+       find is a test that passes without exercising anything, which
+       is the shape of pass this repo keeps catching. */
+    expect(same, 'the chosen supplier is still offered in the list').toBeTruthy();
+    await act(async () => { fireEvent.mouseDown(same!); });
+    expect(v.container.querySelector<HTMLInputElement>('#ag-name')!.value).toBe(before);
+    /* WHAT THIS PAIR DOES AND DOES NOT PROVE, said plainly because the
+       difference cost half an hour to find. The agency box is cleared
+       by the PICKER, which resets when the supplier it is scoped to
+       changes -- so "changing clears" and "re-choosing does not" are
+       both real observations of what a reader sees. The form's own
+       `values.agency` is a second copy that no assertion here can
+       read; the onSelect guard in NewApplication is what keeps it in
+       step, so that the form cannot submit with no agency while
+       showing one. */
   });
 });

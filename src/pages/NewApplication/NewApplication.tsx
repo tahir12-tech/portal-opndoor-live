@@ -29,6 +29,8 @@ import { useEffect, useState, type ClipboardEvent, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { mayAddAnotherTenant } from './jointAllowed';
 import { DEFAULT_SHARE_PERCENT, amountFromPercent, duplicateEmailIndex, equalSharePercents, percentFromAmount, rebalanceShares, shareSumError } from './shareMath';
+import { TypeAhead, highlightMatch, type TypeAheadOption } from '@/components/ui/TypeAhead';
+import { suppliersThatCanTakeReferrals, type ReferableSupplier } from '@/data/partnersService';
 import { addressLookupAvailable, ALL_PARTNERS, createReferral, feeBasisLabel, findActiveReferralByTenantProperty, lookupAddresses, originIsAgentEstate, originReferencingMode, previewReferralFee, type AddressOption, type DuplicateMatch, type FeePreview, UNRESOLVED, newApplicationSectionCopy, type OrgShape, isOpndoorStaff } from '@/data';
 import { Modal } from '@/components/ui/Modal';
 import { useMissingFields } from '@/lib/useMissingFields';
@@ -44,7 +46,6 @@ import { Field } from '@/components/ui/Field';
 import { Icon } from '@/components/ui/Icon';
 import { useToast } from '@/components/ui/Toast';
 import { AgentBranchPicker } from '@/components/AgentBranchPicker';
-import { getPartners } from '@/data/partnersService';
 import './NewApplication.css';
 import { plural, countOf } from '@/lib/plural';
 
@@ -221,6 +222,40 @@ export function NewApplication() {
      that decides them for an agency a supplier introduced. */
   const [referredBy, setReferredBy] = useState<'' | 'supplier' | 'agency'>('');
   const [routeSupplier, setRouteSupplier] = useState('');
+  /* (df) THE SUPPLIERS THAT CAN TAKE A REFERRAL, and what has been typed
+     into the box. Loaded once when the form opens rather than per
+     keystroke: there are a handful of suppliers, not a book of
+     agencies, so the search is local and the only server question is
+     which ones have a live deal -- which the browser cannot answer,
+     because a deal is commission and this form is drawn for an
+     opndoor_manager too. */
+  const [referableSuppliers, setReferableSuppliers] = useState<ReferableSupplier[]>([]);
+  const [supplierQuery, setSupplierQuery] = useState('');
+
+  /* THE OPTIONS, FILTERED LOCALLY. `highlightMatch` is the same
+     treatment the agency picker gives, so the two read as one control
+     in two places. Choosing one puts its name in the box and its slug
+     in the form, and clears the agency and branch the previous answer
+     scoped. */
+  const supplierOptions: TypeAheadOption[] = referableSuppliers
+    .filter((p) => !supplierQuery.trim()
+      || p.name.toLowerCase().includes(supplierQuery.trim().toLowerCase()))
+    .map((p) => ({
+      id: p.slug,
+      icon: <Icon name="building" size={14} />,
+      main: highlightMatch(p.name, supplierQuery),
+      onSelect: () => {
+        const same = routeSupplier === p.slug;
+        setRouteSupplier(p.slug);
+        setSupplierQuery(p.name);
+        /* CHANGING IT CLEARS WHAT IT SCOPED; re-choosing the same one
+           clears nothing. Matt, on the select this replaced: "changing
+           the supplier clears both". A mis-click onto the option
+           already chosen is not a change, and clearing unconditionally
+           turns it into lost work. */
+        if (!same) setValues((prev) => ({ ...prev, agency: '', branch: '' }));
+      },
+    }));
   /* Complete means: a non-admin has nothing to answer, and an admin has
      answered. A supplier choice is not complete until the supplier is named. */
   const referredByDone = !isAdminForm
@@ -346,6 +381,20 @@ export function NewApplication() {
      Asked of the server in live mode (origin_referencing_mode), which resolves
      through the very functions create_joint_referral uses, so the form cannot
      offer a button the RPC would refuse. */
+  /* ONCE, WHEN THE FORM IS FOR SOMEBODY WHO PICKS A SUPPLIER. A
+     referrer's own form never shows the section, so it never asks. */
+  useEffect(() => {
+    if (!isAdminForm) return undefined;
+    let ignore = false;
+    void (async () => {
+      try {
+        const rows = await suppliersThatCanTakeReferrals();
+        if (!ignore) setReferableSuppliers(rows);
+      } catch { /* The picker says none are available, which is what it knows. */ }
+    })();
+    return () => { ignore = true; };
+  }, [isAdminForm]);
+
   useEffect(() => {
     let live = true;
     if (!values.agency || !values.branch) { setEstate(false); setRailState('none'); return; }
@@ -676,22 +725,56 @@ export function NewApplication() {
                   {referredBy === 'supplier' && (
                     <div className="field span-2">
                       <label htmlFor="na-route">Supplier <span className="req" aria-hidden="true">*</span></label>
-                      <select
+                      {/* =====================================================
+                          (df) TYPE TO SEARCH, AND ONLY SUPPLIERS THAT CAN
+                          TAKE A REFERRAL.
+
+                          Matt: "make them type-to-search, like the agency
+                          picker, and list only suppliers that can take
+                          referrals (active, with a deal set). Hide paused,
+                          onboarding and no-deal suppliers, with a note
+                          'Only suppliers with a live deal are shown'."
+
+                          THE OLD LIST WAS getPartners(), which strips the
+                          house routes and nothing else. Two things were
+                          wrong with it. It listed AGENCY-kind partners:
+                          "Harbour Lets" is an agency with a partner row of
+                          its own, and filing a referral under it would put
+                          the commission nowhere anybody reads -- the same
+                          defect Matt found in the other supplier dropdown
+                          on 2026-10-04 and the reason this one is now
+                          answered by the server. And it listed suppliers
+                          with no deal, where every referral prices at 0%.
+
+                          "WITH A DEAL SET" IS HIS CHOICE OF THREE,
+                          2026-10-05: a negotiated agreement that has not
+                          ended. On dev that is three suppliers of ten. */}
+                      <TypeAhead
                         id="na-route"
-                        aria-label="Supplier"
-                        value={routeSupplier}
-                        onChange={(e) => {
-                          setRouteSupplier(e.target.value);
-                          setValues((prev) => ({ ...prev, agency: '', branch: '' }));
+                        ariaLabel="Supplier"
+                        value={supplierQuery}
+                        onChange={(v: string) => {
+                          setSupplierQuery(v);
+                          /* CLEARING THE BOX CLEARS THE CHOICE, and with it
+                             the agency and branch it scoped. Leaving the
+                             choice behind a cleared box is how a referral
+                             ends up filed under a supplier the reader
+                             thought they had removed. */
+                          if (routeSupplier) {
+                            setRouteSupplier('');
+                            setValues((prev) => ({ ...prev, agency: '', branch: '' }));
+                          }
                         }}
-                      >
-                        <option value="">Choose a supplier…</option>
-                        {/* REAL SUPPLIERS ONLY. getPartners() strips the house
-                            routes, which is exactly Matt's "never a house
-                            partner". */}
-                        {getPartners().map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                      </select>
-                      <span className="hint">Agency and Branch below will search only this supplier’s.</span>
+                        options={supplierOptions}
+                        placeholder="Start typing a supplier name"
+                        emptyText={referableSuppliers.length === 0
+                          ? 'No supplier has a live deal yet'
+                          : 'No suppliers match'}
+                      />
+                      <span className="hint">
+                        Only suppliers with a live deal are shown. Agency and Branch below will
+                        search only this supplier’s.
+                      </span>
                     </div>
                   )}
                 </div>

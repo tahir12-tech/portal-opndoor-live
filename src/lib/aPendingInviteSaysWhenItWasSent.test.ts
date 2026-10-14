@@ -130,3 +130,86 @@ describe('and everybody else', () => {
     expect(lastActiveOf('never@regent.test')).toBe('-');
   });
 });
+
+/* AND WHEN IT RUNS OUT, AND WHETHER IT STILL WORKS.
+ *
+ * Matt, 2026-10-09: "7-day links, Accept invite page, sent date, expiry,
+ * resend and cancel." 20261009100000 adds staff_invites and carries its
+ * sent date, expiry and state through list_managed_users.
+ *
+ * THE SENT DATE IS THE LIVE LINK'S, which is the part that was wrong rather
+ * than missing: auth.users.invited_at is stamped once when the account is
+ * made and never moves, so after a resend the cell named the wrong day. Matt
+ * pressed Resend for Ethan Li at about 11:20 and the row still showed the
+ * previous afternoon.
+ */
+describe('and the invitation itself', () => {
+  const pending = (over: Record<string, unknown>) => user({
+    id: 'u9', email: 'inv@independent.test', status: 'pending',
+    invited_at: '2026-10-01T09:00:00Z', ...over,
+  });
+
+  it('says when the live link was sent and when it expires', async () => {
+    RPCS.list_managed_users = [pending({
+      invite_sent_at: '2026-10-09T11:20:00Z',
+      invite_expires_at: '2026-10-16T11:20:00Z',
+      invite_state: 'live',
+    })];
+    await hydrateFromSupabase('u1');
+    expect(lastActiveOf('inv@independent.test')).toBe('Invited 9 Oct 2026, expires 16 Oct 2026');
+  });
+
+  /* THE RESEND CASE, STATED AS ITS OWN ASSERTION. invited_at here is 1
+     October and the live link went out on the 9th. Reading invited_at would
+     print the first of the month beside a link that is eight days younger,
+     which is what Matt was looking at. */
+  it('and prefers the resent date over the date the account was made', async () => {
+    RPCS.list_managed_users = [pending({
+      invited_at: '2026-10-01T09:00:00Z',
+      invite_sent_at: '2026-10-09T11:20:00Z',
+      invite_expires_at: '2026-10-16T11:20:00Z',
+      invite_state: 'live',
+    })];
+    await hydrateFromSupabase('u1');
+    expect(lastActiveOf('inv@independent.test')).not.toContain('1 Oct');
+  });
+
+  /* AN EXPIRED ONE NAMES A JOB. "Invited 2 October" beside somebody who
+     cannot get in reads as patience; this reads as a resend. */
+  it('says an expired invitation has expired, and when', async () => {
+    RPCS.list_managed_users = [pending({
+      invite_sent_at: '2026-09-25T09:00:00Z',
+      invite_expires_at: '2026-10-02T09:00:00Z',
+      invite_state: 'expired',
+    })];
+    await hydrateFromSupabase('u1');
+    expect(lastActiveOf('inv@independent.test')).toBe('Invite expired 2 Oct 2026');
+  });
+
+  it('and says a cancelled one was cancelled', async () => {
+    RPCS.list_managed_users = [pending({ invite_state: 'cancelled' })];
+    await hydrateFromSupabase('u1');
+    expect(lastActiveOf('inv@independent.test')).toBe('Invite cancelled');
+  });
+
+  /* WHERE ETHAN LI SAT FOR A DAY: he opened the link and signed in but never
+     enrolled his authenticator, so the invitation is spent and he is still
+     pending. "Pending invite" said none of that. */
+  it('and tells an administrator when somebody opened it but never finished', async () => {
+    RPCS.list_managed_users = [pending({
+      invite_sent_at: '2026-10-08T17:17:00Z',
+      invite_expires_at: '2026-10-15T17:17:00Z',
+      invite_state: 'used',
+    })];
+    await hydrateFromSupabase('u1');
+    expect(lastActiveOf('inv@independent.test')).toBe('Opened 8 Oct 2026, two-factor not set up');
+  });
+
+  /* AND A ROW FROM BEFORE THE TABLE EXISTED keeps the wording it had, which
+     is what every person already invited on live will read as. */
+  it('and keeps the old wording for somebody invited before any of this', async () => {
+    RPCS.list_managed_users = [pending({ invite_state: 'none' })];
+    await hydrateFromSupabase('u1');
+    expect(lastActiveOf('inv@independent.test')).toBe('Invited 1 Oct 2026');
+  });
+});

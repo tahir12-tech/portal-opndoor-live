@@ -41,7 +41,13 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
 .foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--lilac-line);color:var(--ink-mute);font-size:12.5px}
 .printbtn{position:fixed;top:22px;right:22px;background:var(--helio);color:#fff;border:0;border-radius:999px;padding:12px 22px;font-weight:700;font-size:14px;cursor:pointer;box-shadow:0 8px 24px rgba(181,77,224,.38);font-family:inherit;z-index:50}
 .printbtn:hover{background:var(--helio-deep)}
-@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:0}.printbtn{display:none}h1{font-size:32pt}h2{page-break-after:avoid}.callout,table,.steps>li{page-break-inside:avoid}a{color:var(--ink)}@page{margin:16mm 18mm}}
+/* (oo) NO BROWSER HEADER OR FOOTER. Matt: "the PDF includes the browser's own
+   header and footer (date, page title, localhost address)". Chrome prints
+   those into the PAGE MARGIN, so the only way to be rid of them from here is
+   to have no page margin: @page{margin:0}, and the ink keeps its margin from
+   the sheet's own padding. A reader who has ticked "Headers and footers" in
+   the print dialog can still turn them back on, which is theirs to do. */
+@media print{body{background:#fff;font-size:11pt}.sheet{max-width:none}.pad{padding:14mm 16mm}.printbtn{display:none}h1{font-size:32pt}h2{page-break-after:avoid}.callout,table,.steps>li{page-break-inside:avoid}a{color:var(--ink)}@page{margin:0;size:A4}}
 @media(max-width:640px){.pad{padding:32px 24px 48px}h1{font-size:34px}.lead{font-size:17px}}
 </style>
 </head>
@@ -68,7 +74,7 @@ th{font-family:'Sora',sans-serif;font-weight:700;font-size:13px;color:var(--ink)
     <div class="callout__label">At a glance</div>
     <ul>
       <li><b>You refer</b> a tenant who cannot pass referencing.</li>
-      <li><b>The tenant pays</b> the guarantee fee agreed with your agency, usually one month's rent. On a joint tenancy it is split between the tenants.</li>
+      <li><b>The tenant pays</b> the guarantee fee agreed with your agency. The exact amount is shown on the referral before you send it. On a joint tenancy it is split between the tenants.</li>
       <li><b>The tenant signs</b> their Deed of Guarantee, and you track it to completion.</li>
       <li><b>You never enter</b> the guarantee reference, issue date or expiry. They are assigned automatically.</li>
     </ul>

@@ -246,7 +246,24 @@ export function orgCell(name: string | null | undefined): string {
    for the case it was written for and for any row we cannot resolve. The
    failure direction is unchanged: the worst it does is leave the old screen.
    ===================================================================== */
-function officeNameAddsNothing(agencyName: string, officeName: string): boolean {
+/**
+ * Does this office's name tell a reader anything the agency's name did not?
+ *
+ * EXPORTED 2026-10-09, having been private since it was written. An
+ * adversarial review of the single-office backfill found the one place that
+ * needed it and did not have it: the "What each branch pays out" Branch cell
+ * printed the office name and then the agency name in a `dt__sub` span which
+ * has no `display: block` for that table, so where the two are the same
+ * string the cell read "Regent LettingsRegent Lettings". It was reachable on
+ * dev before any of this (New Independent on opndoor-agents) and
+ * 20261009090000 made every newly added agency produce the shape, so it
+ * stopped being an oddity and became the normal case.
+ *
+ * officeLabel cannot answer it: for this shape it returns the agency's own
+ * name, which is right for the label and says nothing about whether a SECOND
+ * line naming the agency is worth printing.
+ */
+export function officeNameAddsNothing(agencyName: string, officeName: string): boolean {
   const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, ' ');
   const a = norm(agencyName);
   const o = norm(officeName);

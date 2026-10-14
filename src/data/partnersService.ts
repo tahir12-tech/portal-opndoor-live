@@ -62,6 +62,38 @@ export function homePartner(): string {
   return HOME;
 }
 
+/* =====================================================================
+   (df) THE SUPPLIERS A REFERRAL MAY BE FILED UNDER.
+
+   Matt: "list only suppliers that can take referrals (active, with a
+   deal set). Hide paused, onboarding and no-deal suppliers, with a
+   note 'Only suppliers with a live deal are shown'." And, choosing
+   between the three readings of "a deal set" on 2026-10-05: "go with
+   B, a negotiated agreement that has not ended."
+
+   ASKED OF THE SERVER, because the browser holds partners and not
+   their pricing agreements -- and must not, since the picker is drawn
+   for an opndoor_manager and a deal is commission. The RPC answers
+   with a name and an id and nothing else.
+
+   MOCK MODE KEEPS THE OLD LIST, which is every non-house partner: the
+   demo has no agreements to read and a picker that answered nothing
+   would make the mock form unusable. */
+export interface ReferableSupplier { id: string; slug: string; name: string }
+
+export async function suppliersThatCanTakeReferrals(): Promise<ReferableSupplier[]> {
+  if (!SUPABASE_ENABLED) {
+    return getPartners()
+      .filter((p) => p.kind === 'supplier')
+      .map((p) => ({ id: p.id, slug: p.id, name: p.name }));
+  }
+  const { data, error } = await sb().rpc('suppliers_that_can_take_referrals');
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: String(r.id), slug: String(r.slug), name: String(r.name),
+  }));
+}
+
 export interface AddPartnerInput {
   name: string;
   weight?: number;

@@ -180,6 +180,69 @@ describe('an invite link', () => {
     await waitFor(() => expect(container.textContent).toMatch(/already been used|already claimed|already/i));
   });
 
+  /* (zz) PREFILLED FROM THE REFERRAL, AND EDITABLE.
+
+     Matt: "when a referred tenant opens their invite, prefill the account
+     form with the name, email and mobile from the referral (editable)".
+
+     The agent has just typed this person's name, email and mobile into
+     the referral, and the register form asked for all three again. The
+     property half of (zz) was already done and in a stronger form: an
+     invited application shows the property, rent and share LOCKED. This
+     half must not be locked, which is the assertion below -- the
+     referral's record of a mobile is the agent's typing. */
+  it('prefills the account form with what the referral already holds', async () => {
+    vi.spyOn(auth, 'inviteInfo').mockResolvedValue({
+      ok: true, valid: true, email: 's@example.invalid', already_claimed: false,
+      first_name: 'Samira', last_name: 'Patel', phone: '07700900123',
+    } as never);
+    at(<Register />, '/apply/register?invite=TOK123');
+    const first = await screen.findByLabelText('First name') as HTMLInputElement;
+    await waitFor(() => expect(first.value).toBe('Samira'));
+    expect((screen.getByLabelText('Last name') as HTMLInputElement).value).toBe('Patel');
+    expect((screen.getByLabelText('Email address') as HTMLInputElement).value).toBe('s@example.invalid');
+    expect((screen.getByLabelText('Mobile number') as HTMLInputElement).value).toBe('07700900123');
+  });
+
+  it('and leaves every one of them editable', async () => {
+    vi.spyOn(auth, 'inviteInfo').mockResolvedValue({
+      ok: true, valid: true, email: 's@example.invalid', already_claimed: false,
+      first_name: 'Samira', last_name: 'Patel', phone: '07700900123',
+    } as never);
+    at(<Register />, '/apply/register?invite=TOK123');
+    const phone = await screen.findByLabelText('Mobile number') as HTMLInputElement;
+    await waitFor(() => expect(phone.value).toBe('07700900123'));
+    expect(phone.disabled).toBe(false);
+    expect(phone.readOnly).toBe(false);
+    fireEvent.change(phone, { target: { value: '07700900999' } });
+    expect(phone.value).toBe('07700900999');
+  });
+
+  /* A REFERRAL THAT CARRIES NOTHING ASKS, rather than filling a field
+     with an empty answer and looking like it knows. */
+  it('asks for what the referral does not hold', async () => {
+    vi.spyOn(auth, 'inviteInfo').mockResolvedValue({
+      ok: true, valid: true, email: 's@example.invalid', already_claimed: false,
+      first_name: null, last_name: null, phone: null,
+    } as never);
+    at(<Register />, '/apply/register?invite=TOK123');
+    const email = await screen.findByLabelText('Email address') as HTMLInputElement;
+    await waitFor(() => expect(email.value).toBe('s@example.invalid'));
+    expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('');
+    expect((screen.getByLabelText('Mobile number') as HTMLInputElement).value).toBe('');
+  });
+
+  /* AND A LINK THAT CANNOT BE READ LEAVES THE FORM AS IT WAS. Reporting
+     a bad invite is the landing screen's job; this one still asks the
+     questions it always did rather than showing an error of its own. */
+  it('still works when the invite cannot be read', async () => {
+    vi.spyOn(auth, 'inviteInfo').mockRejectedValue(new Error('nope'));
+    at(<Register />, '/apply/register?invite=TOK123');
+    const first = await screen.findByLabelText('First name') as HTMLInputElement;
+    expect(first.value).toBe('');
+    expect(screen.getByLabelText('Email address')).toBeTruthy();
+  });
+
   it('carries the token to sign-in, so the draft is not lost', async () => {
     vi.spyOn(auth, 'inviteInfo').mockResolvedValue({
       ok: true, valid: true, email: 's@example.invalid', already_claimed: false,

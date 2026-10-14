@@ -32,4 +32,5 @@ export * from './feePreview';
 export * from './tenancyGroups';
 export * from './notesService';
 export * from './healthService';
+export * from './whoSentThisReferral';
 export * as helpService from './helpService';

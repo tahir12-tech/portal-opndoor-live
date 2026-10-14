@@ -8,7 +8,14 @@
    function is the one door the browser gets, so what it will not do is the
    whole of its value. */
 begin;
-select plan(11);
+select plan(16);
+
+/* ONE ROW PER TYPE PER HOUR is what report_ops_incident keeps, so a run of
+   this test in the same hour as the last one would leave the earlier run's
+   row in place and every assertion below would be measuring THAT. Cleared
+   here, inside the transaction, so the rollback puts dev back as it was. */
+delete from public.ops_alerts where alert_type like 'portal\_%';
+delete from public.ops_alert_state where alert_type like 'portal\_%';
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password,
                         email_confirmed_at, created_at, updated_at)
@@ -21,10 +28,10 @@ insert into public.users (id, full_name, email, role, partner_id, status, sees_c
 -- ===========================================================================
 -- 1. THE DOOR IS SHUT TO anon AND OPEN TO A SIGNED-IN USER.
 -- ===========================================================================
-select function_privs_are('public','report_portal_incident',array['text','text'],
+select function_privs_are('public','report_portal_incident',array['text','text','text'],
   'anon', array[]::text[],
   'anon may not report a portal incident');
-select function_privs_are('public','report_portal_incident',array['text','text'],
+select function_privs_are('public','report_portal_incident',array['text','text','text'],
   'authenticated', array['EXECUTE'],
   'a signed-in user may');
 
@@ -118,6 +125,60 @@ select throws_ok(
   $$select public.report_portal_incident('portal_export_failed','2026-09')$$,
   '22023', null,
   'and a month is not an export name');
+
+-- ===========================================================================
+-- 6. AND IT NAMES THE ERROR, added 20261009000000 for (cp).
+--
+-- Matt, 2026-10-05: "find the real error, don't hide it." Knowing a read
+-- failed in October is not knowing why: a dropped connection, a refusal and
+-- a bad argument rendered as one sentence on the screen and one sentence in
+-- Health. The code separates them, and it is the only thing the browser may
+-- put into an alert.
+-- ===========================================================================
+select lives_ok(
+  $$select public.report_portal_incident('portal_statement_reference_unreadable','2026-07','PGRST301')$$,
+  'an unreadable reference can carry the error code it was given');
+
+/* READ AS NOBODY IN PARTICULAR, which is why the role is reset around every
+   assertion below. ops_alert_state is an operations table and a signed-in
+   referrer cannot read it, so a SELECT left under their role returns no rows
+   and the assertion measures the RLS policy instead of the alert.
+
+   AND IT IS ops_alert_state, NOT ops_alerts. The log keeps one row per type
+   per hour and the first call in this test already took it; the state row is
+   upserted on every call and is what the next alert is compared against, so
+   a detail that never reaches it can never raise a fresh alert either. */
+reset role;
+select alike(
+  (select detail from public.ops_alert_state
+    where alert_type = 'portal_statement_reference_unreadable' limit 1),
+  '%2026-07%The error was PGRST301.%',
+  'and the alert says which error it was');
+
+set local role authenticated;
+
+/* STILL NOT FREE TEXT. Twelve characters of letters, digits and underscores
+   carries every SQLSTATE and every PGRST number and carries no sentence, no
+   name and no address. Anything else is refused rather than trimmed: a
+   caller sending something unexpected is itself news. */
+select throws_ok(
+  $$select public.report_portal_incident('portal_statement_reference_unreadable','2026-07','could not reach the server')$$,
+  '22023', null,
+  'and a code that is not a code is refused outright');
+
+/* AND SILENCE IS SAID OUT LOUD, rather than the sentence trailing off and
+   leaving a reader to wonder whether the code was missing or the failure
+   had none. */
+select lives_ok(
+  $$select public.report_portal_incident('portal_statement_reference_unreadable','2026-06')$$,
+  'a report with no code is still accepted');
+
+reset role;
+select alike(
+  (select detail from public.ops_alert_state
+    where alert_type = 'portal_statement_reference_unreadable' limit 1),
+  '%2026-06%No error code reached the report.%',
+  'and it says that no code arrived');
 
 select * from finish();
 rollback;

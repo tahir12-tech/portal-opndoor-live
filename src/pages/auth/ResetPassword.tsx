@@ -16,7 +16,7 @@
    The route is PUBLIC (outside RequireAuth), so the AAL1 session never routes
    the user into the app before they finish.
    ===================================================================== */
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { carriedStaffTab, forgotHref, signInHref } from './carry';
 import { authService } from '@/data';
@@ -30,7 +30,7 @@ import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import './auth.css';
 import '../ForgotPassword/ForgotPassword.css';
 
-type Phase = 'checking' | 'stepup' | 'password' | 'enrol' | 'done' | 'invalid';
+type Phase = 'checking' | 'redeeming' | 'stepup' | 'password' | 'enrol' | 'done' | 'invalid';
 
 const COPY = {
   reset: { title: 'Set a new password', eyebrow: 'Account recovery', brandH1: 'Choose a new password.', invalidLead: 'Your reset link may have expired or already been used. Request a new one and we will email you a fresh link.', invalidCta: { to: '/forgot-password?tab=agent', label: 'Request a new link' } },
@@ -79,6 +79,9 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
   const [pw2, setPw2] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  /* The server's own sentence for a refused invitation, which is more use
+     than "not valid": it says expired, used, cancelled or never issued. */
+  const [tokenError, setTokenError] = useState('');
 
   // Once TOTP is verified (invite completion) the session reaches AAL2 and
   // SessionContext resolves to 'ready'; route on to the app then (mirrors Login).
@@ -86,8 +89,50 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
     if (SUPABASE_ENABLED && status === 'ready') navigate('/home', { replace: true });
   }, [status, navigate]);
 
+  /* THE SEVEN-DAY TOKEN, REDEEMED BEFORE ANYTHING ELSE.
+     Matt, 2026-10-09: "7-day links, Accept invite page, sent date, expiry,
+     resend and cancel."
+
+     An invitation email now carries OUR token, because GoTrue's expiry is one
+     project-wide number shared with password resets. Landing here with
+     ?token= means the person has not been signed in yet: accept-invite spends
+     the token, mints a short-lived Supabase link and hands it back, and we
+     navigate to it. That link comes straight back to this page with the usual
+     fragment, where detectSessionInUrl takes over and the effect below runs
+     exactly as it always has.
+
+     WHY A POST AND NOT A REDIRECT, which is the half that fixes what Matt
+     watched happen: a mail gateway pre-fetching the old email's button spent
+     the invitation at delivery. Loading this page does nothing; only this
+     call spends anything.
+
+     ONE ATTEMPT. The ref, not the state, because two renders must not spend
+     two tokens, and a spent token refuses the second time with its own
+     sentence. */
+  const inviteToken = sp.get('token');
+  const redeemed = useRef(false);
+  useEffect(() => {
+    if (!inviteToken || redeemed.current) return;
+    redeemed.current = true;
+    setPhase('redeeming');
+    void (async () => {
+      const r = await authService.openInvitation(inviteToken);
+      if (r.ok && r.link) { window.location.replace(r.link); return; }
+      /* THE REASON IS THE POINT. Expired, already used, cancelled and never
+         issued are four different things, and only one of them means "ask
+         your administrator for another". The server writes the sentence; this
+         screen shows it rather than replacing it with "not valid". */
+      setTokenError(r.error ?? '');
+      setPhase('invalid');
+    })();
+  }, [inviteToken]);
+
   useEffect(() => {
     if (!SUPABASE_ENABLED) return;
+    /* A TOKEN IN THE URL MEANS NO SESSION YET, so the 1.5s fallback below
+       must not fire and call the link invalid while we are still redeeming
+       it. The effect above owns the screen until it hands over. */
+    if (inviteToken) return;
     let settled = false;
     const decide = async () => {
       if (settled) return;
@@ -111,7 +156,7 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
       sb().auth.getSession().then(({ data }) => { if (!settled) { if (data.session) void decide(); else { settled = true; setPhase('invalid'); } } });
     }, 1500);
     return () => { sub.subscription.unsubscribe(); clearTimeout(t); };
-  }, []);
+  }, [inviteToken]);
 
   // Step up an existing MFA user's session to AAL2 before the password change.
   async function submitStepup(e: FormEvent) {
@@ -223,13 +268,28 @@ export function ResetPassword({ mode = 'reset' }: { mode?: 'reset' | 'invite' })
         <div className="auth__card">
           {phase === 'checking' && (<div><h2 className="auth__title">Checking your link…</h2><p className="auth__sub">One moment while we verify your link.</p></div>)}
 
+          {phase === 'redeeming' && (<div><h2 className="auth__title">Opening your invitation…</h2><p className="auth__sub">One moment while we check your invitation.</p></div>)}
+
           {phase === 'invalid' && (
             <div>
               <div className="confirm-ic"><Icon name="alert" strokeWidth={2.4} /></div>
               <h2 className="auth__title">This link is not valid</h2>
-              <p className="auth__sub">{c.invalidLead}</p>
+              <p className="auth__sub">{tokenError || c.invalidLead}</p>
               <div className="auth__form"><Button variant="primary" block to={invalidCta.to}>{invalidCta.label}</Button></div>
-              <p className="auth__foot"><Link to={backToSignIn}>Back to sign in</Link></p>
+              {/* ONE WAY BACK, NOT THE SAME WAY TWICE. Matt, 2026-10-09, on
+                  live: "The 'This link is not valid' page shows 'Back to sign
+                  in' twice, as a button and as a link."
+
+                  He is reading the INVITE arm, where the button already IS
+                  "Back to sign in": an expired invitation has no self-service
+                  retry, because only an administrator can send another, which
+                  is what invalidLead says. The RESET arm has two genuinely
+                  different offers, "Request a new link" and a way out of it,
+                  and keeps both. So the test is the destination rather than
+                  the mode: a footer that repeats the button is not a footer. */}
+              {invalidCta.to !== backToSignIn && (
+                <p className="auth__foot"><Link to={backToSignIn}>Back to sign in</Link></p>
+              )}
             </div>
           )}
 

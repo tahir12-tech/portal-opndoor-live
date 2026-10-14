@@ -152,7 +152,18 @@ describe('what does not ask', () => {
  */
 describe('the resend report', () => {
   it('is Matt’s sentence, naming the address', () => {
-    expect(resentLine('joe@example.co.uk')).toBe('Invite sent again to joe@example.co.uk.');
+    expect(resentLine('joe@example.co.uk')).toContain('Invite sent again to joe@example.co.uk.');
+  });
+
+  /* AND IT SAYS WHAT THE OLD LINK DOES NOW (Matt, 2026-10-09). He pressed
+     Resend on live and the invitee then opened an older email and was told
+     the link was not valid. Both really were live until 20261009100000, so
+     the administrator pressing Resend needs to know that this one is now
+     the only one, and for how long. */
+  it('and says the previous link is dead and the new one lasts 7 days', () => {
+    const line = resentLine('joe@example.co.uk');
+    expect(line).toContain('7 days');
+    expect(line).toContain('previous link no longer works');
   });
 
   it.each(SURFACES)('%s reports it from there', (_where, path) => {

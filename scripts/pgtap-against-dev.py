@@ -46,7 +46,7 @@ REPO = os.environ.get("REPO") or os.path.dirname(os.path.dirname(os.path.abspath
 # wired in here, deliberately, and remains Matt's call.
 TAP_FNS = (
     "plan|finish|is|isnt|ok|nok|is_empty|isnt_empty|throws_ok|throws_like|"
-    "lives_ok|matches|imatches|alike|doesnt_match|cmp_ok|pass|fail|diag|"
+    "lives_ok|matches|imatches|alike|unalike|doesnt_match|cmp_ok|pass|fail|diag|"
     "todo|skip|"
     "has_table|has_column|has_function|hasnt_function|col_is_null|"
     "col_not_null|results_eq|results_ne|set_eq|bag_eq|row_eq|"

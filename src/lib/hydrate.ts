@@ -14,6 +14,7 @@ import { LEAST_PRIVILEGED_ROLE,
   type Agency, type AgencyGroup, type AgentContact, type ApplicationSummary, type Branch, type CommissionLine, type FullApp, type ManagedUser, type Role,
   type Partner, type Status,
 } from '@/data';
+import { referrerShownTo } from '@/data/whoSentThisReferral';
 import type { AppRecord } from '@/data/mock/applications';
 import type { UpcomingGuaranteeSeed } from '@/data/mock/guarantees';
 import { isDirectRail, isHousePartner } from '@/data/channel';
@@ -88,9 +89,35 @@ function eventTs(a: any): number {
    old one, and "3 weeks ago" against an outstanding invitation reads as
    somebody active. `invitedAt` comes from list_managed_users, which
    20261007480000 added it to. */
-function relTime(ts: string | null, status: string, invitedAt?: string | null): string {
+/* AND WHEN IT RUNS OUT. Matt, 2026-10-09: "7-day links, Accept invite page,
+   sent date, expiry, resend and cancel."
+
+   THE SENT DATE IS THE LIVE LINK'S, not the account's. `invitedAt` is
+   auth.users.invited_at, set once when the account is made and never moved
+   again, so after a resend it named the wrong day: Matt pressed Resend for
+   Ethan Li at 11:20 and the row still showed the previous afternoon.
+   `inviteSentAt` is the day the working link went out, so it prefers it and
+   falls back for anybody invited before staff_invites existed.
+
+   FOUR STATES, AND EACH SAYS WHAT TO DO. An expired or cancelled invitation
+   needs a resend and says so in the cell, because "Invited 2 October" beside
+   a person who cannot get in reads as patience rather than as a job. 'used'
+   is somebody who accepted but has not finished enrolling their
+   authenticator, which is where Ethan sat for a day. */
+function relTime(
+  ts: string | null, status: string, invitedAt?: string | null,
+  invite?: { sentAt?: string | null; expiresAt?: string | null; state?: string | null },
+): string {
   if (status === 'pending') {
-    const on = formatDate(invitedAt);
+    const on = formatDate(invite?.sentAt ?? invitedAt);
+    const until = formatDate(invite?.expiresAt);
+    switch (invite?.state) {
+      case 'expired':   return until ? `Invite expired ${until}` : 'Invite expired';
+      case 'cancelled': return 'Invite cancelled';
+      case 'used':      return on ? `Opened ${on}, two-factor not set up` : 'Two-factor not set up';
+      case 'live':      return until ? `Invited ${on}, expires ${until}` : `Invited ${on}`;
+      default: break;
+    }
     return on ? `Invited ${on}` : 'Pending invite';
   }
   if (!ts) return '-';
@@ -269,6 +296,103 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     ((orgRatesRes.data ?? []) as any[]).map((r) => [`${r.level}:${r.org_id}`, { partner_rate: r.partner_rate, agent_rate: r.agent_rate }]),
   );
 
+  /* =====================================================================
+     A REFERRAL OPNDOOR SENT ON A CUSTOMER'S BEHALF SAYS "opndoor".
+
+     Matt (cq): "Referrals an Opndoor admin made on a customer's behalf
+     still show the admin's name ('Nicholas Dwyer') in that customer's
+     referrer lists, charts and exports; show 'opndoor (on your behalf)'
+     in every customer view."
+
+     DONE HERE BECAUSE THIS IS WHERE THE NAME IS MADE. Three lines below
+     build `referrer` and everything downstream reads it: the Applications
+     list and its filter, the referrer chart, the League, the application
+     page and three exports. (bm) fixed the surfaces it could find one at a
+     time and missed the ones it could not; naming it once at the source is
+     what stops the next surface being missed.
+
+     THE CLIENT CANNOT WORK THIS OUT. Measured on dev as Kestrel Management:
+     `referrer_name` reads "Nicholas Dwyer" off the application, and the
+     user row behind `referrer_id` is invisible to them, so `referrerRole`
+     is null for exactly the rows that need masking. The database is asked
+     instead, once, about the distinct referrer ids on rows RLS has already
+     handed over -- see 20261009010000.
+
+     THE READER'S OWN ID GOES IN THE SAME QUESTION, so whether this reader
+     is opndoor staff comes from the same source of truth as whether the
+     referrer was, with no second copy of the rule in the client and no
+     role plumbed through from the caller.
+
+     IT NEVER COSTS ANYBODY THEIR SIGN-IN. A failure leaves the set empty
+     and every name as it was: a label is not worth a login, and the
+     unmasked name is what the product showed yesterday. */
+  /* ONLY THE ONES WE COULD NOT READ, which in the common case is none at
+     all and therefore no question asked.
+
+     The embed on the applications query returns the referrer's row where
+     RLS allows it, so for a colleague we already know the role. The only
+     ids worth asking about are those whose embed came back EMPTY, which
+     is exactly the state that needs the mask: users RLS hiding opndoor
+     staff from a customer.
+
+     IT MATTERS BECAUSE THIS IS THE SIGN-IN PATH. (dg) is about what
+     sign-in costs, and adding an unconditional round trip to it to
+     answer a question about rows that usually do not exist would be
+     taking with one hand. A book with no admin-sent referrals makes no
+     call. */
+  const referrerIds = [...new Set(
+    apps.filter((a: any) => a.referrer_id && !emb(a.referrer)).map((a: any) => a.referrer_id),
+  )] as string[];
+  let opndoorPeople = new Set<string>();
+  if (referrerIds.length) {
+    try {
+      // Deduped: the reader is usually a referrer too, and asking twice
+      // about the same id is a question answered twice.
+      const { data } = await client.rpc('opndoor_user_ids', { p_users: [...new Set([...referrerIds, userId])] });
+      if (Array.isArray(data)) opndoorPeople = new Set(data.map((x: any) => (typeof x === 'string' ? x : x?.opndoor_user_ids)).filter(Boolean));
+    } catch { /* The name stays as it was. */ }
+  }
+  const readerIsOpndoor = opndoorPeople.has(userId);
+  /* THE TWO FACTS A ROW KEEPS, so the answer can change without another
+     sign-in. Matt, 2026-10-05: "View as shows exactly what the customer
+     sees, including 'opndoor (on your behalf)'." View as changes the
+     scope, not the role, and does not re-hydrate -- so the row carries
+     who sent it and whether they are one of ours, and the displayed
+     name is recomputed when the reader starts looking through a
+     customer's eyes. See referrerShownTo. */
+  const realReferrerOf = (a: any): string | null =>
+    (a.referrer_name ?? emb(a.referrer)?.full_name ?? null);
+  const isOpndoorReferrer = (a: any): boolean => {
+    if (!a.referrer_id) return false;
+    if (opndoorPeople.has(a.referrer_id)) return true;
+    /* AND THE ROWS WE COULD READ. An admin's own book answers this off
+       the embed, with no question asked of the database: the role is
+       right there. A customer's book cannot, which is why the question
+       above exists at all. */
+    const role = emb(a.referrer)?.role;
+    return role === 'superadmin' || role === 'opndoor_manager';
+  };
+  /* AND A CUSTOMER'S ROWS DO NOT CARRY THE NAME AT ALL.
+
+     Caught by the test that asserts the staff name appears nowhere in a
+     customer's row: carrying it in a second field so View as could swap
+     it would have shipped the thing (cq) exists to withhold to the one
+     browser that must not have it, unrendered but present.
+
+     Only an opndoor reader can start a View as, so only an opndoor
+     reader's rows need the pair. A customer's row has no facts, and
+     showReferrersAsCustomer leaves a row with no facts alone. */
+  const referrerFacts = (a: any) => (readerIsOpndoor
+    ? { referrerReal: realReferrerOf(a), referrerIsOpndoor: isOpndoorReferrer(a) }
+    : {});
+
+  /** What this reader is told about who sent a referral, as they read now. */
+  const referrerOf = (a: any): string | null =>
+    referrerShownTo(
+      { referrerReal: realReferrerOf(a), referrerIsOpndoor: isOpndoorReferrer(a) },
+      !readerIsOpndoor,
+    );
+
   const partnerSlug = new Map<string, string>(partners.map((p) => [p.id, p.slug]));
   // Fallback rates by partner (only used if a row somehow lacks its snapshot;
   // the applications columns are NOT NULL, so this is belt-and-braces).
@@ -286,7 +410,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     role: u.role,
     // Truthful: relative time since the real last sign-in (auth.users), or a
     // "Pending invite" / "Never signed in" placeholder from status.
-    lastActive: relTime(u.last_sign_in_at, u.status, u.invited_at),
+    lastActive: relTime(u.last_sign_in_at, u.status, u.invited_at, {
+      sentAt: u.invite_sent_at, expiresAt: u.invite_expires_at, state: u.invite_state,
+    }),
+    inviteState: u.invite_state ?? 'none',
+    inviteExpiresAt: u.invite_expires_at ?? null,
     status: u.status,
     partner: (u.role === 'superadmin' || u.role === 'opndoor_manager') ? 'opndoor' : (u.partner_slug ?? ''),
     homeBranchId: u.home_branch_id ?? null,
@@ -526,7 +654,8 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // 'management' and differ only here, so role alone cannot name either.
     referrerSeesCommission: emb(a.referrer)?.sees_commission === true,
     // #owner referrer name + sent-date for the Applications referrer/period filters.
-    referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? null,
+    referrer: referrerOf(a),
+    ...referrerFacts(a),
     sentAtTs: a.sent_at ? new Date(a.sent_at).getTime() : null,
     refunded: a.payment_state === 'refunded',
     // R2. A partial refund moves money, not the guarantee. See FullApp.
@@ -587,7 +716,8 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     groupId: a.agency_id ? (groupOfAgency.get(String(a.agency_id)) ?? null) : null,
     // #97 Prefer the snapshotted referrer name (survives deactivation / users-RLS);
     // fall back to the live join, then a stable placeholder that is never counted.
-    referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? '(unknown)',
+    referrer: referrerOf(a) ?? '(unknown)',
+    ...referrerFacts(a),
     // Walk fix 18: is there a referring PERSON. The name above is a label and
     // a direct signup has one ("Direct signup") without having a referrer.
     referrerId: a.referrer_id ?? null,
@@ -666,7 +796,8 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     rent: num(a.monthly_rent),
     status: a.status as Status,
     date: eventDate(a),
-    referrer: a.referrer_name ?? emb(a.referrer)?.full_name ?? '(unknown)', // #97
+    referrer: referrerOf(a) ?? '(unknown)', // #97
+    ...referrerFacts(a),
     owner: ownerFlag(a),
     referencingMode: a.referencing_mode ?? undefined,
     tenancyId: a.tenancy_id ?? null,

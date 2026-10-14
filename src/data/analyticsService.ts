@@ -253,7 +253,7 @@ function liveDashboard(role: Role, period: Period, scope: PartnerScope): Dashboa
   const vol = liveVolume(role, scope, period);
   // Descriptor percentages are the EFFECTIVE rate implied by the actual snapshotted
   // commission (gross commission / gross fees), never the partner's live rate, so
-  // the "% of one month's rent" label always reconciles with the £ figure beside it
+  // the "% of the guarantee fee" label always reconciles with the £ figure beside it
   // and never moves when a partner's live rate is later edited. Only when the period
   // has no fees at all (nothing to reconcile) do we fall back to the current headline
   // rate as an indicative label.
@@ -560,7 +560,19 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
     // No frozen lines to name a source from here and no refunds in the model, so
     // the agency tag is the bare "whose money is this", with no rate.
     commTag: agencyFacing ? 'net of refunds'
-      : ownOnly ? `Your agent commission · ${aPct} of one month's rent` : 'Net of refunds',
+      /* "of the guarantee fee", NOT "of one month's rent". Matt,
+         2026-10-05: "Demo mode: change 'of one month's rent' to 'of
+         the guarantee fee'."
+
+         IT WAS TRUE OF THE SYNTHETIC FIGURES, which are all priced at
+         a month, and that is exactly the problem: this file's own
+         rule a few lines up is that "the demo must not teach a
+         different vocabulary", and a demo shown to an agency on a
+         weeks-based deal teaches the basis (1) removed from every
+         document this morning. The commission really is a percentage
+         OF THE FEE, whatever the fee is, so the new words are truer
+         of the live path as well. */
+      : ownOnly ? `Your agent commission · ${aPct} of the guarantee fee` : 'Net of refunds',
     /* THE HEADLINE IS THE READER'S OWN MONEY, as it already is on the live path.
        This branched on isRef alone, so an agency DIRECTOR was handed the partner
        cut as their headline with their own commission demoted underneath. Live
@@ -617,7 +629,12 @@ function synthDashboard(role: Role, period: PeriodDef | Period, scope: PartnerSc
     deedsIssued: deed,
     fees: fmtMoney(feesNum),
     ...comm,
-    feeBasisCopy: "one month's rent each",
+    /* AND THE BASIS LINE UNDER THE FIGURES, for the same reason: the
+       demo's own fees are a month each, and saying so in a sentence a
+       prospect reads teaches a basis that is not theirs. "each at its
+       agreed fee basis" is what feeBasisOf already says for a mixed
+       real book. */
+    feeBasisCopy: 'at the agreed fee basis',
     rent: '£2,180',
     stuckSent: Math.round(baseStuck[0] * kc).toString(),
     stuckPaid: Math.round(baseStuck[1] * kc).toString(),

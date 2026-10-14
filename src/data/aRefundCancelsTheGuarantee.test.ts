@@ -150,8 +150,19 @@ describe('the application export', () => {
     const live = rows.find((r) => r.includes('GR-LIVE'));
 
     expect(cancelled, 'the cancelled row is still exported: it happened').toBeTruthy();
-    expect(cancelled).toContain('Deed cancelled');
+    /* "Refunded", NOT "Deed cancelled", SINCE (bq)(1). This test pinned the
+       earlier half of the same fix, which stopped the row reading "Deed
+       Issued" on an ended guarantee. Matt then gave the full rule, with this
+       very row as his example: "every fully refunded application's Status is
+       'Refunded' (GR-23854 says 'Paid', GR-23853 'Deed cancelled')."
+
+       THE REFUND IS THE LAST THING THAT HAPPENED and the cancelled deed is
+       how it was carried out, so the refund is what the status says. The
+       assertion that mattered is kept and strengthened: the row still must
+       not read "Deed Issued" on a guarantee that has ended. */
+    expect(cancelled).toContain('Refunded');
     expect(cancelled).not.toContain('Deed Issued');
+    expect(cancelled).not.toContain('Deed cancelled');
     // And the row it sits next to is untouched, so this is the cancellation
     // and not the export losing its status column.
     expect(live).toContain('Deed Issued');

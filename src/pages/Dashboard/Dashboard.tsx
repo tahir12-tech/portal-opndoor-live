@@ -1490,6 +1490,20 @@ export function Dashboard() {
                       : <>Nothing expiring yet. Guarantees appear here once a deed has been issued.</>}
                   </span>
                 )}
+                {/* AND IT SAYS WHY IT OPENED HERE. The third part of (cv),
+                    and the only one that was missing: Matt asked for the
+                    default to "say so ('Opens on the next month with
+                    expiries')". The rule is now his, confirmed on
+                    2026-10-05 -- "Open on the earliest month with a
+                    guarantee expiring; if there are none, open on next
+                    month" -- and a reader who lands on March when they
+                    expected next month should be able to read why rather
+                    than wonder. Only where the month CAME from the book:
+                    on the fallback the note above is the explanation, and
+                    two sentences would contradict each other. */}
+                {expHasAny && (
+                  <span className="hint">Opens on the earliest month with a guarantee expiring.</span>
+                )}
               </div>
               <div className="bdx__warn" style={{ background: 'var(--white-lilac)', borderColor: 'rgba(211,100,251,0.25)' }}>
                 <Icon name="info" />

@@ -403,6 +403,35 @@ export function feeBasisOf(apps: FullApp[]): FeeBasis {
   return { kind: 'uniform', phrase: `${Number(w.toFixed(2))} weeks of rent` };
 }
 
+/* =====================================================================
+   (cg) WHAT CAME BACK OUT OF A FEE THAT WAS PAID.
+
+   Matt: "'Fees collected' means the same everywhere: on agency/supplier
+   Reporting tabs and the Agencies list, show fees net of refunds (or
+   label gross as 'before refunds'). Regent shows GBP 21,447.75 on its
+   Reporting tab and GBP 15k on the Agencies list."
+
+   BOTH FIGURES WERE RIGHT, which is why neither looked wrong on its own.
+   Measured on dev, Regent's own book: paid-or-deed fees GBP 21,447.75,
+   refunds GBP 6,228.46, so net is GBP 15,219.29 -- his two numbers to
+   the penny. One name, two measures, four implementations.
+
+   THE SUBTRACTION ITSELF WAS WRITTEN FOUR TIMES and not the same way
+   each time: the dashboard tile handled a partial refund, the League
+   groups handled only a full one, and the customers table and the
+   monthly trend subtracted nothing at all. So this is the one answer.
+
+   A FULL REFUND MAY FALL BACK TO THE WHOLE FEE because that is what was
+   returned when no amount was recorded. A PARTIAL ONE NEVER MAY: the
+   amount is the whole point of it, and falling back to the fee would
+   turn a GBP 10 refund into a GBP 311 one. R2 again.
+   ===================================================================== */
+export function refundTaken(app: FullApp): number {
+  if (app.refunded) return app.refundedAmount ?? feeBaseFor(app);
+  if (app.partiallyRefunded) return app.refundedAmount ?? 0;
+  return 0;
+}
+
 /**
  * The fee basis of ONE application, as a spreadsheet cell.
  *

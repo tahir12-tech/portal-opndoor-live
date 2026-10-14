@@ -27,6 +27,7 @@ import { SessionProvider } from '@/session/SessionContext';
 import { ToastProvider } from '@/components/ui/Toast';
 import { PageMetaProvider } from '@/components/layout/pageMeta';
 import { NewApplication } from './NewApplication';
+import { getPartners } from '@/data/partnersService';
 
 beforeEach(() => { localStorage.clear(); });
 afterEach(() => cleanup());
@@ -47,6 +48,25 @@ type View = Awaited<ReturnType<typeof openForm>>;
 const sel = (v: View, label: string) =>
   v.container.querySelector<HTMLSelectElement>(`select[aria-label="${label}"]`);
 const tenantSection = (v: View) => v.container.querySelector<HTMLElement>('#sec-tenant')!;
+
+/* THE SUPPLIER CONTROL IS A TYPE-AHEAD SINCE (df), 2026-10-05. Matt:
+   "make them type-to-search, like the agency picker, and list only
+   suppliers that can take referrals". Options are chosen on MOUSEDOWN,
+   which is where TypeAhead preventDefaults so the choice lands before
+   the input blurs. */
+const supplierBox = (v: View) => v.container.querySelector<HTMLInputElement>('#na-route')!;
+const supplierOptionTexts = async (v: View) => {
+  await act(async () => { fireEvent.focus(supplierBox(v)); });
+  return [...v.container.querySelectorAll<HTMLElement>('.typeahead__opt')].map((o) => (o.textContent ?? '').trim());
+};
+const pickFirstSupplier = async (v: View) => {
+  await act(async () => { fireEvent.focus(supplierBox(v)); });
+  const opt = [...v.container.querySelectorAll<HTMLElement>('.typeahead__opt')][0];
+  if (!opt) throw new Error('no supplier offered');
+  const name = (opt.textContent ?? '').trim();
+  await act(async () => { fireEvent.mouseDown(opt); });
+  return name;
+};
 
 describe('an opndoor admin opening New application', () => {
   it('is asked who referred it, first, before anything else', async () => {
@@ -76,19 +96,57 @@ describe('an opndoor admin opening New application', () => {
     const v = await openForm('superadmin');
     await act(async () => { fireEvent.change(sel(v, 'Referred by')!, { target: { value: 'supplier' } }); });
     expect(tenantSection(v).getAttribute('aria-disabled')).toBe('true');
-    const supplier = sel(v, 'Supplier')!;
-    const first = [...supplier.options].find((o) => o.value)!;
-    await act(async () => { fireEvent.change(supplier, { target: { value: first.value } }); });
+    await pickFirstSupplier(v);
     expect(tenantSection(v).getAttribute('aria-disabled')).toBe('false');
   });
 
   it('offers real suppliers only, never a house route', async () => {
     const v = await openForm('superadmin');
     await act(async () => { fireEvent.change(sel(v, 'Referred by')!, { target: { value: 'supplier' } }); });
-    const labels = [...sel(v, 'Supplier')!.options].map((o) => o.textContent ?? '');
-    expect(labels.length).toBeGreaterThan(1);
+    const labels = await supplierOptionTexts(v);
+    expect(labels.length).toBeGreaterThan(0);
     // The three house routes are the ones a referral cannot be "referred by".
     expect(labels.join(' ')).not.toMatch(/opndoor agents|opndoor direct|Provider hand-over/i);
+  });
+
+  /* (df) AND ONLY SUPPLIERS, which is where "Harbour Lets" came from:
+     an AGENCY with a partner row of its own sailed through the old
+     list, because getPartners() strips the house routes and nothing
+     else. Filing a referral under one puts its commission nowhere
+     anybody reads. The list is the server's answer now and it is
+     supplier-kind, active, and holding a live agreement. */
+  it('and never an agency that happens to have a partner row', async () => {
+    const v = await openForm('superadmin');
+    await act(async () => { fireEvent.change(sel(v, 'Referred by')!, { target: { value: 'supplier' } }); });
+    const labels = await supplierOptionTexts(v);
+    expect(labels.length).toBeGreaterThan(0);
+    for (const name of labels) {
+      const p = getPartners().find((x) => x.name === name);
+      expect(p?.kind, `${name} is offered as a supplier`).toBe('supplier');
+    }
+  });
+
+  /* AND IT SAYS SO, which is the half a filter alone would leave a
+     reader guessing at: a supplier they expected to see is missing and
+     nothing on the screen explains why. */
+  it('and says why the list is short', async () => {
+    const v = await openForm('superadmin');
+    await act(async () => { fireEvent.change(sel(v, 'Referred by')!, { target: { value: 'supplier' } }); });
+    expect(v.container.textContent).toContain('Only suppliers with a live deal are shown');
+  });
+
+  /* TYPE TO SEARCH, narrowing as they type, which is the other half of
+     Matt's sentence. */
+  it('and narrows as it is typed into', async () => {
+    const v = await openForm('superadmin');
+    await act(async () => { fireEvent.change(sel(v, 'Referred by')!, { target: { value: 'supplier' } }); });
+    const all = await supplierOptionTexts(v);
+    expect(all.length).toBeGreaterThan(1);
+    await act(async () => { fireEvent.change(supplierBox(v), { target: { value: all[0].slice(0, 4) } }); });
+    const narrowed = [...v.container.querySelectorAll<HTMLElement>('.typeahead__opt')]
+      .map((o) => (o.textContent ?? '').trim());
+    expect(narrowed).toContain(all[0]);
+    expect(narrowed.length).toBeLessThan(all.length);
   });
 
   /* THIS ASSERTION IS INVERTED, NOT DELETED, BECAUSE THE RULE CHANGED.
@@ -110,9 +168,7 @@ describe('an opndoor admin opening New application', () => {
   it('and a supplier referral may now be a joint tenancy, which Q-06 item H forbade', async () => {
     const v = await openForm('superadmin');
     await act(async () => { fireEvent.change(sel(v, 'Referred by')!, { target: { value: 'supplier' } }); });
-    const supplier = sel(v, 'Supplier')!;
-    const first = [...supplier.options].find((o) => o.value)!;
-    await act(async () => { fireEvent.change(supplier, { target: { value: first.value } }); });
+    await pickFirstSupplier(v);
     const add = [...v.container.querySelectorAll('button')]
       .find((b) => /Add another tenant/.test(b.textContent ?? ''));
     expect(add, 'no Add another tenant control at all').toBeTruthy();
@@ -125,9 +181,7 @@ describe('an opndoor admin opening New application', () => {
   it('and no longer says the supplier sends them one at a time', async () => {
     const v = await openForm('superadmin');
     await act(async () => { fireEvent.change(sel(v, 'Referred by')!, { target: { value: 'supplier' } }); });
-    const supplier = sel(v, 'Supplier')!;
-    const first = [...supplier.options].find((o) => o.value)!;
-    await act(async () => { fireEvent.change(supplier, { target: { value: first.value } }); });
+    await pickFirstSupplier(v);
     expect(v.container.textContent).not.toMatch(/one tenant at a time/);
   });
 
@@ -146,9 +200,7 @@ describe('an opndoor admin opening New application', () => {
   it('and a second tenant can actually be added on the supplier route', async () => {
     const v = await openForm('superadmin');
     await act(async () => { fireEvent.change(sel(v, 'Referred by')!, { target: { value: 'supplier' } }); });
-    const supplier = sel(v, 'Supplier')!;
-    const first = [...supplier.options].find((o) => o.value)!;
-    await act(async () => { fireEvent.change(supplier, { target: { value: first.value } }); });
+    await pickFirstSupplier(v);
     const add = [...v.container.querySelectorAll('button')]
       .find((b) => /Add another tenant/.test(b.textContent ?? ''))!;
     await act(async () => { add.click(); });

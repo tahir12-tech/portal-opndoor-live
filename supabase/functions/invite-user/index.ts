@@ -391,19 +391,21 @@ Deno.serve(async (req) => {
     const tab = inviteeOnOurEstate || !inviteePartnerId ? "agent" : "supplier";
     const landing = `${base}/accept-invite?tab=${tab}`;
 
+    /* A RE-INVITE NEEDS NO GoTrue LINK NOW. It used to mint a recovery one
+       here, which is how a resend came to leave TWO live links: an invite
+       writes auth.users.confirmation_token and a recovery writes
+       recovery_token, two different columns, so the first email kept working
+       and Matt watched somebody accept the wrong one. The seven-day token
+       below is one row per person, replaced on resend, so there is exactly
+       one live link and the previous one is dead. */
     if (existing) {
-      let { data, error } = await service.auth.admin.generateLink({
-        type: "recovery", email, options: { redirectTo: landing },
-      });
-      if (error) {
-        const plain = await service.auth.admin.generateLink({
-          type: "recovery", email, options: { redirectTo: `${base}/accept-invite` },
-        });
-        data = plain.data; error = plain.error;
-      }
-      if (error) return json({ ok: false, error: error.message }, 400);
-      link = data?.properties?.action_link;
+      targetUserId = existing.id;
     } else {
+      /* STILL generateLink FOR A NEW PERSON, and only to CREATE the account:
+         type invite is what makes the auth.users row and hands back its id,
+         which create_invited_user needs. Its action_link is deliberately
+         thrown away. The confirmation token it leaves behind is in no email
+         and expires on its own. */
       let { data, error } = await service.auth.admin.generateLink({
         type: "invite", email, options: { redirectTo: landing, data: { full_name: fullName } },
       });
@@ -414,7 +416,6 @@ Deno.serve(async (req) => {
         data = plain.data; error = plain.error;
       }
       if (error) return json({ ok: false, error: error.message }, 400);
-      link = data?.properties?.action_link;
       targetUserId = data?.user?.id;
       if (targetUserId) {
         /* THE PERSON AND THEIR POSITION, IN ONE TRANSACTION.
@@ -453,7 +454,29 @@ Deno.serve(async (req) => {
         }
       }
     }
-    if (!link) return json({ ok: false, error: "Could not generate the invitation link." }, 400);
+    /* OUR OWN LINK, SEVEN DAYS LONG.
+       Matt, 2026-10-09: "7-day links ... sent date, expiry, resend and
+       cancel." GoTrue's own expiry is one project-wide number shared with
+       password resets, whose copy promises thirty minutes in three places,
+       so an invitation that lasts a week has to be our token.
+
+       AND IT IS A PAGE, NOT A VERIFY ENDPOINT. The old button was a bare GET
+       on /auth/v1/verify, so a mail gateway that pre-fetches links at
+       delivery spent the invitation before the invitee read the email. This
+       one is a React route; the token is spent by the POST that route makes
+       to accept-invite, which then mints the short-lived sign-in link. */
+    if (!targetUserId) return json({ ok: false, error: "Could not create the invitation." }, 400);
+    const { data: inviteToken, error: tokErr } = await service
+      .rpc("mint_staff_invite", { p_user: targetUserId, p_days: 7 });
+    if (tokErr || !inviteToken) {
+      return json({ ok: false, error: tokErr?.message ?? "Could not generate the invitation link." }, 400);
+    }
+    /* WHO SENT IT, written here because mint_staff_invite reads auth.uid()
+       and the service role has no sub claim. The audit row below is the
+       record that matters; this is so the Team list can name the sender
+       without joining to it. */
+    await service.from("staff_invites").update({ sent_by: callerId }).eq("user_id", targetUserId);
+    link = `${base}/accept-invite?token=${inviteToken}`;
 
     /* A RE-INVITE may also be given a position, and that is still a separate
        call because the person already exists and there is nothing to roll

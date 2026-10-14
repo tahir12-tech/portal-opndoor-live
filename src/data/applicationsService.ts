@@ -13,6 +13,7 @@
    ===================================================================== */
 import { gbpPence, formatDate, formatLongDate } from '@/lib/format';
 import type { CommissionLine, ApplicationDetail, ApplicationSummary, DeedState, PartnerScope, Role, Status, WithdrawReason } from './types';
+import { referrerShownTo, type ReferrerFacts } from './whoSentThisReferral';
 import { ALL_PARTNERS, isOpndoorStaff } from './types';
 import { AGENT_ADDR, APPLICATION_RECORDS as RECORDS_SEED, APPLICATIONS_LIST as LIST_SEED, type AppRecord } from './mock/applications';
 import { getPartner, partnerName } from './partnersService';
@@ -85,6 +86,14 @@ export interface FullApp {
   /** The referring user's actual role (superadmin/management/referrer), so the
       league can label who generated the referral truthfully. */
   referrerRole?: Role | null;
+  /* (cq) WHO ACTUALLY SENT IT, AND WHETHER THEY ARE ONE OF OURS.
+     `referrer` is what the CURRENT reader is shown and may be the
+     masked label; these two are what it was computed from, kept so
+     View as can recompute it without another sign-in. Not the same as
+     referrerRole, which comes from the embedded users row and is null
+     for exactly the rows that need masking. */
+  referrerReal?: string | null;
+  referrerIsOpndoor?: boolean;
   /** THE COMPANY THE REFERRER THEMSELVES WORKS FOR, by slug, or null.
    *
    *  Not `partner`, which is the rail the REFERRAL came in on. The two
@@ -178,6 +187,42 @@ export function hydrateFull(rows: FullApp[]): void {
   HYDRATED = true;
 }
 
+/* =====================================================================
+   (cq) READING AS THE CUSTOMER, WITHOUT ANOTHER SIGN-IN.
+
+   Matt, 2026-10-05: "View as: yes, mask it. View as shows exactly what
+   the customer sees, including 'opndoor (on your behalf)'."
+
+   THE MASK IS APPLIED AT HYDRATE, once, and View as neither
+   re-hydrates nor changes the role -- it changes the scope. So the
+   displayed `referrer` is recomputed here from the two facts every row
+   carries, and SessionContext calls this when View as starts and again
+   on the way out.
+
+   WHY NOT AT EACH SURFACE. Eight of them print a referrer: the
+   Applications list and its filter, the referrer chart, two League
+   boards, the application page, and three exports. Asking the question
+   in eight places is what (cq) exists to stop, and the one that gets
+   missed is a customer's name shown to nobody's benefit.
+
+   THE SAME SHAPE AS hydrateCommissionVisibility, which View as already
+   swaps the same way, for the same reason, with the same cleanup.
+
+   IDEMPOTENT, and that matters: the effect runs again on every change
+   of the viewed party, and a reader who is opndoor staff reading their
+   own book must get the real name back rather than a label that
+   stuck. */
+export function showReferrersAsCustomer(asCustomer: boolean): void {
+  const apply = <T extends ReferrerFacts & { referrer?: string | null }>(row: T): T => {
+    if (row.referrerReal === undefined) return row;   // mock rows carry no facts
+    row.referrer = referrerShownTo(row, asCustomer) ?? row.referrer;
+    return row;
+  };
+  LIST = LIST.map(apply);
+  FULL = FULL.map(apply);
+  RECORDS = RECORDS.map(apply);
+}
+
 /** The full application set (empty in mock mode). */
 export function allFull(): FullApp[] {
   return FULL;
@@ -218,9 +263,57 @@ const STATUS_LABEL: Record<Status, string> = { draft: 'In progress', referencing
  * `paid_at is null` by constraint -- so this is a rule about what the
  * sentence means rather than a case anybody meets.
  */
-export function applicationStatusLabel(r: { status: Status; refunded?: boolean }): string {
+/* AND THE DEED STATE IS PART OF THE SAME ONE ANSWER, 2026-10-05 (bq).
+ *
+ * Matt: "1) every fully refunded application's Status is 'Refunded'
+ * (GR-23854 says 'Paid', GR-23853 'Deed cancelled') ... 4) an application
+ * whose deed was voided for a correction and awaits re-signing shows
+ * 'Awaiting signature', not 'Paid' (GR-26262). Same rules in every export
+ * and on screen."
+ *
+ * THE TWO EXAMPLES FAIL DIFFERENTLY, which is the diagnosis. On dev:
+ *
+ *   GR-23854  status paid  payment refunded  deed voided          -> said "Paid"
+ *   GR-23853  status deed  payment refunded  deed cancelled       -> said "Deed cancelled"
+ *   GR-26262  status paid  payment paid      deed awaiting_tenant -> said "Paid"
+ *
+ * The first ignored the refund, the second let the deed state beat it, and
+ * the third ignored the deed state. One ordered rule beats all three, and
+ * it lives here because "the same rules in every export and on screen"
+ * means one function, not three agreeing copies.
+ *
+ * THE REFUND STILL WINS OVER THE DEED, because it is the last thing that
+ * happened and it is what a reader needs to know: a cancelled deed on a
+ * refunded application is how the refund was carried out.
+ *
+ * AWAITING SIGNATURE IS NOT ONLY THE RE-ISSUE CASE. Matt's example is a
+ * deed voided for a correction and reissued, and the state he wants named
+ * is simply "the deed is out and unsigned". A first issue sitting
+ * unsigned is the same fact and reads the same way; the row cannot tell
+ * them apart and does not need to.
+ */
+export function applicationStatusLabel(
+  r: { status: Status; refunded?: boolean; deedState?: string | null; awaitingSignature?: boolean },
+): string {
   if (r.refunded && r.status !== 'withdrawn' && r.status !== 'expired') return 'Refunded';
+  if (r.deedState === 'cancelled') return 'Deed cancelled';
+  /* THE TWO SHAPES OF THE SAME FACT. A list row carries
+     `awaitingSignature`, a full application carries `deedState`, and the
+     database spells that 'awaiting_tenant' while tenancyGroups maps it to
+     'awaiting' for the member views. Taking all three here is what lets
+     one function answer for the lists, the detail page and the exports --
+     which is what "the same rules in every export and on screen" asks
+     for. */
+  if (isAwaitingSignature(r)) return 'Awaiting signature';
   return STATUS_LABEL[r.status];
+}
+
+/** Is the deed out and unsigned, whichever shape the row is in? */
+export function isAwaitingSignature(
+  r: { deedState?: string | null; awaitingSignature?: boolean },
+): boolean {
+  return r.awaitingSignature === true
+    || r.deedState === 'awaiting_tenant' || r.deedState === 'awaiting';
 }
 
 /* AND THE SAME ANSWER FOR THE LISTS THAT USE CSS CLASSES RATHER THAN PILLS.
@@ -245,9 +338,15 @@ export function applicationStageClass(r: { status: Status; refunded?: boolean })
 
 /** The pill's colour for that one status. Muted: a refund is an ending, and
  *  must not wear the green of an issued deed. */
-export function applicationStatusTone(r: { status: Status; refunded?: boolean }): 'muted' | 'warn' | 'danger' | Status {
+export function applicationStatusTone(
+  r: { status: Status; refunded?: boolean; deedState?: string | null; awaitingSignature?: boolean },
+): 'muted' | 'warn' | 'danger' | Status {
   if (r.refunded && r.status !== 'withdrawn' && r.status !== 'expired') return 'muted';
   if (r.status === 'withdrawn' || r.status === 'expired' || r.status === 'draft') return 'muted';
+  /* THE SAME AMBER THE "Awaiting signature" CHIP ALREADY USES, so the row
+     and the filter above it agree. A label that changed without its colour
+     would read as a Paid row with somebody else's words in it. */
+  if (r.deedState !== 'cancelled' && isAwaitingSignature(r)) return 'warn';
   if (r.status === 'referencing') return 'warn';
   if (r.status === 'declined') return 'danger';
   return r.status;
