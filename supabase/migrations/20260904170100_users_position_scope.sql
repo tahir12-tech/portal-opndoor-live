@@ -72,23 +72,63 @@ revoke all on function public.app_user_in_scope(uuid) from public, anon;
 grant execute on function public.app_user_in_scope(uuid) to authenticated, service_role;
 
 -- ---- list_managed_users: the Users screen read (definer, bypasses RLS) ----
+
+
 create or replace function public.list_managed_users()
- returns table(id uuid, full_name text, email text, role text, status text, partner_slug text, last_sign_in_at timestamp with time zone, has_mfa boolean)
- language sql stable security definer set search_path to ''
+returns table(
+  id uuid,
+  full_name text,
+  email text,
+  role text,
+  status text,
+  partner_slug text,
+  last_sign_in_at timestamp with time zone,
+  has_mfa boolean,
+  home_branch_id uuid,
+  sees_commission boolean,
+  invited_at timestamp with time zone
+)
+language sql
+stable
+security definer
+set search_path to ''
 as $function$
-  select u.id, u.full_name, u.email, u.role, u.status,
-         p.slug as partner_slug,
-         au.last_sign_in_at,
-         exists (select 1 from auth.mfa_factors f where f.user_id = u.id and f.status = 'verified') as has_mfa
+  select
+    u.id,
+    u.full_name,
+    u.email,
+    u.role,
+    u.status,
+    p.slug as partner_slug,
+    au.last_sign_in_at,
+    exists (
+      select 1
+      from auth.mfa_factors f
+      where f.user_id = u.id
+        and f.status = 'verified'
+    ) as has_mfa,
+    u.home_branch_id,
+    u.sees_commission,
+    coalesce(au.invited_at, u.created_at) as invited_at
   from public.users u
   left join public.partners p on p.id = u.partner_id
   left join auth.users au on au.id = u.id
   where public.is_aal2()
-    and (public.is_admin()
-         or (public.app_role() = 'management' and u.partner_id = public.app_partner()
-             and (not public.app_has_scope() or public.app_user_in_scope(u.id)))
-         or u.id = auth.uid());
+    and u.status <> 'deleted'
+    and (
+      public.is_admin()
+      or (
+        public.app_role() = 'management'
+        and u.partner_id = public.app_partner()
+        and (
+          not public.app_has_scope()
+          or public.app_user_in_scope(u.id)
+        )
+      )
+      or u.id = auth.uid()
+    );
 $function$;
+
 
 -- ---- users_select (RLS): keep the referrer-name embed / direct reads in step ----
 drop policy if exists users_select on public.users;
