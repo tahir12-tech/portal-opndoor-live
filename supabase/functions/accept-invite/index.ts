@@ -56,15 +56,22 @@ Deno.serve(async (req) => {
 
     const service = createClient(SUPABASE_URL, SERVICE);
 
-    /* ONE CALL, AND IT SPENDS THE TOKEN. Expired, already used, cancelled and
-       never issued each come back as their own sentence, which is the whole
-       reason the refusals live in SQL: four states, four things to tell
-       somebody, and only one of them means "ask for another". */
-    const { data: claim, error: claimErr } = await service
-      .rpc("claim_staff_invite", { p_token: token });
-    if (claimErr) return json({ ok: false, error: claimErr.message }, 400);
+    /* ASK FIRST, SPEND LAST. 20261013000000, after a probe caught the
+       ordering: this used to CLAIM here and mint the sign-in link afterwards,
+       so a failure in between left a token marked used and a person who got
+       nothing. The retry then answered "That invitation has already been
+       used" about an invitation nobody had ever used.
 
-    const row = Array.isArray(claim) ? claim[0] : claim;
+       peek_staff_invite writes nothing and raises the same four sentences --
+       expired, already used, cancelled, never issued -- because only one of
+       them means "ask for another" and a reader must not get different words
+       depending on which half refused. The claim is at the bottom of this
+       function, once there is something to claim it for. */
+    const { data: peek, error: peekErr } = await service
+      .rpc("peek_staff_invite", { p_token: token });
+    if (peekErr) return json({ ok: false, error: peekErr.message }, 400);
+
+    const row = Array.isArray(peek) ? peek[0] : peek;
     const email = String(row?.email ?? "").trim();
     if (!email) return json({ ok: false, error: "That invitation link is not one we issued." }, 400);
 
@@ -80,32 +87,60 @@ Deno.serve(async (req) => {
       : { data: null };
     const tab = !who?.partner_id || party?.partner_kind === "agency" ? "agent" : "supplier";
 
+    /* THE ORIGIN IS STILL CHECKED, although no URL is built from it any more.
+       It is the one place this function can tell a configured environment from
+       an unconfigured one, and answering a token with a session on an
+       environment that has no portal address would be worse than refusing. */
     const base = safeOrigin(req.headers.get("origin"));
     if (!base) return json({ ok: false, error: "This environment has no portal address configured." }, 500);
-    const landing = `${base}/accept-invite?tab=${tab}`;
 
-    /* THE SHORT-LIVED LINK, minted now. Recovery rather than invite: the
-       account already exists, because invite-user created it when it issued
-       the seven-day token. The same allow-list fallback invite-user uses, for
-       the same reason: GoTrue matches redirectTo against the project's
-       Redirect URLs and an entry without a wildcard stops matching once a
-       query string is appended, and a cosmetic improvement to a tab must not
-       be able to turn into nobody being able to accept an invitation. */
-    let { data, error } = await service.auth.admin.generateLink({
-      type: "recovery", email, options: { redirectTo: landing },
-    });
-    if (error) {
-      const plain = await service.auth.admin.generateLink({
-        type: "recovery", email, options: { redirectTo: `${base}/accept-invite` },
-      });
-      data = plain.data; error = plain.error;
-    }
+    /* THE HASHED TOKEN, NOT THE ACTION LINK.
+       Matt, 2026-10-13: every emailed auth link must point at a page of ours
+       built from the hashed token rather than at GoTrue's verify endpoint.
+
+       THIS PATH WAS ALREADY SAFE AGAINST A SCANNER, and is changed anyway.
+       The action link was handed to the BROWSER and followed after a click,
+       so a scanner never saw it. But handing back a URL and having the page
+       navigate to it means the one-time token travels through
+       window.location, lands in history, and is spent by a GET -- and the
+       only reason it was safe was that nothing else fetched that URL. A
+       token_hash the page verifies with verifyOtp is the same credential with
+       no endpoint attached and no navigation, so there is one mechanism for
+       every emailed auth link instead of two with different failure modes.
+
+       Recovery rather than invite: the account already exists, because
+       invite-user created it when it issued the seven-day token.
+
+       AND redirectTo IS GONE with the link, which takes the allow-list
+       fallback with it. It existed so GoTrue's redirect would carry the tab;
+       the tab now rides in our own URL, which no allowlist governs. */
+    const { data, error } = await service.auth.admin.generateLink({ type: "recovery", email });
     if (error) return json({ ok: false, error: error.message }, 400);
 
-    const link = data?.properties?.action_link;
-    if (!link) return json({ ok: false, error: "We could not open your invitation. Please ask for a new one." }, 400);
+    const hashed = (data?.properties as { hashed_token?: string } | undefined)?.hashed_token;
+    if (!hashed) return json({ ok: false, error: "We could not open your invitation. Please ask for a new one." }, 400);
 
-    return json({ ok: true, link });
+    /* AND NOW IT IS SPENT, with a working link in hand. claim_staff_invite
+       re-validates, so it is still the authoritative single-use gate and two
+       clicks landing together cannot both succeed.
+
+       A FAILURE HERE IS NOT A FAILURE FOR THE HOLDER. The link exists and
+       works; all that is lost is the record that it was used, so the worst
+       case is a second button press being allowed. Answering 400 because the
+       bookkeeping failed would refuse somebody holding a valid credential,
+       which is the wrong way round. Logged so it is not silent. */
+    const { error: claimErr } = await service.rpc("claim_staff_invite", { p_token: token });
+    if (claimErr) {
+      console.log(JSON.stringify({
+        event: "staff_invite_claim_failed", message: claimErr.message,
+      }));
+    }
+
+    /* `tab` IS RETURNED TOO, so the page can carry the audience on without
+       the browser having told us which rail this person is on -- it is a
+       stranger holding a token at this point, which is why the tab is read
+       off the user above. */
+    return json({ ok: true, token_hash: hashed, type: "recovery", tab });
   } catch (e) {
     return json({ ok: false, error: e instanceof Error ? e.message : "Unexpected error" }, 500);
   }

@@ -4,7 +4,7 @@
    -only screens are behind RequireRole guards (see the brief). Nav visibility
    is also role-filtered in the sidebar.
    ===================================================================== */
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { RequireRole, RequireCapability } from '@/components/guards/RequireRole';
 import { Apply } from '@/pages/Apply/Apply';
@@ -48,6 +48,12 @@ function LegacySignInRedirect() {
   return <Navigate to={`/login?${params.toString()}`} replace />;
 }
 
+/** /auth/confirm picks its copy from the link's own `type`. */
+function ConfirmEmailLink() {
+  const [sp] = useSearchParams();
+  return <ResetPassword mode={sp.get('type') === 'recovery' ? 'reset' : 'invite'} />;
+}
+
 export function App() {
   return (
     <Routes>
@@ -59,6 +65,16 @@ export function App() {
       <Route path="/reset-password" element={<ResetPassword />} />
       {/* Public: the team-invite link lands here to set a password, then TOTP. */}
       <Route path="/accept-invite" element={<ResetPassword mode="invite" />} />
+      {/* ONE PAGE FOR EVERY EMAILED AUTH LINK. Matt, 2026-10-13: every invite,
+          reset, email change and magic link now points here, carrying a
+          token_hash (or our own seven-day invitation token) that this page
+          spends only when somebody presses the button. The two older routes
+          stay so links already in inboxes keep working.
+
+          THE MODE COMES OFF THE LINK's OWN `type`: a recovery is a reset and
+          everything else is an invitation, which is the same pair of copy
+          sets the two older routes choose between. */}
+      <Route path="/auth/confirm" element={<ConfirmEmailLink />} />
 
       {/* Public, unauthenticated tenant payment pages. */}
       {/* #1 The tokenised confirmation page the payment email + reminders link to. */}

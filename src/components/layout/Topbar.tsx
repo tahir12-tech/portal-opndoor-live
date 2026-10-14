@@ -45,7 +45,7 @@ const CRUMB_ROUTES: Record<string, string> = {
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const { title, crumbs, active } = usePageMetaValue();
-  const { currentUserId, viewingAs: viewingScope, setScopeSel } = useSession();
+  const { currentUserId, viewingAs: viewingScope, setScopeSel, dataVersion } = useSession();
 
   /* =====================================================================
      THE PILL FOLLOWED YOU AROUND THE PRODUCT.
@@ -84,13 +84,31 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
   const actionsRef = useRef<HTMLDivElement>(null);
   useOnClickOutside(actionsRef, () => setPop(null), pop !== null);
 
-  // Real, RLS-scoped notifications for the signed-in viewer (demo entries in mock
-  // mode). Refetched when the panel is opened so relative times stay honest.
+  /* Real, RLS-scoped notifications for the signed-in viewer (demo entries in
+     mock mode). Refetched when the panel is opened so relative times stay
+     honest.
+
+     AND WHENEVER THE DATA UNDERNEATH MOVES, which is the second dependency.
+     Matt, 2026-10-12: "After I deleted test application GR-20608, its 'New
+     referral sent' notification stayed in my bell, linking to a referral that
+     no longer exists."
+
+     THE QUERY WAS ALREADY RIGHT, and that is worth saying because it is why
+     this is two words and not a feature. getNotifications joins
+     `applications!inner`, and activity_log.application_id is ON DELETE
+     CASCADE, so a deleted application has no activity rows left to find and
+     could not be returned even if it had. What survived was this component's
+     React state: the list was fetched before the delete and held until the
+     panel's open flag next changed. Nothing told it the book had moved.
+
+     dataVersion is the session's "something was re-read" counter and every
+     other derived view on the page already follows it, so the bell now does
+     too: after any refresh the stale item is gone without a page reload. */
   useEffect(() => {
     let cancelled = false;
     getNotifications().then((n) => { if (!cancelled) setNotifs(n); }).catch(() => {});
     return () => { cancelled = true; };
-  }, [pop === 'notif']);
+  }, [pop === 'notif', dataVersion]);
 
   // readTick forces a recompute after "Mark all read" persists.
   void readTick;

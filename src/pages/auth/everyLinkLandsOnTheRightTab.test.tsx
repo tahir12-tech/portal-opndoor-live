@@ -75,9 +75,15 @@ describe('the senders put the tab in the link', () => {
   const fn = (name: string) =>
     readFileSync(`supabase/functions/${name}/index.ts`, 'utf8');
 
+  /* THE TAB NOW RIDES IN OUR OWN URL, which is a consequence of the
+     2026-10-13 scanner fix rather than a change to this rule. Every emailed
+     auth link points at /auth/confirm and carries the tab as a plain query
+     parameter, so the audience still travels and nothing GoTrue allowlists
+     is involved. */
   it('send-password-reset carries the audience the person chose', () => {
     const src = fn('send-password-reset');
-    expect(src).toContain('/reset-password?tab=${audience}');
+    expect(src).toContain('&type=recovery&tab=${audience}');
+    expect(src).toContain('/auth/confirm?token_hash=');
   });
 
   /* THE INVITE DECIDES IT RATHER THAN READING IT, because nobody picked a
@@ -85,16 +91,23 @@ describe('the senders put the tab in the link', () => {
   it('and invite-user decides it from the rail it is inviting on to', () => {
     const src = fn('invite-user');
     expect(src).toContain('inviteeOnOurEstate || !inviteePartnerId ? "agent" : "supplier"');
-    expect(src).toContain('/accept-invite?tab=${tab}');
+    expect(src).toContain('/auth/confirm?token=${inviteToken}&type=invite&tab=${tab}');
   });
 
-  /* AND BOTH DEGRADE TO THE PLAIN LINK. GoTrue matches redirectTo against
-     the project's Redirect URLs, and an entry without a wildcard stops
-     matching once a query string is on the end: a cosmetic tab must not
-     become no invite emails. */
-  it('and both fall back to the plain link if the redirect is refused', () => {
-    expect(fn('send-password-reset')).toContain('`${base}/reset-password`');
-    expect(fn('invite-user')).toContain('`${base}/accept-invite`');
+  /* AND THE FALLBACK IS GONE, DELIBERATELY, which is the one assertion here
+     that reverses. It existed because GoTrue matches `redirectTo` against the
+     project's Redirect URLs and an entry without a wildcard stops matching
+     once a query string is appended -- so asking for the tab could make
+     generateLink error and send NO email at all, and both senders carried a
+     whole degraded path for it. Neither passes `redirectTo` any more: the
+     link is ours and the tab is in it, so there is nothing left to be
+     refused and nothing left to fall back to. */
+  it('and neither sender asks GoTrue to redirect anywhere at all', () => {
+    for (const name of ['send-password-reset', 'accept-invite']) {
+      const src = fn(name);
+      expect(src).toContain('generateLink({ type: "recovery", email })');
+      expect(src).not.toContain('reset_redirect_tab_rejected');
+    }
   });
 
   /* THE TENANT'S OWN DOOR, which was already right and must stay. */

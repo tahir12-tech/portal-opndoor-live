@@ -8,6 +8,7 @@
    an AAL1 session; enrolling or verifying a TOTP factor steps up to AAL2, which
    the database requires before it returns any data.
    ===================================================================== */
+import { createClient } from '@supabase/supabase-js';
 import { SUPABASE_ENABLED, sb } from '@/lib/supabase';
 import { portalEnvironment } from './devCentreService';
 
@@ -80,11 +81,46 @@ export async function requestPasswordReset(
  *
  * Mock mode cannot mint anything, so it refuses in the same shape.
  */
-export async function openInvitation(token: string): Promise<{ ok: boolean; link?: string; error?: string }> {
+export async function openInvitation(
+  token: string,
+): Promise<{ ok: boolean; tokenHash?: string; type?: EmailOtpKind; tab?: string; error?: string }> {
   if (!SUPABASE_ENABLED) return { ok: false, error: 'Invitations cannot be opened in this environment.' };
   const { data, error } = await sb().functions.invoke('accept-invite', { body: { token } });
-  if (data && data.ok && typeof data.link === 'string') return { ok: true, link: data.link };
+  if (data && data.ok && typeof data.token_hash === 'string') {
+    return { ok: true, tokenHash: data.token_hash, type: (data.type as EmailOtpKind) ?? 'recovery', tab: data.tab };
+  }
   return { ok: false, error: (data && data.error) || error?.message || 'We could not open your invitation. Please ask for a new one.' };
+}
+
+/** The GoTrue one-time-token kinds any of our emails can carry. */
+export type EmailOtpKind = 'invite' | 'recovery' | 'signup' | 'magiclink' | 'email_change' | 'email';
+
+const OTP_KINDS: EmailOtpKind[] = ['invite', 'recovery', 'signup', 'magiclink', 'email_change', 'email'];
+
+/** Narrow a `type` off a URL to something verifyOtp will accept, or null. */
+export function asOtpKind(v: string | null | undefined): EmailOtpKind | null {
+  return v && (OTP_KINDS as string[]).includes(v) ? (v as EmailOtpKind) : null;
+}
+
+/**
+ * Spend a one-time token from an emailed link and sign the holder in.
+ *
+ * THE POINT IS WHEN THIS IS CALLED, not what it does. Matt, 2026-10-13, after
+ * fourteen Regent invites died inside twelve minutes: a corporate mail scanner
+ * opened each link, and our links verified the token on page LOAD, so it was
+ * spent before the person clicked. Every emailed auth link now carries a
+ * `token_hash` to a page of ours that does nothing until a button is pressed,
+ * and this is what the button calls.
+ *
+ * verifyOtp is a POST. A scanner fetching the page cannot reach it.
+ */
+export async function confirmEmailLink(
+  tokenHash: string, type: EmailOtpKind,
+): Promise<{ ok: boolean; error?: string }> {
+  if (!SUPABASE_ENABLED) return { ok: false, error: 'Links cannot be confirmed in this environment.' };
+  const { error } = await sb().auth.verifyOtp({ token_hash: tokenHash, type });
+  if (!error) return { ok: true };
+  return { ok: false, error: error.message };
 }
 
 /* -------------------- Supabase mode -------------------- */
@@ -106,6 +142,142 @@ export async function signIn(email: string, password: string): Promise<AuthResul
     return { ok: false, error: 'This account has been deactivated. Contact your administrator.' };
   }
   return { ok: false, error: 'Wrong email or password.' };
+}
+
+/** What stopped a password change, so a screen can say the right sentence. */
+export type PasswordChangeProblem =
+  | 'wrong_current'      // the current password they typed is not theirs
+  | 'rejected'           // the new one broke a rule; `error` says which
+  | 'same_as_old'        // it is the password they already have
+  | 'needs_sign_in'      // the session is too old, too weak, or gone
+  | 'not_signed_in'
+  | 'failed';            // anything else, and it is reported as itself
+
+export interface PasswordChangeResult {
+  ok: boolean;
+  problem?: PasswordChangeProblem;
+  error?: string;
+}
+
+/** GoTrue's own code for a failure, which is stable where the message is not. */
+const codeOf = (e: unknown): string =>
+  String((e as { code?: string; error_code?: string } | null)?.code
+    ?? (e as { error_code?: string } | null)?.error_code ?? '').toLowerCase();
+
+/**
+ * CHANGE YOUR OWN PASSWORD, WITHOUT AN EMAIL IN IT.
+ *
+ * Matt, 2026-10-13: "add 'Change password' for every signed-in user: current
+ * password, new password twice, at least 8 characters, using
+ * supabase.auth.updateUser. No email involved."
+ *
+ * WHY THE CURRENT PASSWORD IS CHECKED BY SIGNING IN WITH IT, on a client of
+ * its own. `updateUser` takes no current password, so proving the holder knows
+ * it means using it. Two things follow and both are deliberate:
+ *
+ *   * IT MUST NOT BE THE LIVE CLIENT. `signInWithPassword` REPLACES the
+ *     session, and a fresh password sign-in has not seen a second factor, so a
+ *     member of staff would be dropped from AAL2 to AAL1 -- whereupon Supabase
+ *     refuses to change an MFA user's password at all. The check would break
+ *     the thing it guards, and only for people with MFA, which here is
+ *     everybody.
+ *   * AND IT KEEPS GoTrue's RATE LIMIT, which is worth having. The threat this
+ *     guards against is an unattended tab: somebody who has the session and
+ *     wants the password. Unlimited guesses would help them. A sign-in attempt
+ *     is throttled by GoTrue; a hand-rolled hash comparison in SQL would not
+ *     be.
+ *
+ * THE BUG THIS REPLACES, FOUND BY MATT ON DEV AND THEN MEASURED.
+ * The probe used to end with `probe.auth.signOut()`, and signOut defaults to
+ * `scope: 'global'`, which revokes EVERY session the user has -- including the
+ * one the person is sitting in. Demonstrated against dev: session A returned
+ * 200 from /auth/v1/user, a second sign-in B then signed out globally, and A
+ * returned 403, `session_not_found`. `updateUser` was then being called on a
+ * session that no longer existed, which is why it failed and why the message
+ * was the generic one. `scope: 'local'` touches no server at all.
+ *
+ * THE PROBE'S OWN SESSION IS LEFT TO EXPIRE, which is the one loose end and is
+ * cheaper than the alternatives: 'others' would revoke the real session (the
+ * same bug from the other side) and 'global' is what just broke it. It holds
+ * no storage, refreshes nothing, and its access token lasts an hour.
+ */
+export async function changeOwnPassword(
+  currentPassword: string, newPassword: string,
+): Promise<PasswordChangeResult> {
+  if (newPassword.length < 8) {
+    return { ok: false, problem: 'rejected', error: 'Use at least 8 characters.' };
+  }
+  if (!SUPABASE_ENABLED) return { ok: true };
+
+  const { data: me } = await sb().auth.getUser();
+  const email = me.user?.email ?? '';
+  if (!email) {
+    return { ok: false, problem: 'not_signed_in', error: 'You are not signed in. Sign in and try again.' };
+  }
+
+  const probe = createClient(
+    import.meta.env.VITE_SUPABASE_URL as string,
+    import.meta.env.VITE_SUPABASE_ANON_KEY as string,
+    {
+      auth: {
+        // The three that keep it out of the way of the real session.
+        storageKey: 'opndoor.password-check',
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+    },
+  );
+  const { error: wrong } = await probe.auth.signInWithPassword({ email, password: currentPassword });
+  /* LOCAL, NOT GLOBAL. See the note above: the default revokes every session
+     the user has, which is the bug this function was reported for. Local calls
+     no endpoint and only clears this client, which holds nothing anyway. */
+  await probe.auth.signOut({ scope: 'local' }).catch(() => {});
+  if (wrong) {
+    /* A THROTTLE IS NOT A WRONG PASSWORD, and telling somebody their own
+       password is wrong when the server simply refused to look is how an
+       afternoon gets lost. */
+    if (codeOf(wrong) === 'over_request_rate_limit' || /rate limit|too many/i.test(wrong.message || '')) {
+      return { ok: false, problem: 'failed', error: 'Too many attempts just now. Wait a minute and try again.' };
+    }
+    return { ok: false, problem: 'wrong_current', error: 'That is not your current password.' };
+  }
+
+  const { error } = await sb().auth.updateUser({ password: newPassword });
+  if (!error) return { ok: true };
+
+  const code = codeOf(error);
+  const msg = error.message || '';
+
+  /* SAME AS THE OLD ONE. GoTrue: same_password, "New password should be
+     different from the old password." */
+  if (code === 'same_password' || /different from the old password/i.test(msg)) {
+    return { ok: false, problem: 'same_as_old', error: 'That is the password you already have. Choose a different one.' };
+  }
+
+  /* A RULE, AND IT SAYS WHICH. GoTrue: weak_password, with a message that
+     names the rule it broke -- "Password should be at least 6 characters", or
+     the character classes, or that it has been found in a breach. Matt asked
+     for "say which", and GoTrue's own sentence is the only thing that knows:
+     the policy lives on the project, not in this code, so a hardcoded
+     sentence here would be wrong the day somebody raises the minimum. */
+  if (code === 'weak_password' || /weak|pwned|breach|leaked|should be at least|required characters/i.test(msg)) {
+    return { ok: false, problem: 'rejected', error: msg || 'That password does not meet the rules.' };
+  }
+
+  /* THE SESSION, in all four ways it can be unusable: revoked, expired, below
+     AAL2, or wanting a fresh reauthentication. Signing in again is the one
+     thing that fixes every one of them. */
+  if (['session_not_found', 'session_expired', 'insufficient_aal', 'reauthentication_needed', 'reauthentication_not_valid']
+        .includes(code)
+      || /session.*not exist|session.*expired|aal|assurance|factor|mfa|insufficient|reauthentication|nonce/i.test(msg)) {
+    return { ok: false, problem: 'needs_sign_in', error: 'Your session has expired. Sign in again, then change your password.' };
+  }
+
+  /* AND ANYTHING ELSE IS REPORTED AS ITSELF. The generic sentence is what hid
+     this bug for a day: "We could not change your password" told Matt nothing,
+     and the real answer was sitting in `error.message`. */
+  return { ok: false, problem: 'failed', error: msg ? `We could not change your password: ${msg}` : 'We could not change your password. Please try again.' };
 }
 
 export interface FactorState {

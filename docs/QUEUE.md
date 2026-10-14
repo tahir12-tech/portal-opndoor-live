@@ -6223,6 +6223,146 @@ write through the caller's own client, and `anon` holds EXECUTE on none of
 
 ---
 
+## URGENT: THE SCANNER IS SPENDING EVERY AUTH LINK (instruction, 2026-10-13, verbatim). TOP OF THE LIST.
+
+> Urgent live issue. Every Regent invitee gets "This link is not valid. Your invitation may have expired or already been used." The links aren't expired. Regent's corporate email scanner (Microsoft Safe Links, Mimecast or similar) opens each link to scan it, and our links verify the one-time token on page load (auth.opndoor.co/auth/v1/verify?token=...&type=invite), so the token is used up before the person clicks. Evidence on live: 14 Regent invites sent 07:45 to 07:50 UTC on 13 Oct; by 07:57 UTC, 13 had last_sign_in_at set while public.users.status is still pending.
+>
+> Fix it on matt-fixes, dev only, never touch live:
+>
+> 1. Find how invite and password reset emails build their links (Supabase email templates, or our own function using auth.admin.generateLink). Change every emailed auth link (invite, recovery, and any email change or magic link we use) to point at a portal page, e.g. https://portal.opndoor.co/auth/confirm?token_hash=...&type=invite&next=..., built from the hashed token, not the verify URL.
+> 2. The /auth/confirm page must do nothing with the token on load. It shows the branded "Set your password" screen with a button, and only the button click calls supabase.auth.verifyOtp({ token_hash, type }), then continues to set password and two-factor as now.
+> 3. Keep the existing redirect and tab behaviour (tab=agent, tab=supplier). A used or expired token still shows the existing "This link is not valid" screen.
+> 4. Test on dev: load an invite link with a plain curl (what a scanner does), then open it in a browser and complete sign-up. It must still work. Same for a password reset. A completed link then shows "not valid". Normal sign-in, two-factor and tenant links unchanged. Add tests that pin this.
+>
+> When done: full gate, commit, remake ~/Downloads/matt-fixes.bundle from 4a39fe6 to the new tip, verify it, confirm no keys, and give me:
+> - Balal's commands to load and merge it
+> - the exact live deploy steps, including any change he must make by hand in the Supabase dashboard (email templates, redirect URL allow-list) or to edge function secrets
+> - the SQL to list everyone still pending on live, so he can resend their invites after deploying (all of Regent and Ethan at Brithive)
+
+### AND THE TENANT RAIL TOO (instruction, 2026-10-13, verbatim)
+
+> Yes, fix the tenant link too: the same /auth/confirm-style pattern for tenant-auth's reset (and any other tenant emailed link), token in a query parameter, nothing spent on load, a button that spends it. Same curl-as-scanner test, including a scanner that renders the page. Then rebuild the bundle and give me the final size, commit count and tip for Balal.
+
+- **"AND ANY OTHER TENANT EMAILED LINK" IS THE LOAD-BEARING CLAUSE.** The reset
+  is the one I reported; it is not the only one. `tenant-auth` calls
+  generateLink three times, twice for a recovery and once for a MAGIC LINK, and
+  there is a tenant INVITE on our own token in `tenant_invites`. Every one has
+  to be found before any is changed, or this is a third round on the same
+  fault.
+- **"INCLUDING A SCANNER THAT RENDERS THE PAGE" IS THE TEST THAT MATTERS.** A
+  curl proves only that a fragment is not sent to a server, which was already
+  true and is why the tenant rail looked safe. The real question is whether
+  MOUNTING the page spends anything, and the only way to answer it is to mount
+  it and look.
+- **THE FRAGMENT GOES, AND THAT IS A DELIBERATE DOWNGRADE IN ONE RESPECT.** A
+  token in a query parameter IS sent to the server, so it reaches our access
+  logs and any proxy in front of them, where a fragment never did. That is the
+  trade the staff rail already made and Matt is now asking for here: a logged
+  token that nothing spends beats an unlogged token that a renderer spends.
+  Worth recording because it is the one argument for the old shape.
+
+### AND A CHANGE PASSWORD SCREEN (instruction, 2026-10-13, verbatim, sent mid-run)
+
+> Also: check whether a signed-in user can change their own password anywhere in the portal (account menu or settings). If not, add "Change password" for every signed-in user: current password, new password twice, at least 8 characters, using supabase.auth.updateUser. No email involved. Include it in the same bundle for Balal.
+
+- **THE ANSWER TO HIS QUESTION IS NO, and I established it on 2026-10-09**
+  answering how Ethan Li would change the temporary password I had him set by
+  hand: there is no profile or account-settings screen for staff anywhere in
+  the product. The only staff password paths are `/forgot-password` into
+  `send-password-reset`, and an admin pressing Reset password on somebody
+  else's row. Both go through email, which is exactly what he does not want.
+- **"CURRENT PASSWORD" IS NOT A PARAMETER OF updateUser**, so it has to be
+  checked by something. The honest way is to re-authenticate with it first:
+  sign in with the current password to prove the holder knows it, then
+  updateUser. Anything less means a borrowed tab can change the password.
+- **AND MFA IS THE OTHER HALF.** Supabase will not change an MFA user's
+  password below AAL2, and every member of staff here holds a verified factor
+  because enrolment is part of accepting an invitation. A signed-in session is
+  already AAL2, so this works where the reset page needs a step-up -- but the
+  refusal has to be handled rather than assumed away.
+
+### What I already know about this, before starting
+
+- **I REPORTED THIS EXACT MECHANISM ON 2026-10-09 AND IT IS IN THIS FILE.** Asked
+  then whether a scanner opening an invite link would use it up, the answer was
+  yes, with the reason: the email's button is a bare GET on
+  `/auth/v1/verify`, there is no interstitial page, and the implicit flow puts
+  the session in the URL fragment so the scanner gains nothing and the invitee
+  gets a dead link. Matt has now met it on fourteen people at once.
+- **HALF THE FIX IS ALREADY ON THIS BRANCH AND IS NOT ON LIVE.**
+  `20261009100000` plus the `accept-invite` function moved INVITES onto our own
+  seven-day token, redeemed by a POST the page makes, so a scanner fetching the
+  page does nothing. Live runs `partner-api`, where `invite-user` still emails
+  `data.properties.action_link` directly. So the live fault is real and the
+  deployed code is the old code.
+- **AND THE OTHER HALF WAS NEVER COVERED.** `send-password-reset` still emails
+  the raw action link, on this branch as well as on live. Matt's instruction is
+  wider than what I built and is the right shape: one mechanism for every
+  emailed auth link rather than a special case for invites.
+- **THE TWO FIXES SOLVE DIFFERENT THINGS AND BOTH ARE NEEDED.** The seven-day
+  token answers EXPIRY, because `mailer_otp_exp` is one project-wide number
+  shared with password resets whose copy promises thirty minutes. The
+  token_hash confirm page answers SCANNERS. Replacing the first with the second
+  would quietly put invites back on a one-hour life, which is the fault I fixed
+  four days ago. So the invite path keeps its seven-day wrapper and ends in a
+  token_hash the page verifies on click; the reset path, which is meant to be
+  short lived, goes straight to a token_hash.
+- **THE EVIDENCE MATT GIVES IS THE PROOF, and worth keeping:** 13 of 14 rows
+  with `last_sign_in_at` set within twelve minutes of sending while
+  `public.users.status` is still `pending`. A scanner cannot set
+  `last_sign_in_at`; GoTrue does, when the verify endpoint is hit. So the
+  session was minted and nobody human was ever in it.
+
+---
+
+## THE WALK OF 2026-10-12, NINE THINGS (instruction, verbatim). ACTIVE. TOP OF THE LIST.
+
+> Findings from walking live today. Work on dev only, never touch live. For anything that needs doing on live, give me the exact steps or SQL to run myself.
+>
+> 1. Agency checking setting shows the wrong thing. On live, Regent (an Opndoor-estate agency) had referencing_mode = null, so it inherited opndoor_referenced from the opndoor-agents partner, but the agency page showed "Agency has already referenced them" as selected. A real referral would have gone to eligibility and the £20. I fixed Regent by SQL (pre_referenced_open). Fix the screen so it always shows the mode actually in force, including when inherited, and make sure choosing an option always saves it. Add a test with a null-mode agency under opndoor-agents.
+> 2. September commission statements are not posted. Reference My Tenant's shows "Reference assigned when the statement is posted" and today is 12 October; partners invoice by the 8th for payment on the 15th. Explain how a month gets posted (automatic or manual), why September didn't post after the cutover, and give me the exact steps to post it on live now.
+> 3. Every daily cron appears twice (0700 and 0800 UTC), both showing "Succeeded, 1 row". Confirm from the code that only one of each pair does the work, so nobody gets duplicate payment reminders, expiry reminders or statements. If both act, tell me.
+> 4. Every Regent referral stores partner_rate 0.25 (the opndoor-agents partner's rate) beside Regent's own agent_rate. Confirm nobody is paid that 25% on Regent referrals, on screen, statements, settlements or exports.
+> 5. Reporting's Net fees caption says "one month's rent each". Wrong for Regent and Brithive. Make it true for any fee basis.
+> 6. The payment panel showed "£1.16 · 5.03 weeks of rent" on a £2 rent joint test with a 5-week deal. Show the agreed weeks, not a figure back-calculated from the rounded pence.
+> 7. Recent changes says "Referencing changed from Pre-referenced, screened to Pre-referenced, open". Use the same wording as the setting on screen.
+> 8. After I deleted test application GR-20608, its "New referral sent" notification stayed in my bell, linking to a referral that no longer exists. Notifications for a deleted application should go.
+> 9. Deleting a joint test application by SQL hit the applications_tenancy_shares check and left an empty tenancy (ef3bcd08-1649-4ea2-8c81-b13391224325) on live. Give me the SQL to remove that empty tenancy safely.
+>
+> Same rules as before: each item complete and tested before committing, full gate at the end, then tell me what's done, and give me anything for live as steps I run myself.
+
+### ITEM 9 IS WITHDRAWN (instruction, 2026-10-12, verbatim, sent mid-run)
+
+> Item 9 is done. I deleted the empty tenancy on live myself. Skip it.
+
+Nothing was built or written for it. The empty tenancy
+`ef3bcd08-1649-4ea2-8c81-b13391224325` is gone from live by Matt's own hand.
+What is worth keeping from it is the shape rather than the row: deleting a
+joint application by SQL hits `applications_tenancy_shares` and can leave a
+tenancy with no applications, so a future hand-delete of a joint test needs
+the tenancy cleared in the same transaction. Recorded here because it is the
+sort of thing that bites twice.
+
+### How I am reading this before starting
+
+- **FIVE BUILDS, THREE EXPLANATIONS, ONE PIECE OF LIVE SQL.** 1, 5, 6, 7 and 8
+  are changes on the branch; 2, 3 and 4 are questions to answer from the code;
+  9 is SQL for Matt to run. Item 2 also ends in steps for live.
+- **ITEM 1 IS THE SERIOUS ONE AND IT IS A MONEY BUG, not a display bug.** The
+  screen showed the opposite of the mode in force, so an operator reading it
+  would have believed no eligibility step and no £20 applied. Matt has already
+  corrected Regent by hand, so the live fault is closed; what is left is the
+  screen that told him the wrong thing, and it has to be fixed for the
+  INHERITED case specifically, which is the case that was never on screen.
+- **ITEM 4 IS A CONFIRMATION, NOT A FIX, unless it is not.** `partner_rate` is
+  frozen on every application by design, and 0.25 is the house partner's rate
+  on a rail where the partner is not a payee. The answer is either "nothing
+  reads it as a payment" with the five surfaces named, or it is a live money
+  defect, and I must not report the first without having checked each one.
+- **ITEM 9 IS WITHDRAWN**, above. Matt did it himself mid-run.
+
+---
+
 ## STATUS OF THE NINE ITEMS MATT ASKED ME TO CHECK, 2026-10-04
 
 Checked against the code and dev, not against the queue. Where something is

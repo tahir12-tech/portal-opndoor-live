@@ -16,6 +16,7 @@
    partner_rate, paid to the partner, and it is read directly as before.
    ===================================================================== */
 import type { CommissionLine, CommissionSource } from './types';
+import { agreedBasisPhrase, basisFromMoney } from './feeBasisPhrase';
 import type { FullApp } from './applicationsService';
 import { isDirectRail } from './channel';
 import { partyIsOurEstate, partyIsSupplier } from './capabilities';
@@ -386,21 +387,36 @@ export interface FeeBasis {
  * a discount.
  */
 export function feeBasisOf(apps: FullApp[]): FeeBasis {
-  const weeks = new Set<string>();
+  /* THE AGREED BASIS PER ROW, NOT THE BASIS RECOVERED FROM THE MONEY.
+     Matt, 2026-10-12: "Reporting's Net fees caption says 'one month's rent
+     each'. Wrong for Regent and Brithive. Make it true for any fee basis."
+
+     This built a set of QUOTIENTS, (fee * 52) / (rent * 12), and then asked
+     whether they agreed. Two rows on the same five-week deal disagree in the
+     second decimal as soon as their rents round differently, which reads as a
+     mixed book; and a rent small enough makes the quotient land anywhere at
+     all. The basis is a number somebody agreed and every application carries
+     it frozen, so the set is now of PHRASES built from the snapshot, and two
+     rows on one deal produce one phrase by construction.
+
+     THE SET IS OF PHRASES RATHER THAN NUMBERS deliberately: it is the phrase
+     that has to be unambiguous, and "one month's rent" from a months-unit
+     band and from a 4.35-week one are the same answer and must collapse. */
+  const phrases = new Set<string>();
   for (const a of apps) {
     const fee = feeBaseFor(a);
     const share = a.sharePercent != null && a.sharePercent > 0 ? a.sharePercent / 100 : 1;
     const base = (a.rent || 0) * share;
     if (base <= 0 || fee <= 0) continue;
-    weeks.add(((fee * 52) / (base * 12)).toFixed(2));
+    /* The snapshot first; the old arithmetic only for a row written before
+       the columns existed, which is still better than dropping the row and
+       calling a mixed book uniform. */
+    const said = agreedBasisPhrase(a) ?? basisFromMoney(fee, base);
+    if (said) phrases.add(said);
   }
-  if (weeks.size === 0) return { kind: 'none', phrase: '' };
-  if (weeks.size > 1) return { kind: 'mixed', phrase: 'their agreed fee basis' };
-  const w = Number([...weeks][0]);
-  // One month is 52/12 weeks. The tolerance absorbs the rounding a fee carries
-  // to the penny, not a genuinely different basis.
-  if (Math.abs(w - 52 / 12) < 0.02) return { kind: 'uniform', phrase: "one month's rent" };
-  return { kind: 'uniform', phrase: `${Number(w.toFixed(2))} weeks of rent` };
+  if (phrases.size === 0) return { kind: 'none', phrase: '' };
+  if (phrases.size > 1) return { kind: 'mixed', phrase: 'their agreed fee basis' };
+  return { kind: 'uniform', phrase: [...phrases][0] };
 }
 
 /* =====================================================================

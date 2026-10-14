@@ -12,6 +12,7 @@
    sendDeedToAgent -> send_deed_to_agent RPC. Mock/test mode uses the seed.
    ===================================================================== */
 import { gbpPence, formatDate, formatLongDate } from '@/lib/format';
+import { agreedBasisPhrase, basisFromMoney, type FeeBasisSnapshot } from './feeBasisPhrase';
 import type { CommissionLine, ApplicationDetail, ApplicationSummary, DeedState, PartnerScope, Role, Status, WithdrawReason } from './types';
 import { referrerShownTo, type ReferrerFacts } from './whoSentThisReferral';
 import { ALL_PARTNERS, isOpndoorStaff } from './types';
@@ -130,6 +131,9 @@ export interface FullApp {
       negotiated basis is 3 or 5. Selected by hydrate and previously dropped
       here, which left every export unable to say WHY a fee was what it was. */
   feeBasisWeeks?: number | null;
+  /** 'weeks' or 'months'. The quantity above is in THIS unit: a band written
+      in months arrives as 1, not as 4.35. */
+  feeBasisUnit?: 'weeks' | 'months' | null;
   /** The joint tenancy this applicant belongs to, or undefined for a tenancy of one. */
   tenancyId?: string | null;
   /** 1-based entry order. Position 1 leads: it carries the one deed. */
@@ -947,8 +951,9 @@ export function guaranteedAnnual(r: { rent: number; shareAmount?: number | null 
    reaching it through getApplicationDetail means hydrating a FullApp AND a
    summary, and a fixture that elaborate tests the hydration as much as the
    rule. Nothing else imports it. */
-export function feeLabels(r: { rent: number; fee?: number | null; sharePercent?: number | null }):
-  { feeGBP?: string; feeBasisLabel?: string } {
+export function feeLabels(
+  r: { rent: number; fee?: number | null; sharePercent?: number | null } & FeeBasisSnapshot,
+): { feeGBP?: string; feeBasisLabel?: string } {
   const fee = r.fee ?? null;
   if (fee == null) return {};
   const gbp = gbpPence(fee);
@@ -980,9 +985,25 @@ export function feeLabels(r: { rent: number; fee?: number | null; sharePercent?:
    * IT. The figure was never wrong; the words around it were. */
   const suffix = r.sharePercent != null && r.sharePercent > 0 && r.sharePercent < 100
     ? ` (this tenant's ${r.sharePercent}% share)` : '';
-  if (Math.abs(fee - base) < 0.005) return { feeGBP: gbp, feeBasisLabel: `one month's rent${suffix}` };
-  const weeks = base > 0 ? (fee * 52) / (base * 12) : 0;
-  return { feeGBP: gbp, feeBasisLabel: `${Number(weeks.toFixed(2))} weeks of rent${suffix}` };
+  /* THE AGREED BASIS, NOT THE BASIS RECOVERED FROM THE MONEY.
+     Matt, 2026-10-12: "The payment panel showed '£1.16 · 5.03 weeks of rent'
+     on a £2 rent joint test with a 5-week deal. Show the agreed weeks, not a
+     figure back-calculated from the rounded pence."
+
+     5.03 was arithmetic, not a wrong number: the tenancy fee rounds to the
+     penny, the half share rounds again, and (1.16 * 52) / (1.00 * 12) is
+     5.0267. The basis is a number somebody agreed and every application has
+     carried it frozen since 20260928100000, so it is read rather than
+     recovered, and then there is nothing to round and no tolerance to pick. */
+  const agreed = agreedBasisPhrase(r);
+  if (agreed) return { feeGBP: gbp, feeBasisLabel: `${agreed}${suffix}` };
+  /* AND THE OLD ARITHMETIC SURVIVES AS THE FALLBACK, for a row written before
+     the columns existed. Those are still on the books and a label is better
+     than a blank. */
+  const recovered = basisFromMoney(fee, base);
+  return recovered
+    ? { feeGBP: gbp, feeBasisLabel: `${recovered}${suffix}` }
+    : { feeGBP: gbp };
 }
 
 export function getApplicationDetail(ref: string | null): ApplicationDetail {

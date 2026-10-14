@@ -182,16 +182,70 @@ export async function verifyCode(email: string, code: string, purpose: 'verify_e
   if (error) throw new Error('Could not sign you in. Try signing in with your password.');
 }
 
-/** Exchange the token in a reset link for a session. */
-export async function exchangeLinkToken(): Promise<'signup' | 'recovery' | null> {
-  if (!SUPABASE_ENABLED) return null;
+/**
+ * Exchange the token in a reset link for a session.
+ *
+ * THE QUERY STRING FIRST, AND THE FRAGMENT STILL READ.
+ * Matt, 2026-10-13: "the same /auth/confirm-style pattern for tenant-auth's
+ * reset ... token in a query parameter, nothing spent on load, a button that
+ * spends it."
+ *
+ * Every tenant reset link now carries `?token_hash=`. The fragment is still
+ * read because links already in inboxes carry `#token_hash=`, and the week
+ * this was written is the week fourteen people lost their links; breaking the
+ * ones that still work to tidy a parameter would be its own small disaster.
+ *
+ * MOVING IT OUT OF THE FRAGMENT IS A DOWNGRADE IN EXACTLY ONE RESPECT, and
+ * it is worth being honest about: a query parameter IS sent to the server, so
+ * it reaches our access logs and any proxy in front of them, where a fragment
+ * never did. The trade is deliberate and is the one the staff rail already
+ * made. A fragment is invisible to a plain fetch but NOT to a scanner that
+ * renders the page, because a mount effect runs in a headless browser exactly
+ * as it does in a real one. A logged token that nothing spends beats an
+ * unlogged token that a renderer spends.
+ *
+ * WHAT MAKES IT SAFE IS THE CALLER, not this function: nothing may call this
+ * on mount. See the Reset screen, where a button does.
+ */
+export function linkTokenInUrl(
+  where: 'query-or-fragment' | 'fragment-only' = 'query-or-fragment',
+): { token_hash: string; type: 'signup' | 'recovery' } | null {
+  if (typeof window === 'undefined') return null;
   const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  const token_hash = hash.get('token_hash');
-  const type = hash.get('type') as 'signup' | 'recovery' | null;
+  const q = where === 'fragment-only'
+    ? new URLSearchParams() : new URLSearchParams(window.location.search);
+  const token_hash = q.get('token_hash') ?? hash.get('token_hash');
+  const type = (q.get('type') ?? hash.get('type')) as 'signup' | 'recovery' | null;
   if (!token_hash || !type) return null;
-  const { error } = await tsb().auth.verifyOtp({ token_hash, type });
+  return { token_hash, type };
+}
+
+/**
+ * WHY A CALLER HAS TO SAY WHERE IT WILL LOOK.
+ *
+ * An adversarial review of this change caught it: there are TWO consumers of
+ * this function, not one. The reset screen spends on a button, which is the
+ * whole point of the change. `Verify()` at /apply/verify still spends on
+ * MOUNT, and reading the query string there would have widened a mount-effect
+ * consumer to accept the very shape the new emails carry -- so a reset link
+ * that ever landed on the wrong route would be spent on arrival, and
+ * afterSignIn would claim an invite or create a draft on the way.
+ *
+ * Nothing emails or navigates to /apply/verify today, which is why it is a
+ * latent gun rather than a live fault, and why narrowing it rather than
+ * rebuilding it is the proportionate answer. The default stays
+ * query-or-fragment for the screen that has a button; `Verify` asks for
+ * fragment-only, which is exactly what it read before any of this.
+ */
+export async function exchangeLinkToken(
+  where: 'query-or-fragment' | 'fragment-only' = 'query-or-fragment',
+): Promise<'signup' | 'recovery' | null> {
+  if (!SUPABASE_ENABLED) return null;
+  const found = linkTokenInUrl(where);
+  if (!found) return null;
+  const { error } = await tsb().auth.verifyOtp(found);
   if (error) throw new Error('That link has expired or has already been used.');
-  return type;
+  return found.type;
 }
 
 export async function setPassword(password: string) {

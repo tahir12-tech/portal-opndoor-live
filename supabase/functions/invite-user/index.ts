@@ -383,13 +383,14 @@ Deno.serve(async (req) => {
        Our own estate is the Agent tab, a supplier is the Supplier tab, and
        Opndoor's own staff sign in beside the agents.
 
-       THE FALLBACK IS THE POINT, and it is the reset's: GoTrue matches
-       redirectTo against the project's Redirect URLs, and an entry without a
-       wildcard stops matching once a query string is on the end. A cosmetic
-       improvement to a tab must not be able to turn into no invite emails,
-       so a rejected redirect degrades to the link we sent yesterday. */
+       AND THE TAB NO LONGER TOUCHES GoTrue AT ALL. It used to ride in
+       `redirectTo`, which GoTrue matches against the project's Redirect URLs
+       -- and an entry without a wildcard stops matching once a query string
+       is appended, so asking for the tab could make generateLink ERROR and
+       send no invite at all. This function carried a whole degraded path for
+       that. Since 2026-10-13 the tab rides in our own URL, which no allowlist
+       governs, so the fallback is gone and so is the risk. */
     const tab = inviteeOnOurEstate || !inviteePartnerId ? "agent" : "supplier";
-    const landing = `${base}/accept-invite?tab=${tab}`;
 
     /* A RE-INVITE NEEDS NO GoTrue LINK NOW. It used to mint a recovery one
        here, which is how a resend came to leave TWO live links: an invite
@@ -406,15 +407,13 @@ Deno.serve(async (req) => {
          which create_invited_user needs. Its action_link is deliberately
          thrown away. The confirmation token it leaves behind is in no email
          and expires on its own. */
-      let { data, error } = await service.auth.admin.generateLink({
-        type: "invite", email, options: { redirectTo: landing, data: { full_name: fullName } },
+      /* NO redirectTo, because nothing follows this link: it exists only to
+         create the account and hand back its id. Passing one meant an
+         allowlist entry could refuse it and fail the whole invite for a
+         redirect nobody was ever going to take. */
+      const { data, error } = await service.auth.admin.generateLink({
+        type: "invite", email, options: { data: { full_name: fullName } },
       });
-      if (error) {
-        const plain = await service.auth.admin.generateLink({
-          type: "invite", email, options: { redirectTo: `${base}/accept-invite`, data: { full_name: fullName } },
-        });
-        data = plain.data; error = plain.error;
-      }
       if (error) return json({ ok: false, error: error.message }, 400);
       targetUserId = data?.user?.id;
       if (targetUserId) {
@@ -476,7 +475,12 @@ Deno.serve(async (req) => {
        record that matters; this is so the Team list can name the sender
        without joining to it. */
     await service.from("staff_invites").update({ sent_by: callerId }).eq("user_id", targetUserId);
-    link = `${base}/accept-invite?token=${inviteToken}`;
+    /* /auth/confirm, AND THE TAB AND TYPE WITH IT. Matt, 2026-10-13: every
+       emailed auth link points at one page of ours. This link already carried
+       our own token rather than a verify URL, so it was already safe against a
+       scanner; what changes is that it now lands on the same page a reset does,
+       which is the page that does nothing until somebody clicks. */
+    link = `${base}/auth/confirm?token=${inviteToken}&type=invite&tab=${tab}`;
 
     /* A RE-INVITE may also be given a position, and that is still a separate
        call because the person already exists and there is nothing to roll

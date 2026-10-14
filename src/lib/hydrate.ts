@@ -216,7 +216,7 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
         // arrive through application_commission_rates() below, for the roles
         // entitled to them, and Postgres refuses the columns to everyone else
         // whatever they ask.
-        'monthly_rent, fee_amount, fee_basis_weeks, ' +
+        'monthly_rent, fee_amount, fee_basis_weeks, fee_basis_unit, ' +
         // The joint-tenancy shape. Every sibling carries the WHOLE tenancy rent
         // in monthly_rent; share_amount is this applicant's slice and fee_amount
         // is what they are actually charged. tenancy_position is the order the
@@ -742,6 +742,11 @@ export async function hydrateFromSupabase(userId: string, _viewerRole: Role = LE
     // row created before M1 (or a mock row) reads exactly as it always did.
     fee: a.fee_amount == null ? num(a.monthly_rent) : num(a.fee_amount),
     feeBasisWeeks: a.fee_basis_weeks == null ? null : Number(a.fee_basis_weeks),
+    /* AND WHICH UNIT THAT QUANTITY IS IN. A band written in months keeps its
+       quantity in fee_basis_weeks, so 1 month arrives as 1 and only this says
+       which. Selected and dropped before, which is why the payment panel could
+       only ever read a basis as weeks. */
+    feeBasisUnit: a.fee_basis_unit === 'months' ? 'months' : 'weeks',
     tenancyId: a.tenancy_id ?? null,
     tenancyPosition: a.tenancy_position == null ? null : Number(a.tenancy_position),
     sharePercent: a.share_percent == null ? null : Number(a.share_percent),
